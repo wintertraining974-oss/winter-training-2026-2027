@@ -190,6 +190,14 @@ select.field { min-width: 110px; cursor: pointer; }
 .profile-reg-meta b { display: block; }
 .profile-reg-meta span { font-size: .75rem; color: var(--text3); }
 .owner-tag { font-size: .65rem; color: var(--accent); font-weight: 700; margin-left: 4px; }
+.waitlist-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: .82rem; color: var(--text2); }
+.waitlist-badge { font-size: .65rem; background: #fef3c7; color: #92400e; border-radius: 4px; padding: 2px 5px; font-weight: 700; }
+.admin-user-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .85rem; flex-wrap: wrap; }
+.admin-user-row .au-name { flex: 1; font-weight: 600; min-width: 140px; }
+.admin-user-row .au-count { font-size: .75rem; color: var(--text3); }
+.export-btn { background: #16a34a; color: white; border: none; border-radius: var(--radius-sm); padding: 7px 14px; font-size: .82rem; font-weight: 600; cursor: pointer; }
+.public-slot { padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 6px; background: var(--bg2); font-size: .85rem; }
+.public-slot b { display: block; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -222,6 +230,27 @@ select.field { min-width: 110px; cursor: pointer; }
     </div>
     <div class="auth-err" id="authErr"></div>
     <button class="btn btn-primary" id="authSubmitBtn" style="width:100%;margin-top:6px" onclick="submitAuth()">Se connecter</button>
+    <div style="text-align:center;margin-top:10px">
+      <a href="#" id="forgotLink" onclick="showForgot();return false;" style="font-size:.78rem;color:var(--accent)">Mot de passe oublié ?</a>
+    </div>
+    <div id="forgotWrap" style="display:none;margin-top:12px">
+      <input class="field" id="forgotEmail" type="email" placeholder="Ton email" style="width:100%;margin-bottom:6px">
+      <button class="btn btn-primary" style="width:100%" onclick="sendReset()">Envoyer le lien de réinitialisation</button>
+      <div class="auth-err" id="forgotMsg" style="margin-top:6px"></div>
+    </div>
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+    <button class="btn" style="width:100%;font-size:.8rem" onclick="openPublicView()">👁 Voir le planning sans se connecter</button>
+  </div>
+</div>
+
+<!-- Vue publique (sans connexion) -->
+<div class="auth-screen" id="publicScreen" style="display:none;align-items:flex-start;padding-top:20px">
+  <div style="width:100%;max-width:700px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn" onclick="closePublicView()">← Retour connexion</button>
+      <h2 style="margin:0;font-size:1rem">🚣 Planning Kayak WT — Vue publique</h2>
+    </div>
+    <div id="publicCalendar"></div>
   </div>
 </div>
 
@@ -296,10 +325,23 @@ select.field { min-width: 110px; cursor: pointer; }
         <div class="closed-list" id="adminClosedList"></div>
       </div>
     </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
+      <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
+    </div>
   </div>
 </div>
 
-<!-- Modal déplacement -->
+<!-- Modal récap utilisateurs admin -->
+<div class="modal-bg" id="adminUsersModal">
+  <div class="modal-box" style="max-width:520px">
+    <h3>👥 Récapitulatif par utilisateur</h3>
+    <div style="max-height:380px;overflow:auto" id="adminUsersBody"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal('adminUsersModal')">Fermer</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="moveModal">
   <div class="modal-box">
     <h3>↔ <span id="mMoveTitle">Déplacer / Move participant</span></h3>
@@ -463,6 +505,7 @@ let S = {
   customClosed:{},    // {"2026-11-15": true/false} false = ouvert forcé
   data:{}, expanded:{}, movePending:null,
   session:null, profile:null, authMode:'login', regPending:null, regCounter:0,
+  waitlist:{}, // { "dateK-slot": [{name,role,user_id,email}] }
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -851,6 +894,14 @@ function renderSlot(dateK,slot){
         <button class="btn btn-sm btn-primary" onclick="openRegister('${dateK}','${slot}')">${t('regBtn')}</button>
       </div>`;
     } else if(st==='full'){
+      const wl=getWaitlist(dateK,slot);
+      const alreadyWaiting = S.session && wl.find(e=>e.user_id===S.session.user.id);
+      h+=`<div class="add-form">
+        <span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span>
+        ${S.session && !alreadyWaiting ? `<button class="btn btn-sm" style="margin-left:8px" onclick="joinWaitlist('${dateK}','${slot}')">⏳ Liste d'attente</button>` : ''}
+        ${alreadyWaiting ? `<span style="font-size:.75rem;color:#92400e;margin-left:8px">⏳ Tu es sur liste d'attente</span>` : ''}
+        ${wl.length ? `<span style="font-size:.72rem;color:var(--text3);margin-left:6px">${wl.length} en attente</span>` : ''}
+      </div>`;
       h+=`<div class="full-msg">${t('fullMsg')}</div>`;
     }
     h+=`</div>`;
@@ -981,6 +1032,7 @@ async function submitRegistration(){
     inserted.forEach(r => getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name }));
     toast(`${participants.length} inscription(s) ajoutée(s) sur ${slot} !`,"success");
     closeModal('registerModal');
+    sendUserConfirmation(participants, dateK, slot); // email de confirmation à l'utilisateur
     renderDayPanel(); renderCal();
   } catch(e){ toast("Erreur lors de l'inscription — réessayez.","error"); }
 }
@@ -994,6 +1046,7 @@ async function removeAthlete(dateK,slot,idx){
     if(a._id) await sbDelete(a._id);
     getSlot(dateK,slot).splice(idx,1);
     toast(`${name} ${t("toastRemoved")}`,"success");
+    checkAndNotifyWaitlist(dateK, slot); // prévenir la liste d'attente
     renderDayPanel(); renderCal();
   } catch(e){ toast("Erreur réseau — réessayez.","error"); }
 }
@@ -1122,6 +1175,149 @@ function toast(msg,type=''){
   el.className='toast show'+(type?` t-${type}`:'');
   clearTimeout(el._t);
   el._t=setTimeout(()=>el.className='toast',2800);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NOUVELLES FONCTIONNALITÉS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── Mot de passe oublié ──────────────────────────────────────────────
+function showForgot(){
+  const w=document.getElementById('forgotWrap');
+  w.style.display = w.style.display==='none'?'block':'none';
+  document.getElementById('forgotLink').textContent = w.style.display==='none'?'Mot de passe oublié ?':'Masquer';
+}
+async function sendReset(){
+  const email=document.getElementById('forgotEmail').value.trim();
+  const msg=document.getElementById('forgotMsg');
+  if(!email){ msg.textContent='Saisis ton email.'; return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if(error){ msg.textContent=error.message; return; }
+  msg.style.color='#15803d';
+  msg.textContent='Email envoyé ! Vérifie ta boîte (et tes spams).';
+}
+
+// ── Vue publique (sans connexion) ────────────────────────────────────
+function openPublicView(){
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('publicScreen').style.display='flex';
+  renderPublicCal();
+}
+function closePublicView(){
+  document.getElementById('publicScreen').style.display='none';
+  document.getElementById('authScreen').style.display='flex';
+}
+function renderPublicCal(){
+  const container=document.getElementById('publicCalendar');
+  const start=new Date(2026,10,2), end=new Date(2027,2,31);
+  let d=new Date(); if(d<start)d=new Date(start);
+  let cards=''; let count=0;
+  while(d<=end && count<14){
+    const dow=d.getDay();
+    if(dow!==0 && dow!==6){ // on exclut week-end par défaut pour la vue publique
+      const label=d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+      cards+=`<div class="public-slot"><b>${label}</b><span style="font-size:.75rem;color:#6b7280">Connecte-toi pour voir et réserver les places disponibles.</span></div>`;
+      count++;
+    }
+    d=new Date(d); d.setDate(d.getDate()+1);
+  }
+  container.innerHTML=`
+    <div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+      <p style="color:#6b7280;font-size:.85rem;margin-bottom:16px">
+        Planning <b>Nov 2026 – Mars 2027</b> — Prochaines séances disponibles.<br>
+        Crée un compte ou connecte-toi pour voir la liste des inscrits et réserver ta place.
+      </p>
+      ${cards||'<p>Aucune séance prochainement.</p>'}
+    </div>`;
+}
+
+// ── Liste d'attente ──────────────────────────────────────────────────
+function wlKey(dateK,slot){ return `${dateK}||${slot}`; }
+function getWaitlist(dateK,slot){ const k=wlKey(dateK,slot); if(!S.waitlist[k])S.waitlist[k]=[]; return S.waitlist[k]; }
+
+async function joinWaitlist(dateK,slot){
+  if(!S.session){ toast("Connecte-toi pour rejoindre la liste d'attente.","error"); return; }
+  const wl=getWaitlist(dateK,slot);
+  if(wl.find(e=>e.user_id===S.session.user.id)){ toast("Tu es déjà sur la liste d'attente.","error"); return; }
+  wl.push({ name:S.profile?.full_name||S.session.user.email, user_id:S.session.user.id, email:S.profile?.email||S.session.user.email });
+  try { await sb.from('waitlist').insert({ date:dateK, creneau:slot, nom:S.profile?.full_name||'', user_id:S.session.user.id }); }
+  catch(e){ /* table optionnelle */ }
+  toast(`⏳ Ajouté(e) à la liste d'attente pour ${slot} !`,"success");
+  renderDayPanel();
+}
+
+async function checkAndNotifyWaitlist(dateK,slot){
+  const wl=getWaitlist(dateK,slot);
+  if(!wl.length) return;
+  const free=cap(slot)-getSlot(dateK,slot).length;
+  if(free<=0) return;
+  const first=wl[0];
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body:JSON.stringify({ type:'WAITLIST', record:{ nom:first.name, email:first.email, date:dateK, creneau:slot } })
+    });
+  } catch(e){}
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────
+function exportCSV(){
+  const rows=[['Date','Créneau','Nom','Rôle','Référent']];
+  Object.keys(S.data).sort().forEach(dateK=>{
+    Object.keys(S.data[dateK]).sort().forEach(slot=>{
+      S.data[dateK][slot].forEach(a=>{
+        rows.push([dateK,slot,a.name,a.role||'',a.referent||'']);
+      });
+    });
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download=`inscriptions-kayak-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Export CSV téléchargé !','success');
+}
+
+// ── Récap admin par utilisateur ──────────────────────────────────────
+function openAdminUsers(){
+  if(!S.isAdmin) return;
+  const counts={}, names={};
+  Object.keys(S.data).forEach(dateK=>{
+    Object.keys(S.data[dateK]).forEach(slot=>{
+      S.data[dateK][slot].forEach(a=>{
+        const uid=a.user_id||'inconnu';
+        counts[uid]=(counts[uid]||0)+1;
+        if(!names[uid]) names[uid]=a.referent||a.name||uid.slice(0,8)+'…';
+      });
+    });
+  });
+  const sorted=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  document.getElementById('adminUsersBody').innerHTML=sorted.length
+    ? sorted.map(uid=>`
+        <div class="admin-user-row">
+          <div class="au-name">${esc(names[uid])}</div>
+          <div class="au-count">${counts[uid]} inscription(s)</div>
+        </div>`).join('')
+    : '<p style="color:var(--text3);font-size:.85rem">Aucune inscription.</p>';
+  document.getElementById('adminUsersModal').classList.add('show');
+}
+
+// ── Confirmation email à l'utilisateur ───────────────────────────────
+async function sendUserConfirmation(participants,dateK,slot){
+  if(!S.session||!S.profile?.email) return;
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        type:'CONFIRM_USER',
+        record:{ email:S.profile.email, nom:S.profile.full_name||S.profile.email, date:dateK, creneau:slot },
+        participants
+      })
+    });
+  } catch(e){}
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
