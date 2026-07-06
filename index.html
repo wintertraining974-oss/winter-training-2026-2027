@@ -544,13 +544,28 @@ select.field { min-width: 110px; cursor: pointer; }
 <!-- Modal inscription (individuelle ou groupe) -->
 <div class="modal-bg" id="registerModal">
   <div class="modal-box" style="max-width:480px">
-    <h3 id="regModalTitle">S'inscrire</h3>
-    <p id="regModalSub" style="margin-bottom:10px"></p>
+    <h3 id="regModalTitle">Register</h3>
+    <p id="regModalSub" style="margin-bottom:6px"></p>
+    <!-- Badge Kayak Cross si applicable -->
+    <div id="regKxBanner" style="display:none;background:#fff7ed;border:1.5px solid #f97316;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+      <b style="color:#f97316">🏄 KAYAK CROSS session</b>
+      <div style="margin-top:8px;font-size:.85rem">
+        <label style="font-weight:600;display:block;margin-bottom:4px">Kayak Cross Rental</label>
+        <div style="display:flex;gap:16px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="kxRental" id="kxRentalYes" value="yes"> <span>Yes, I need a rental kayak</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="kxRental" id="kxRentalNo" value="no" checked> <span>No, I have my own</span>
+          </label>
+        </div>
+      </div>
+    </div>
     <div id="regParticipants"></div>
-    <button class="btn btn-sm" style="margin-bottom:12px" onclick="addParticipantRow()">+ Ajouter une personne</button>
+    <button class="btn btn-sm" style="margin-bottom:12px" onclick="addParticipantRow()">+ Add participant</button>
     <div class="modal-actions">
-      <button class="btn" onclick="closeModal('registerModal')">Annuler</button>
-      <button class="btn btn-primary" onclick="submitRegistration()">S'inscrire</button>
+      <button class="btn" onclick="closeModal('registerModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitRegistration()">Register</button>
     </div>
   </div>
 </div>
@@ -834,7 +849,7 @@ function rowsToData(rows){
   rows.forEach(r => {
     if(!out[r.date]) out[r.date]={};
     if(!out[r.date][r.creneau]) out[r.date][r.creneau]=[];
-    out[r.date][r.creneau].push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name });
+    out[r.date][r.creneau].push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental });
   });
   return out;
 }
@@ -1146,7 +1161,7 @@ function renderSlot(dateK,slot){
         const canEdit = S.isAdmin || mine;
         h+=`<div class="ath-row">
           <span class="ath-num">${i+1}</span>
-          <span class="ath-name">${esc(a.name)}${mine&&!S.isAdmin?'<span class="owner-tag">moi</span>':''}</span>
+          <span class="ath-name">${esc(a.name)}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}${a.rental?'<span style="font-size:.65rem;background:#fed7aa;color:#9a3412;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">🚣 Rental</span>':''}</span>
           <span class="ath-role-badge ${a.role==='Encadrant'?'role-encadrant':'role-athlete'}">${esc(roleDisplay(a.role))}</span>
           <div class="ath-actions">
             ${S.isAdmin?`<button class="ath-btn mv" onclick="openMove('${dateK}','${slot}',${i})">↔</button>`:''}
@@ -1253,18 +1268,22 @@ function toggleSlot(dateK,slot){
 }
 // ── Inscription (individuelle ou groupe avec référent) ──────────────────
 function openRegister(dateK,slot){
-  if(!S.session){ toast('Connecte-toi pour t\'inscrire.','error'); return; }
-  // Vérifier que la date est dans la période de stage de l'utilisateur
+  if(!S.session){ toast('Log in to register.','error'); return; }
   if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
     if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
-      toast(`Inscription possible uniquement du ${S.profile.arrival_date} au ${S.profile.departure_date}.`,'error');
+      toast(`Registration only available from ${S.profile.arrival_date} to ${S.profile.departure_date}.`,'error');
       return;
     }
   }
   S.regPending = { dateK, slot };
   S.regCounter = 0;
-  document.getElementById('regModalTitle').textContent = `S'inscrire — ${slot}`;
-  document.getElementById('regModalSub').textContent = `${dateK} — inscrit(e) en tant que ${S.profile?.full_name||S.session.user.email}`;
+  const kx = isKayakCross(dateK, slot);
+  document.getElementById('regModalTitle').textContent = kx ? `🏄 Register — KAYAK CROSS — ${slot}` : `Register — ${slot}`;
+  document.getElementById('regModalSub').textContent = `${dateK} · ${S.profile?.full_name||S.session.user.email}`;
+  // Afficher/masquer la section rental
+  const kxBanner = document.getElementById('regKxBanner');
+  kxBanner.style.display = kx ? 'block' : 'none';
+  document.getElementById('kxRentalNo').checked = true;
   document.getElementById('regParticipants').innerHTML='';
   addParticipantRow(S.profile?.full_name||'');
   document.getElementById('registerModal').classList.add('show');
@@ -1276,10 +1295,10 @@ function addParticipantRow(prefillName){
   row.className='group-row';
   row.id='row-'+id;
   row.innerHTML = `
-    <input class="field" type="text" id="n-${id}" placeholder="${t('namePH')}" value="${esc(prefillName||'')}">
+    <input class="field" type="text" id="n-${id}" placeholder="Full name" value="${esc(prefillName||'')}">
     <select class="field" id="r-${id}">
-      <option value="Athlète">${t('roleAth')}</option>
-      <option value="Encadrant">${t('roleCoach')}</option>
+      <option value="Athlète">Athlete</option>
+      <option value="Encadrant">Coach</option>
     </select>
     <button class="ath-btn del" onclick="document.getElementById('row-${id}').remove()">✕</button>`;
   wrap.appendChild(row);
@@ -1293,18 +1312,21 @@ async function submitRegistration(){
     const role = r.querySelector('select').value;
     return name ? {name,role} : null;
   }).filter(Boolean);
-  if(!participants.length){ toast(t("toastNoName"),"error"); return; }
+  if(!participants.length){ toast('Please enter at least one name.','error'); return; }
   const free = cap(slot) - getSlot(dateK,slot).length;
-  if(participants.length > free){ toast(`Il ne reste que ${free} place(s) sur ce créneau.`,"error"); return; }
+  if(participants.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
   const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
   const referentName = S.profile?.full_name || S.session.user.email;
+  const kx = isKayakCross(dateK, slot);
+  const rental = kx && document.getElementById('kxRentalYes').checked;
   const payload = participants.map(p => ({
     date: dateK, creneau: slot, nom: p.name, role: p.role,
-    user_id: S.session.user.id, group_id: groupId, referent_name: referentName
+    user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
+    kayak_rental: rental
   }));
   try {
     const inserted = await sbInsertMany(payload);
-    inserted.forEach(r => getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name }));
+    inserted.forEach(r => getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental }));
     toast(`${participants.length} inscription(s) ajoutée(s) sur ${slot} !`,"success");
     closeModal('registerModal');
     sendUserConfirmation(participants, dateK, slot); // email de confirmation à l'utilisateur
