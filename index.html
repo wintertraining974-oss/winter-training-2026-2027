@@ -171,33 +171,23 @@ select.field { min-width: 110px; cursor: pointer; }
   .cal-title { font-size: .9rem; min-width: 160px; }
   .slots-body { padding: 12px; }
 }
-/* ── Auth & profil ─────────────────────────────────────────── */
-.auth-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-.auth-box { background: var(--white); border-radius: var(--radius); padding: 28px; max-width: 380px; width: 100%; box-shadow: var(--shadow); }
-.auth-box h2 { font-size: 1.05rem; margin-bottom: 4px; }
-.auth-box .auth-sub { font-size: .8rem; color: var(--text3); margin-bottom: 18px; }
-.auth-tabs { display: flex; border: 1.5px solid var(--border2); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 18px; }
-.auth-tab { flex: 1; padding: 8px; background: var(--white); border: none; cursor: pointer; font-size: .82rem; font-weight: 600; color: var(--text3); }
-.auth-tab.active { background: var(--accent); color: white; }
-.auth-box .modal-fields { margin-bottom: 8px; }
-.auth-err { font-size: .78rem; color: var(--red); margin-top: 6px; min-height: 1em; }
-.user-pill { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--text2); font-weight: 600; }
-.group-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
-.group-row .field { flex: 1; min-width: 120px; }
-.profile-reg-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .85rem; }
-.profile-reg-item:last-child { border-bottom: none; }
-.profile-reg-meta { flex: 1; }
-.profile-reg-meta b { display: block; }
-.profile-reg-meta span { font-size: .75rem; color: var(--text3); }
-.owner-tag { font-size: .65rem; color: var(--accent); font-weight: 700; margin-left: 4px; }
-.waitlist-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: .82rem; color: var(--text2); }
-.waitlist-badge { font-size: .65rem; background: #fef3c7; color: #92400e; border-radius: 4px; padding: 2px 5px; font-weight: 700; }
-.admin-user-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .85rem; flex-wrap: wrap; }
-.admin-user-row .au-name { flex: 1; font-weight: 600; min-width: 140px; }
-.admin-user-row .au-count { font-size: .75rem; color: var(--text3); }
-.export-btn { background: #16a34a; color: white; border: none; border-radius: var(--radius-sm); padding: 7px 14px; font-size: .82rem; font-weight: 600; cursor: pointer; }
-.public-slot { padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 6px; background: var(--bg2); font-size: .85rem; }
-.public-slot b { display: block; margin-bottom: 4px; }
+/* ── Pending / Blocked screens ─────────────────────────────── */
+.status-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.status-box { background: var(--white); border-radius: var(--radius); padding: 32px; max-width: 420px; width: 100%; box-shadow: var(--shadow); text-align: center; }
+.status-icon { font-size: 3rem; margin-bottom: 12px; }
+.status-box h2 { font-size: 1.1rem; margin-bottom: 8px; }
+.status-box p { font-size: .85rem; color: var(--text3); line-height: 1.6; }
+.pending-badge { display: inline-block; background: #fef3c7; color: #92400e; font-size: .75rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-bottom: 12px; }
+.blocked-badge { display: inline-block; background: #fee2e2; color: #991b1b; font-size: .75rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-bottom: 12px; }
+.request-card { background: var(--bg,#f5f6fa); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; font-size: .82rem; text-align: left; border: 1px solid var(--border); }
+.request-card b { display: block; margin-bottom: 2px; font-size: .88rem; }
+.request-card .rc-meta { color: var(--text3); font-size: .75rem; margin-bottom: 6px; }
+.approve-btn { background: #16a34a; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; margin-right: 4px; }
+.block-btn { background: #dc2626; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.unblock-btn { background: #d97706; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.phone-wrap { display: flex; gap: 6px; }
+.phone-wrap select { width: 110px; flex-shrink: 0; }
+.phone-wrap input { flex: 1; }
 </style>
 </head>
 <body>
@@ -205,32 +195,101 @@ select.field { min-width: 110px; cursor: pointer; }
 
 <!-- Écran de connexion / inscription -->
 <div class="auth-screen" id="authScreen">
-  <div class="auth-box">
+  <div class="auth-box" style="max-width:460px">
     <h2>🚣 Planning Kayak WT</h2>
     <p class="auth-sub">Connecte-toi ou crée un compte pour t'inscrire aux séances.</p>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Connexion</button>
       <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Créer un compte</button>
     </div>
-    <div class="modal-fields" id="signupNameWrap" style="display:none">
-      <div>
-        <label>Nom complet</label>
-        <input class="field" id="authFullName" type="text" placeholder="Prénom Nom" style="width:100%">
+
+    <!-- Champs connexion seulement -->
+    <div id="loginFields">
+      <div class="modal-fields">
+        <div>
+          <label>Email</label>
+          <input class="field" id="authEmail" type="email" placeholder="email@exemple.com" style="width:100%">
+        </div>
+        <div>
+          <label>Mot de passe</label>
+          <input class="field" id="authPassword" type="password" placeholder="••••••••" style="width:100%" onkeydown="if(event.key==='Enter')submitAuth()">
+        </div>
       </div>
     </div>
-    <div class="modal-fields">
-      <div>
-        <label>Email</label>
-        <input class="field" id="authEmail" type="email" placeholder="email@exemple.com" style="width:100%">
-      </div>
-      <div>
-        <label>Mot de passe</label>
-        <input class="field" id="authPassword" type="password" placeholder="••••••••" style="width:100%" onkeydown="if(event.key==='Enter')submitAuth()">
+
+    <!-- Formulaire d'inscription étendu -->
+    <div id="signupFields" style="display:none">
+      <div class="modal-fields">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label>Prénom *</label>
+            <input class="field" id="sfFirstName" type="text" placeholder="Prénom" style="width:100%">
+          </div>
+          <div>
+            <label>Nom *</label>
+            <input class="field" id="sfLastName" type="text" placeholder="Nom" style="width:100%">
+          </div>
+        </div>
+        <div>
+          <label>Email *</label>
+          <input class="field" id="authEmail" type="email" placeholder="email@exemple.com" style="width:100%">
+        </div>
+        <div>
+          <label>Mot de passe *</label>
+          <input class="field" id="authPassword" type="password" placeholder="Minimum 6 caractères" style="width:100%">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label>Date d'arrivée sur site *</label>
+            <input class="field" id="sfArrival" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
+          </div>
+          <div>
+            <label>Date de départ *</label>
+            <input class="field" id="sfDeparture" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
+          </div>
+        </div>
+        <div>
+          <label>Adresse de facturation *</label>
+          <input class="field" id="sfAddress" type="text" placeholder="Rue, ville, code postal, pays" style="width:100%">
+        </div>
+        <div>
+          <label>Nationalité *</label>
+          <input class="field" id="sfNationality" type="text" placeholder="Française, Belge, Suisse..." style="width:100%">
+        </div>
+        <div>
+          <label>Téléphone *</label>
+          <div class="phone-wrap">
+            <select class="field" id="sfPhoneCode">
+              <option value="+262">🇷🇪 +262</option>
+              <option value="+33">🇫🇷 +33</option>
+              <option value="+32">🇧🇪 +32</option>
+              <option value="+41">🇨🇭 +41</option>
+              <option value="+1">🇺🇸 +1</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+49">🇩🇪 +49</option>
+              <option value="+34">🇪🇸 +34</option>
+              <option value="+39">🇮🇹 +39</option>
+              <option value="+351">🇵🇹 +351</option>
+              <option value="+61">🇦🇺 +61</option>
+              <option value="+81">🇯🇵 +81</option>
+              <option value="+86">🇨🇳 +86</option>
+              <option value="+55">🇧🇷 +55</option>
+              <option value="+27">🇿🇦 +27</option>
+              <option value="+212">🇲🇦 +212</option>
+              <option value="+213">🇩🇿 +213</option>
+              <option value="+216">🇹🇳 +216</option>
+              <option value="+230">🇲🇺 +230</option>
+              <option value="+other">Autre</option>
+            </select>
+            <input class="field" id="sfPhone" type="tel" placeholder="Numéro">
+          </div>
+        </div>
       </div>
     </div>
+
     <div class="auth-err" id="authErr"></div>
     <button class="btn btn-primary" id="authSubmitBtn" style="width:100%;margin-top:6px" onclick="submitAuth()">Se connecter</button>
-    <div style="text-align:center;margin-top:10px">
+    <div style="text-align:center;margin-top:10px" id="forgotLinkWrap">
       <a href="#" id="forgotLink" onclick="showForgot();return false;" style="font-size:.78rem;color:var(--accent)">Mot de passe oublié ?</a>
     </div>
     <div id="forgotWrap" style="display:none;margin-top:12px">
@@ -240,6 +299,31 @@ select.field { min-width: 110px; cursor: pointer; }
     </div>
     <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
     <button class="btn" style="width:100%;font-size:.8rem" onclick="openPublicView()">👁 Voir le planning sans se connecter</button>
+  </div>
+</div>
+
+<!-- Écran en attente de validation admin -->
+<div class="status-screen" id="pendingScreen" style="display:none">
+  <div class="status-box">
+    <div class="status-icon">⏳</div>
+    <span class="pending-badge">En attente de validation</span>
+    <h2>Demande envoyée !</h2>
+    <p>Ton inscription a bien été reçue.<br>
+    L'administrateur va vérifier ta demande et t'envoyer un email de confirmation dès que ton accès sera activé.</p>
+    <p style="margin-top:12px;font-size:.78rem">Une question ? Contacte-nous directement.</p>
+    <button class="btn" style="margin-top:16px;width:100%" onclick="logout()">Se déconnecter</button>
+  </div>
+</div>
+
+<!-- Écran compte bloqué -->
+<div class="status-screen" id="blockedScreen" style="display:none">
+  <div class="status-box">
+    <div class="status-icon">🚫</div>
+    <span class="blocked-badge">Accès suspendu</span>
+    <h2>Accès non autorisé</h2>
+    <p>Ton accès au planning a été suspendu.<br>
+    Contacte l'administrateur pour plus d'informations.</p>
+    <button class="btn" style="margin-top:16px;width:100%" onclick="logout()">Se déconnecter</button>
   </div>
 </div>
 
@@ -328,6 +412,7 @@ select.field { min-width: 110px; cursor: pointer; }
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
       <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
       <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
+      <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
     </div>
 
     <!-- Horaires personnalisés par jour -->
@@ -367,6 +452,22 @@ select.field { min-width: 110px; cursor: pointer; }
         <div id="csMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
       </div>
       <div id="customSlotSummary" style="margin-top:10px;font-size:.78rem;color:var(--text3)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal demandes d'accès admin -->
+<div class="modal-bg" id="accessRequestsModal">
+  <div class="modal-box" style="max-width:600px">
+    <h3>🔐 Demandes d'accès</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-sm" id="filterPending" onclick="filterRequests('pending')" style="background:var(--accent);color:white">⏳ En attente</button>
+      <button class="btn btn-sm" id="filterApproved" onclick="filterRequests('approved')">✅ Validés</button>
+      <button class="btn btn-sm" id="filterBlocked" onclick="filterRequests('blocked')">🚫 Bloqués</button>
+    </div>
+    <div style="max-height:420px;overflow:auto" id="accessRequestsList"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal('accessRequestsModal')">Fermer</button>
     </div>
   </div>
 </div>
@@ -578,30 +679,64 @@ function switchAuthTab(mode){
   S.authMode = mode;
   document.getElementById('tabLogin').classList.toggle('active', mode==='login');
   document.getElementById('tabSignup').classList.toggle('active', mode==='signup');
-  document.getElementById('signupNameWrap').style.display = mode==='signup' ? 'block' : 'none';
-  document.getElementById('authSubmitBtn').textContent = mode==='signup' ? 'Créer mon compte' : 'Se connecter';
+  document.getElementById('loginFields').style.display = mode==='login' ? 'block' : 'none';
+  document.getElementById('signupFields').style.display = mode==='signup' ? 'block' : 'none';
+  document.getElementById('forgotLinkWrap').style.display = mode==='login' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = mode==='signup' ? 'Envoyer ma demande d\'accès' : 'Se connecter';
   document.getElementById('authErr').textContent = '';
 }
 
 async function submitAuth(){
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
-  const fullName = document.getElementById('authFullName').value.trim();
   const errEl = document.getElementById('authErr');
   errEl.textContent = '';
   if(!email || !password){ errEl.textContent = 'Email et mot de passe requis.'; return; }
-  if(S.authMode==='signup' && !fullName){ errEl.textContent = 'Indique ton nom complet.'; return; }
 
   if(S.authMode==='signup'){
+    const firstName  = document.getElementById('sfFirstName').value.trim();
+    const lastName   = document.getElementById('sfLastName').value.trim();
+    const arrival    = document.getElementById('sfArrival').value;
+    const departure  = document.getElementById('sfDeparture').value;
+    const address    = document.getElementById('sfAddress').value.trim();
+    const nationality= document.getElementById('sfNationality').value.trim();
+    const phoneCode  = document.getElementById('sfPhoneCode').value;
+    const phoneNum   = document.getElementById('sfPhone').value.trim();
+    const phone      = phoneCode + ' ' + phoneNum;
+
+    if(!firstName||!lastName)  { errEl.textContent='Prénom et nom requis.'; return; }
+    if(!arrival||!departure)   { errEl.textContent='Dates d\'arrivée et de départ requises.'; return; }
+    if(arrival > departure)    { errEl.textContent='La date d\'arrivée doit être avant le départ.'; return; }
+    if(!address)               { errEl.textContent='Adresse de facturation requise.'; return; }
+    if(!nationality)           { errEl.textContent='Nationalité requise.'; return; }
+    if(!phoneNum)              { errEl.textContent='Numéro de téléphone requis.'; return; }
+    if(password.length < 6)    { errEl.textContent='Mot de passe : minimum 6 caractères.'; return; }
+
     const { data, error } = await sb.auth.signUp({
-      email, password, options: { data: { full_name: fullName } }
+      email, password,
+      options: { data: {
+        first_name: firstName, last_name: lastName,
+        full_name: firstName + ' ' + lastName,
+        arrival_date: arrival, departure_date: departure,
+        billing_address: address, nationality, phone
+      }}
     });
     if(error){ errEl.textContent = error.message; return; }
+    // Notifier l'admin de la nouvelle demande
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+        method:'POST',
+        headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+        body:JSON.stringify({ type:'NEW_REQUEST', record:{
+          nom: firstName+' '+lastName, email, arrival, departure, nationality, phone, address
+        }})
+      });
+    } catch(e){}
     if(data.session){
       await onAuthed(data.session);
     } else {
       errEl.style.color='#15803d';
-      errEl.textContent = 'Compte créé ! Vérifie ta boîte mail pour confirmer, puis connecte-toi.';
+      errEl.textContent='Demande envoyée ! Tu recevras un email de confirmation quand ton accès sera validé.';
     }
   } else {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
@@ -613,22 +748,40 @@ async function submitAuth(){
 async function logout(){
   await sb.auth.signOut();
   S.session=null; S.profile=null; S.isAdmin=false;
+  ['pendingScreen','blockedScreen','appHeader','appBody'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display='none';
+  });
   document.getElementById('authScreen').style.display='flex';
-  document.getElementById('appHeader').style.display='none';
-  document.getElementById('appBody').style.display='none';
 }
 
 async function onAuthed(session){
   S.session = session;
   let { data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
   if(!profile){
-    // sécurité : si le trigger n'a pas encore créé le profil, on retente une fois
     await new Promise(r=>setTimeout(r,800));
     ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle());
   }
   S.profile = profile;
   S.isAdmin = !!(profile && profile.is_admin);
-  document.getElementById('authScreen').style.display='none';
+
+  // Masquer tous les écrans
+  ['authScreen','pendingScreen','blockedScreen'].forEach(id=>{
+    document.getElementById(id).style.display='none';
+  });
+
+  // Compte bloqué
+  if(profile?.blocked && !S.isAdmin){
+    document.getElementById('blockedScreen').style.display='flex';
+    return;
+  }
+  // En attente de validation
+  if(!profile?.approved && !S.isAdmin){
+    document.getElementById('pendingScreen').style.display='flex';
+    return;
+  }
+
+  // Accès autorisé
   document.getElementById('appHeader').style.display='flex';
   document.getElementById('appBody').style.display='block';
   document.getElementById('userPill').style.display='inline-flex';
@@ -638,7 +791,12 @@ async function onAuthed(session){
   document.getElementById('adminPill').style.display = S.isAdmin ? 'inline' : 'none';
   await load();
   await loadConfig();
-  let d = S.selectedDate || S.currentDate;
+  let d = new Date(2026,6,6);
+  // Si l'utilisateur a une période de stage, naviguer vers son arrivée
+  if(profile?.arrival_date && !S.isAdmin){
+    const arr = new Date(profile.arrival_date+'T12:00:00');
+    if(arr >= START && arr <= END) d = arr;
+  }
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
   S.selectedDate=d; S.currentDate=d;
   S.expanded[`${dk(d)}-${S.morningOrder[0]}`]=true;
@@ -1060,6 +1218,13 @@ function toggleSlot(dateK,slot){
 // ── Inscription (individuelle ou groupe avec référent) ──────────────────
 function openRegister(dateK,slot){
   if(!S.session){ toast('Connecte-toi pour t\'inscrire.','error'); return; }
+  // Vérifier que la date est dans la période de stage de l'utilisateur
+  if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
+    if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
+      toast(`Inscription possible uniquement du ${S.profile.arrival_date} au ${S.profile.departure_date}.`,'error');
+      return;
+    }
+  }
   S.regPending = { dateK, slot };
   S.regCounter = 0;
   document.getElementById('regModalTitle').textContent = `S'inscrire — ${slot}`;
@@ -1473,6 +1638,85 @@ async function changePassword(){
   document.getElementById('newPassword').value = '';
   document.getElementById('confirmPassword').value = '';
 }
+
+// ── Gestion des accès (admin) ────────────────────────────────────────
+let _requestFilter = 'pending';
+let _allProfiles = [];
+
+async function openAccessRequests(){
+  if(!S.isAdmin) return;
+  const { data } = await sb.from('profiles').select('*').eq('is_admin', false).order('created_at', { ascending: false });
+  _allProfiles = data || [];
+  filterRequests('pending');
+  document.getElementById('accessRequestsModal').classList.add('show');
+  const pending = _allProfiles.filter(p=>!p.approved&&!p.blocked).length;
+  const badge = document.getElementById('pendingBadge');
+  if(badge){ badge.style.display = pending ? 'inline' : 'none'; badge.textContent = pending; }
+}
+
+function filterRequests(filter){
+  _requestFilter = filter;
+  ['pending','approved','blocked'].forEach(f=>{
+    const btn = document.getElementById('filter'+f.charAt(0).toUpperCase()+f.slice(1));
+    if(btn){ btn.style.background = f===filter ? 'var(--accent)' : ''; btn.style.color = f===filter ? 'white' : ''; }
+  });
+  let list = _allProfiles;
+  if(filter==='pending')  list = list.filter(p=>!p.approved&&!p.blocked);
+  if(filter==='approved') list = list.filter(p=>p.approved&&!p.blocked);
+  if(filter==='blocked')  list = list.filter(p=>p.blocked);
+  const el = document.getElementById('accessRequestsList');
+  if(!list.length){ el.innerHTML=`<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aucun utilisateur dans cette catégorie.</p>`; return; }
+  el.innerHTML = list.map(p=>`
+    <div class="request-card">
+      <b>${esc(p.full_name||p.email)}</b>
+      <div class="rc-meta">📧 ${esc(p.email)} · 📞 ${esc(p.phone||'—')} · 🌍 ${esc(p.nationality||'—')}</div>
+      <div class="rc-meta">📅 Stage : ${p.arrival_date||'?'} → ${p.departure_date||'?'}</div>
+      <div class="rc-meta">🏠 ${esc(p.billing_address||'—')}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${!p.approved&&!p.blocked ? `<button class="approve-btn" onclick="approveUser('${p.id}','${esc(p.full_name||'')}','${esc(p.email)}','${p.arrival_date||''}','${p.departure_date||''}')">✅ Valider l'accès</button>` : ''}
+        ${p.approved&&!p.blocked  ? `<span style="font-size:.75rem;color:#16a34a;font-weight:700">✅ Accès actif</span>` : ''}
+        ${!p.blocked ? `<button class="block-btn" onclick="blockUser('${p.id}')">🚫 Bloquer</button>` : ''}
+        ${p.blocked  ? `<button class="unblock-btn" onclick="unblockUser('${p.id}')">🔓 Débloquer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function approveUser(userId, name, email, arrival, departure){
+  const { error } = await sb.from('profiles').update({ approved: true, blocked: false }).eq('id', userId);
+  if(error){ toast('Erreur lors de la validation.','error'); return; }
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'APPROVED', record:{ email, nom:name, arrival_date:arrival, departure_date:departure }})
+    });
+  } catch(e){}
+  toast(`✅ Accès validé pour ${name}`,'success');
+  await openAccessRequests();
+}
+
+async function blockUser(userId){
+  const { error } = await sb.from('profiles').update({ blocked: true }).eq('id', userId);
+  if(error){ toast('Erreur.','error'); return; }
+  toast('Utilisateur bloqué.','success');
+  await openAccessRequests();
+}
+
+async function unblockUser(userId){
+  const { error } = await sb.from('profiles').update({ blocked: false }).eq('id', userId);
+  if(error){ toast('Erreur.','error'); return; }
+  toast('Utilisateur débloqué.','success');
+  await openAccessRequests();
+}
+
+async function refreshPendingBadge(){
+  if(!S.isAdmin) return;
+  const { data } = await sb.from('profiles').select('id').eq('approved',false).eq('blocked',false).eq('is_admin',false);
+  const count = data?.length||0;
+  const badge = document.getElementById('pendingBadge');
+  if(badge){ badge.style.display = count ? 'inline' : 'none'; badge.textContent = count; }
+}
+
 function openAdminUsers(){
   if(!S.isAdmin) return;
   const counts={}, names={};
