@@ -329,6 +329,45 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
       <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
     </div>
+
+    <!-- Horaires personnalisés par jour -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4>🕐 Horaires personnalisés par date</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
+        Définis des créneaux spécifiques pour un jour précis. Laisse vide = horaires par défaut.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <input type="date" class="field" id="customSlotDate" style="width:160px"
+          min="2026-07-06" max="2027-03-31">
+        <button class="btn btn-sm btn-primary" onclick="loadCustomSlotEditor()">Modifier les horaires</button>
+      </div>
+      <div id="customSlotEditor" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+          <div>
+            <b style="font-size:.8rem;display:block;margin-bottom:6px">🌅 Matin</b>
+            <div id="csMorningList"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <input class="field" id="csMorningNew" placeholder="ex: 7h30-8h30" style="flex:1;font-size:.78rem">
+              <button class="btn btn-sm" onclick="addCustomSlot('morning')">+ Ajouter</button>
+            </div>
+          </div>
+          <div>
+            <b style="font-size:.8rem;display:block;margin-bottom:6px">🌇 Après-midi</b>
+            <div id="csAfternoonList"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <input class="field" id="csAfternoonNew" placeholder="ex: 16h30-17h30" style="flex:1;font-size:.78rem">
+              <button class="btn btn-sm" onclick="addCustomSlot('afternoon')">+ Ajouter</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" onclick="saveCustomSlots()">💾 Enregistrer ces horaires</button>
+          <button class="btn btn-sm" style="color:var(--red)" onclick="resetCustomSlots()">🗑 Supprimer (revenir aux horaires par défaut)</button>
+        </div>
+        <div id="csMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+      </div>
+      <div id="customSlotSummary" style="margin-top:10px;font-size:.78rem;color:var(--text3)"></div>
+    </div>
   </div>
 </div>
 
@@ -368,7 +407,23 @@ select.field { min-width: 110px; cursor: pointer; }
   <div class="modal-box" style="max-width:520px">
     <h3>👤 Mon profil</h3>
     <p id="profileEmailLine" style="margin-bottom:10px"></p>
-    <div style="max-height:340px;overflow:auto" id="profileRegList"></div>
+    <div style="max-height:240px;overflow:auto" id="profileRegList"></div>
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+    <div>
+      <h4 style="margin-bottom:10px;font-size:.9rem">🔒 Changer mon mot de passe</h4>
+      <div class="modal-fields">
+        <div>
+          <label>Nouveau mot de passe</label>
+          <input class="field" id="newPassword" type="password" placeholder="Nouveau mot de passe (min. 6 car.)" style="width:100%">
+        </div>
+        <div>
+          <label>Confirmer</label>
+          <input class="field" id="confirmPassword" type="password" placeholder="Répète le mot de passe" style="width:100%">
+        </div>
+      </div>
+      <div class="auth-err" id="pwdChangeErr" style="min-height:1em"></div>
+      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Mettre à jour le mot de passe</button>
+    </div>
     <div class="modal-actions" style="margin-top:14px">
       <button class="btn" onclick="closeModal('profileModal')">Fermer</button>
     </div>
@@ -492,20 +547,21 @@ function toggleLang(){ LANG = LANG==='fr'?'en':'fr'; applyI18n(); render(); }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIG
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const START = new Date(2026,10,1);
-const END   = new Date(2027,2,1);
+const START = new Date(2026,6,6);   // 6 juillet 2026
+const END   = new Date(2027,2,31);  // 31 mars 2027
 
 let S = {
-  view:'week', currentDate:new Date(2026,10,2), selectedDate:null,
+  view:'week', currentDate:new Date(2026,6,6), selectedDate:null,
   isAdmin:false, priorityOn:true,
   morningOrder:['9h-10h','10h-11h','11h-12h'],
   afternoonOrder:['15h-16h','14h-15h','13h-14h'],
   capacity:{'9h-10h':15,'10h-11h':15,'11h-12h':15,'15h-16h':15,'14h-15h':15,'13h-14h':15},
-  closedDow:{},       // {0:true, 6:true} = dim et sam fermés. Vide = tout ouvert
-  customClosed:{},    // {"2026-11-15": true/false} false = ouvert forcé
+  closedDow:{},
+  customClosed:{},
+  customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   data:{}, expanded:{}, movePending:null,
   session:null, profile:null, authMode:'login', regPending:null, regCounter:0,
-  waitlist:{}, // { "dateK-slot": [{name,role,user_id,email}] }
+  waitlist:{},
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -628,7 +684,8 @@ async function saveConfig() {
     capacity:       S.capacity,
     morningOrder:   S.morningOrder,
     afternoonOrder: S.afternoonOrder,
-    priorityOn:     S.priorityOn
+    priorityOn:     S.priorityOn,
+    customSlots:    S.customSlots,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -645,6 +702,7 @@ async function loadConfig() {
   if (cfg.morningOrder   !== undefined) S.morningOrder   = cfg.morningOrder;
   if (cfg.afternoonOrder !== undefined) S.afternoonOrder = cfg.afternoonOrder;
   if (cfg.priorityOn     !== undefined) S.priorityOn     = cfg.priorityOn;
+  if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -696,7 +754,22 @@ function closedLabel(d){
   if(S.closedDow[d.getDay()])  return t('closed');
   return '';
 }
-function allSlots(){ return [...S.morningOrder,...S.afternoonOrder]; }
+function allSlots(dateK){
+  // Si l'admin a défini des créneaux custom pour cette date, on les utilise
+  if(dateK && S.customSlots && S.customSlots[dateK]){
+    const cs = S.customSlots[dateK];
+    return [...(cs.morning||[]), ...(cs.afternoon||[])];
+  }
+  return [...S.morningOrder,...S.afternoonOrder];
+}
+function morningSlots(dateK){
+  if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].morning||[];
+  return S.morningOrder;
+}
+function afternoonSlots(dateK){
+  if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].afternoon||[];
+  return S.afternoonOrder;
+}
 function getSlot(dateK,slot){
   if(!S.data[dateK]) S.data[dateK]={};
   if(!S.data[dateK][slot]) S.data[dateK][slot]=[];
@@ -705,7 +778,7 @@ function getSlot(dateK,slot){
 function cap(slot){ return S.capacity[slot]||15; }
 function isLocked(dateK,slot){
   if(!S.priorityOn||S.isAdmin) return false;
-  for(const g of [S.morningOrder,S.afternoonOrder]){
+  for(const g of [morningSlots(dateK),afternoonSlots(dateK)]){
     const idx=g.indexOf(slot); if(idx<0) continue;
     for(let i=0;i<idx;i++) if(getSlot(dateK,g[i]).length<cap(g[i])) return true;
     return false;
@@ -720,7 +793,7 @@ function slotStatus(dateK,slot){
 function dayStatus(d){
   if(isClosed(d)||outOfRange(d)) return null;
   const k=dk(d); let total=0,totalCap=0;
-  allSlots().forEach(s=>{ total+=getSlot(k,s).length; totalCap+=cap(s); });
+  allSlots(k).forEach(s=>{ total+=getSlot(k,s).length; totalCap+=cap(s); });
   if(total===0) return 'green'; if(total/totalCap>=0.65) return 'red'; return 'orange';
 }
 function weekStart(d){
@@ -790,7 +863,7 @@ function renderWeek(){
       h+=`<div class="wk-closed-label">${lbl||t('closed')}</div>`;
     } else {
       h+=`<div class="wk-section">${t('morning')}</div>`;
-      S.morningOrder.forEach(slot=>{
+      morningSlots(k).forEach(slot=>{
         const aths=getSlot(k,slot),c=cap(slot),pct=Math.min(1,aths.length/c);
         const locked=isLocked(k,slot)&&!S.isAdmin;
         const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
@@ -801,7 +874,7 @@ function renderWeek(){
         </div>`;
       });
       h+=`<div class="wk-section" style="border-top:1px solid var(--border)">${t('afternoon')}</div>`;
-      S.afternoonOrder.forEach(slot=>{
+      afternoonSlots(k).forEach(slot=>{
         const aths=getSlot(k,slot),c=cap(slot),pct=Math.min(1,aths.length/c);
         const locked=isLocked(k,slot)&&!S.isAdmin;
         const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
@@ -841,9 +914,9 @@ function renderDayPanel(){
   } else {
     h+=`<div class="slots-body">
       <div class="slot-group"><div class="slot-group-title">🌅 ${t('morning')}</div>`;
-    S.morningOrder.forEach(slot=>h+=renderSlot(k,slot));
+    morningSlots(k).forEach(slot=>h+=renderSlot(k,slot));
     h+=`</div><div class="slot-group"><div class="slot-group-title">🌇 ${t('afternoon')}</div>`;
-    S.afternoonOrder.forEach(slot=>h+=renderSlot(k,slot));
+    afternoonSlots(k).forEach(slot=>h+=renderSlot(k,slot));
     h+=`</div></div>`;
   }
   h+='</div>'; el.innerHTML=h;
@@ -856,7 +929,7 @@ function renderSlot(dateK,slot){
   const bCls={open:'sb-open',mid:'sb-mid',full:'sb-full',locked:'sb-locked'};
   let prevSlot='';
   if(st==='locked'){
-    const g=S.morningOrder.includes(slot)?S.morningOrder:S.afternoonOrder;
+    const g=morningSlots(dateK).includes(slot)?morningSlots(dateK):afternoonSlots(dateK);
     const idx=g.indexOf(slot); if(idx>0) prevSlot=g[idx-1];
   }
   let h=`<div class="slot-card s-${st}">
@@ -958,6 +1031,7 @@ function renderAdmin(){
   document.getElementById('adminClosedList').textContent=keys.length
     ?t('adminClosedPfx')+keys.join(', ')
     :t('adminNoneClosed');
+  renderCustomSlotSummary();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1280,7 +1354,125 @@ function exportCSV(){
   toast('Export CSV téléchargé !','success');
 }
 
-// ── Récap admin par utilisateur ──────────────────────────────────────
+// ── Horaires personnalisés par date ──────────────────────────────────
+let _csDate = null;
+let _csTmp = { morning:[], afternoon:[] };
+
+function loadCustomSlotEditor(){
+  const dateEl = document.getElementById('customSlotDate');
+  const dateK = dateEl.value;
+  if(!dateK){ alert('Sélectionne une date.'); return; }
+  _csDate = dateK;
+  // Charger les créneaux existants (custom ou défaut)
+  const existing = S.customSlots[dateK];
+  _csTmp = {
+    morning:   [...(existing ? existing.morning   : S.morningOrder)],
+    afternoon: [...(existing ? existing.afternoon : S.afternoonOrder)],
+  };
+  renderCustomSlotEditor();
+  document.getElementById('customSlotEditor').style.display = 'block';
+  document.getElementById('csMsg').textContent = '';
+}
+
+function renderCustomSlotEditor(){
+  ['morning','afternoon'].forEach(period=>{
+    const list = document.getElementById(period==='morning'?'csMorningList':'csAfternoonList');
+    list.innerHTML = _csTmp[period].map((slot,i)=>`
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="flex:1;font-size:.82rem;background:var(--bg2,#f5f6fa);padding:4px 8px;border-radius:6px">${esc(slot)}</span>
+        ${i>0?`<button class="ath-btn mv" onclick="moveCustomSlot('${period}',${i},-1)">↑</button>`:'<span style="width:22px"></span>'}
+        ${i<_csTmp[period].length-1?`<button class="ath-btn mv" onclick="moveCustomSlot('${period}',${i},1)">↓</button>`:'<span style="width:22px"></span>'}
+        <button class="ath-btn del" onclick="removeCustomSlot('${period}',${i})">✕</button>
+      </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau — ajoutes-en ci-dessous.</p>`;
+  });
+}
+
+function addCustomSlot(period){
+  const inputId = period==='morning'?'csMorningNew':'csAfternoonNew';
+  const val = document.getElementById(inputId).value.trim();
+  if(!val){ return; }
+  _csTmp[period].push(val);
+  document.getElementById(inputId).value = '';
+  renderCustomSlotEditor();
+}
+
+function removeCustomSlot(period,idx){
+  _csTmp[period].splice(idx,1);
+  renderCustomSlotEditor();
+}
+
+function moveCustomSlot(period,idx,dir){
+  const arr = _csTmp[period];
+  const newIdx = idx+dir;
+  if(newIdx<0||newIdx>=arr.length) return;
+  [arr[idx],arr[newIdx]]=[arr[newIdx],arr[idx]];
+  renderCustomSlotEditor();
+}
+
+async function saveCustomSlots(){
+  if(!_csDate) return;
+  if(!S.customSlots) S.customSlots={};
+  if(_csTmp.morning.length===0 && _csTmp.afternoon.length===0){
+    delete S.customSlots[_csDate];
+  } else {
+    S.customSlots[_csDate] = { morning:[..._csTmp.morning], afternoon:[..._csTmp.afternoon] };
+  }
+  await saveConfig();
+  document.getElementById('csMsg').style.color='#16a34a';
+  document.getElementById('csMsg').textContent = `✅ Horaires enregistrés pour le ${_csDate}`;
+  renderCustomSlotSummary();
+  render();
+}
+
+async function resetCustomSlots(){
+  if(!_csDate) return;
+  if(S.customSlots) delete S.customSlots[_csDate];
+  _csTmp = { morning:[...S.morningOrder], afternoon:[...S.afternoonOrder] };
+  renderCustomSlotEditor();
+  await saveConfig();
+  document.getElementById('csMsg').style.color='#6b7280';
+  document.getElementById('csMsg').textContent = `Horaires remis par défaut pour le ${_csDate}`;
+  renderCustomSlotSummary();
+  render();
+}
+
+function renderCustomSlotSummary(){
+  const el = document.getElementById('customSlotSummary');
+  if(!el) return;
+  const keys = Object.keys(S.customSlots||{}).sort();
+  if(!keys.length){ el.textContent = 'Aucun horaire personnalisé défini.'; return; }
+  el.innerHTML = '<b>Dates avec horaires personnalisés :</b> ' +
+    keys.map(k=>{
+      const cs=S.customSlots[k];
+      return `<span style="margin-right:8px">${k} (${(cs.morning||[]).length} mat. / ${(cs.afternoon||[]).length} ap-m.)
+        <button class="ath-btn del" style="font-size:.65rem;padding:1px 5px" onclick="quickResetDate('${k}')">✕</button></span>`;
+    }).join('');
+}
+
+async function quickResetDate(dateK){
+  if(!confirm(`Supprimer les horaires personnalisés du ${dateK} ?`)) return;
+  delete S.customSlots[dateK];
+  await saveConfig();
+  renderCustomSlotSummary();
+  render();
+}
+
+// ── Changement de mot de passe ───────────────────────────────────────
+async function changePassword(){
+  const pwd = document.getElementById('newPassword').value;
+  const conf = document.getElementById('confirmPassword').value;
+  const err = document.getElementById('pwdChangeErr');
+  err.style.color = 'var(--red)';
+  err.textContent = '';
+  if(!pwd || pwd.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; return; }
+  if(pwd !== conf){ err.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+  const { error } = await sb.auth.updateUser({ password: pwd });
+  if(error){ err.textContent = error.message; return; }
+  err.style.color = '#15803d';
+  err.textContent = '✅ Mot de passe mis à jour avec succès !';
+  document.getElementById('newPassword').value = '';
+  document.getElementById('confirmPassword').value = '';
+}
 function openAdminUsers(){
   if(!S.isAdmin) return;
   const counts={}, names={};
