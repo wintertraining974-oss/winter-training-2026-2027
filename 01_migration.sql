@@ -1,99 +1,1964 @@
--- ════════════════════════════════════════════════════════════════
--- MIGRATION : comptes, profils, permissions
--- À COLLER ENTIÈREMENT dans Supabase → SQL Editor → New query → Run
--- ════════════════════════════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planning Kayak WT</title>
+<style>
+:root {
+  --bg: #f5f6fa; --white: #ffffff; --surface: #ffffff; --surface2: #f0f2f8;
+  --accent: #1a56db; --accent-light: #e8effe; --accent2: #0ea5e9;
+  --green: #16a34a; --green-light: #dcfce7; --orange: #d97706; --orange-light: #fef3c7;
+  --red: #dc2626; --red-light: #fee2e2; --gray: #6b7280;
+  --border: #e5e7eb; --border2: #d1d5db; --text: #111827; --text2: #374151; --text3: #6b7280;
+  --radius: 14px; --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+body { background: var(--bg); color: var(--text); min-height: 100vh; }
+header { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 50; box-shadow: var(--shadow-sm); }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; flex-shrink: 0; }
+.brand-text h1 { font-size: .95rem; font-weight: 700; }
+.brand-text p { font-size: .72rem; color: var(--text3); }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.admin-pill { background: var(--accent); color: white; font-size: .72rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; display: none; }
+.btn { border: 1.5px solid var(--border2); background: var(--white); color: var(--text2); padding: 7px 14px; border-radius: var(--radius-sm); font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+.btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+.btn-primary:hover { background: #1447bf; border-color: #1447bf; color: white; }
+.btn-sm { padding: 5px 10px; font-size: .78rem; }
+.btn-wa { background: #25d366; border-color: #25d366; color: white; }
+.btn-wa:hover { background: #1ebe5c; border-color: #1ebe5c; color: white; }
+.btn-lang { font-size: .78rem; padding: 5px 10px; min-width: 42px; font-weight: 700; }
+.app-body { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+.cal-nav-center { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cal-title { font-size: 1.1rem; font-weight: 700; min-width: 220px; text-align: center; }
+.view-toggle { display: flex; border: 1.5px solid var(--border2); border-radius: var(--radius-sm); overflow: hidden; }
+.view-btn { padding: 6px 14px; background: var(--white); border: none; color: var(--text3); cursor: pointer; font-size: .8rem; font-weight: 600; transition: all .15s; }
+.view-btn.active { background: var(--accent); color: white; }
+.nav-btn { background: var(--white); border: 1.5px solid var(--border2); color: var(--text2); padding: 7px 16px; border-radius: var(--radius-sm); font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+.nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow-sm); }
+.cal-head { text-align: center; font-size: .7rem; font-weight: 700; color: var(--text3); padding: 6px 2px 10px; text-transform: uppercase; letter-spacing: .5px; }
+.cal-cell { min-height: 56px; border-radius: var(--radius-sm); border: 1.5px solid transparent; display: flex; flex-direction: column; align-items: center; padding: 6px 4px; cursor: pointer; transition: all .12s; position: relative; gap: 2px; }
+.cal-cell:hover:not(.cc-closed):not(.cc-empty) { background: var(--accent-light); border-color: var(--accent); }
+.cal-cell.cc-selected { background: var(--accent-light); border-color: var(--accent); }
+.cal-cell.cc-closed { background: #f9fafb; opacity: .55; cursor: not-allowed; }
+.cal-cell.cc-empty { cursor: default; }
+.cc-num { font-size: .85rem; font-weight: 700; }
+.cc-tag { font-size: .55rem; color: var(--text3); text-align: center; line-height: 1.2; max-width: 100%; word-break: break-word; }
+.cc-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.cc-dot.d-green { background: var(--green); }
+.cc-dot.d-orange { background: var(--orange); }
+.cc-dot.d-red { background: var(--red); }
+.week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.wk-col { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); transition: border-color .12s; cursor: pointer; }
+.wk-col:hover:not(.wk-closed) { border-color: var(--accent); }
+.wk-col.wk-selected { border-color: var(--accent); box-shadow: 0 0 0 3px #1a56db22; }
+.wk-col.wk-closed { opacity: .45; cursor: not-allowed; }
+.wk-head { padding: 10px 6px; border-bottom: 1px solid var(--border); text-align: center; }
+.wk-dayname { font-size: .65rem; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; }
+.wk-daynum { font-size: 1rem; font-weight: 700; }
+.wk-closed-lbl { font-size: .58rem; color: var(--red); margin-top: 2px; }
+.wk-section { font-size: .6rem; font-weight: 700; color: var(--text3); text-align: center; padding: 4px; background: var(--bg); text-transform: uppercase; letter-spacing: .5px; }
+.wk-slot { padding: 5px 6px; border-bottom: 1px solid var(--border); }
+.wk-slot-time { font-size: .65rem; font-weight: 700; }
+.wk-slot-count { font-size: .6rem; color: var(--text3); }
+.wk-bar { height: 3px; border-radius: 2px; margin-top: 3px; }
+.wk-slot.wk-locked { opacity: .4; }
+.wk-closed-label { padding: 12px 6px; font-size: .62rem; color: var(--text3); text-align: center; }
+.day-panel { margin-top: 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.dp-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.dp-title { font-size: 1rem; font-weight: 700; }
+.dp-subtitle { font-size: .78rem; color: var(--text3); margin-top: 2px; }
+.dp-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.slots-body { padding: 16px 20px; }
+.slot-group-title { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text3); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.slot-group { margin-bottom: 20px; }
+.slot-card { border: 1.5px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; overflow: hidden; transition: border-color .12s; }
+.slot-card.s-open { border-color: #86efac; background: #f0fdf4; }
+.slot-card.s-mid { border-color: #fcd34d; background: #fffbeb; }
+.slot-card.s-full { border-color: #fca5a5; background: #fef2f2; }
+.slot-card.s-locked { border-color: var(--border); background: #f9fafb; opacity: .7; }
+.slot-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; }
+.slot-time { font-weight: 700; font-size: .88rem; min-width: 80px; }
+.slot-count-text { font-size: .78rem; color: var(--text3); flex: 1; }
+.slot-progress { width: 70px; height: 5px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+.slot-progress-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+.s-open .slot-progress-fill { background: var(--green); }
+.s-mid .slot-progress-fill { background: var(--orange); }
+.s-full .slot-progress-fill { background: var(--red); }
+.s-locked .slot-progress-fill { background: var(--text3); }
+.slot-badge { font-size: .67rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.sb-open { background: var(--green-light); color: #15803d; }
+.sb-mid { background: var(--orange-light); color: #92400e; }
+.sb-full { background: var(--red-light); color: #991b1b; }
+.sb-locked { background: var(--surface2); color: var(--text3); }
+.slot-chevron { color: var(--text3); font-size: .75rem; transition: transform .15s; }
+.slot-chevron.open { transform: rotate(180deg); }
+.locked-msg { padding: 0 14px 8px; font-size: .74rem; color: var(--text3); font-style: italic; }
+.slot-body { padding: 0 14px 12px; }
+.athletes-list { margin-bottom: 8px; }
+.ath-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: .84rem; }
+.ath-row:last-child { border-bottom: none; }
+.ath-num { font-size: .7rem; color: var(--text3); min-width: 18px; }
+.ath-name { flex: 1; font-weight: 500; }
+.ath-role-badge { font-size: .67rem; padding: 1px 7px; border-radius: 20px; font-weight: 600; }
+.role-athlete { background: #e0f2fe; color: #0369a1; }
+.role-encadrant { background: #f3e8ff; color: #7c3aed; }
+.ath-actions { display: flex; gap: 3px; }
+.ath-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: .78rem; width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all .12s; }
+.ath-btn:hover { background: var(--surface2); }
+.ath-btn.del:hover { color: var(--red); background: var(--red-light); }
+.ath-btn.mv:hover { color: var(--accent); background: var(--accent-light); }
+.empty-slot { padding: 6px 0; font-size: .8rem; color: var(--text3); font-style: italic; }
+.add-form { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+input.field, select.field { border: 1.5px solid var(--border2); border-radius: var(--radius-sm); padding: 6px 10px; font-size: .82rem; color: var(--text); background: var(--white); outline: none; transition: border-color .12s; }
+input.field:focus, select.field:focus { border-color: var(--accent); }
+input.field { flex: 1; min-width: 140px; }
+select.field { min-width: 110px; cursor: pointer; }
+.full-msg { text-align: center; padding: 6px; font-size: .78rem; color: var(--red); font-weight: 600; }
+.admin-section { margin-top: 20px; background: var(--white); border: 1.5px solid #bfdbfe; border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); }
+.admin-section h3 { font-size: .88rem; font-weight: 700; color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media(max-width:640px){ .admin-grid { grid-template-columns: 1fr; } }
+.admin-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+.admin-card h4 { font-size: .72rem; text-transform: uppercase; letter-spacing: .6px; color: var(--text3); margin-bottom: 12px; font-weight: 700; }
+.toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: .85rem; }
+.toggle-wrap { width: 40px; height: 22px; background: var(--border2); border-radius: 11px; cursor: pointer; position: relative; transition: background .15s; flex-shrink: 0; }
+.toggle-wrap.on { background: var(--accent); }
+.toggle-wrap::after { content:''; position: absolute; width: 16px; height: 16px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: left .15s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.toggle-wrap.on::after { left: 21px; }
+.prio-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: .84rem; }
+.prio-row:last-child { border-bottom: none; }
+.prio-label { flex: 1; }
+.prio-btns { display: flex; gap: 3px; }
+.prio-btn { width: 26px; height: 26px; border: 1px solid var(--border2); background: var(--white); border-radius: 4px; cursor: pointer; font-size: .75rem; display: flex; align-items: center; justify-content: center; color: var(--text2); transition: all .12s; }
+.prio-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cap-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: .84rem; }
+.cap-row:last-child { border-bottom: none; }
+.cap-input { width: 56px; border: 1px solid var(--border2); border-radius: 4px; padding: 3px 6px; font-size: .82rem; text-align: center; background: var(--white); }
+.close-date-wrap { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.closed-list { font-size: .75rem; color: var(--text3); margin-top: 6px; }
+.dow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
+.dow-btn { padding: 6px 3px; border: 1.5px solid var(--border2); border-radius: 6px; font-size: .7rem; font-weight: 600; cursor: pointer; text-align: center; background: var(--white); color: var(--text2); transition: all .12s; line-height: 1.4; }
+.dow-btn.dow-open { background: var(--green-light); border-color: var(--green); color: #15803d; }
+.dow-btn.dow-closed { background: var(--red-light); border-color: var(--red); color: #991b1b; }
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 200; align-items: center; justify-content: center; }
+.modal-bg.show { display: flex; }
+.modal-box { background: var(--white); border-radius: var(--radius); padding: 24px; max-width: 420px; width: 92%; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.modal-box h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+.modal-box p { font-size: .83rem; color: var(--text3); margin-bottom: 16px; }
+.modal-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.modal-fields label { font-size: .78rem; color: var(--text3); margin-bottom: 3px; display: block; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.err-msg { font-size: .78rem; color: var(--red); margin-top: 6px; display: none; }
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: white; border-radius: var(--radius-sm); padding: 10px 18px; font-size: .84rem; font-weight: 500; z-index: 500; opacity: 0; transform: translateY(8px); transition: all .25s; pointer-events: none; max-width: 300px; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.t-success { background: #15803d; }
+.toast.t-error { background: var(--red); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: .75rem; color: var(--text3); }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+@media(max-width: 600px) {
+  .week-grid { grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .wk-head { padding: 6px 2px; }
+  .wk-slot { padding: 3px 3px; }
+  .cal-title { font-size: .9rem; min-width: 160px; }
+  .slots-body { padding: 12px; }
+}
+/* ── Pending / Blocked screens ─────────────────────────────── */
+.status-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.status-box { background: var(--white); border-radius: var(--radius); padding: 32px; max-width: 420px; width: 100%; box-shadow: var(--shadow); text-align: center; }
+.status-icon { font-size: 3rem; margin-bottom: 12px; }
+.status-box h2 { font-size: 1.1rem; margin-bottom: 8px; }
+.status-box p { font-size: .85rem; color: var(--text3); line-height: 1.6; }
+.pending-badge { display: inline-block; background: #fef3c7; color: #92400e; font-size: .75rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-bottom: 12px; }
+.blocked-badge { display: inline-block; background: #fee2e2; color: #991b1b; font-size: .75rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-bottom: 12px; }
+.request-card { background: var(--bg,#f5f6fa); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; font-size: .82rem; text-align: left; border: 1px solid var(--border); }
+.request-card b { display: block; margin-bottom: 2px; font-size: .88rem; }
+.request-card .rc-meta { color: var(--text3); font-size: .75rem; margin-bottom: 6px; }
+.approve-btn { background: #16a34a; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; margin-right: 4px; }
+.block-btn { background: #dc2626; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.unblock-btn { background: #d97706; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; }
+/* ── Kayak Cross ─────────────────────────────────────────────── */
+.kx-slot { background: linear-gradient(135deg,#fff7ed,#fef3c7) !important; border-left: 4px solid #f97316 !important; }
+.kx-badge { display:inline-block;background:#f97316;color:white;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.04em; }
+.kx-wk-slot { background: linear-gradient(135deg,#fff7ed,#fef3c7); border-left: 3px solid #f97316; }
+.kx-toggle { background:none;border:1.5px solid #f97316;color:#f97316;border-radius:6px;padding:3px 8px;font-size:.72rem;font-weight:700;cursor:pointer;margin-left:6px; }
+.kx-toggle.active { background:#f97316;color:white; }
+.phone-wrap { display: flex; gap: 6px; }
+.phone-wrap select { width: 110px; flex-shrink: 0; }
+.phone-wrap input { flex: 1; }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
--- 1) Table des profils (1 ligne par compte créé)
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text,
-  full_name text,
-  is_admin boolean not null default false,
-  created_at timestamptz not null default now()
-);
+<!-- Écran de connexion / inscription -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box" style="max-width:460px">
+    <h2>🚣 Planning Kayak WT</h2>
+    <p class="auth-sub">Log in or create an account to register for sessions.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Log in</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Create account</button>
+    </div>
 
--- 2) Création automatique du profil à chaque inscription (signup)
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.profiles (id, email, full_name)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'full_name', new.email));
-  return new;
-end;
-$$;
+    <!-- Login fields -->
+    <div id="loginFields">
+      <div class="modal-fields">
+        <div>
+          <label>Email</label>
+          <input class="field" id="authEmail" type="email" placeholder="email@example.com" style="width:100%">
+        </div>
+        <div>
+          <label>Password</label>
+          <input class="field" id="authPassword" type="password" placeholder="••••••••" style="width:100%" onkeydown="if(event.key==='Enter')submitAuth()">
+        </div>
+      </div>
+    </div>
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+    <!-- Registration form (English) -->
+    <div id="signupFields" style="display:none">
+      <div class="modal-fields">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label>First name *</label>
+            <input class="field" id="sfFirstName" type="text" placeholder="First name" style="width:100%">
+          </div>
+          <div>
+            <label>Last name *</label>
+            <input class="field" id="sfLastName" type="text" placeholder="Last name" style="width:100%">
+          </div>
+        </div>
+        <div>
+          <label>Email *</label>
+          <input class="field" id="authEmail" type="email" placeholder="email@example.com" style="width:100%">
+        </div>
+        <div>
+          <label>Password *</label>
+          <input class="field" id="authPassword" type="password" placeholder="Minimum 6 characters" style="width:100%">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label>Arrival date *</label>
+            <input class="field" id="sfArrival" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
+          </div>
+          <div>
+            <label>Departure date *</label>
+            <input class="field" id="sfDeparture" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
+          </div>
+        </div>
+        <div>
+          <label>Billing address *</label>
+          <input class="field" id="sfAddress" type="text" placeholder="Street, city, postcode, country" style="width:100%">
+        </div>
+        <div>
+          <label>Nationality *</label>
+          <input class="field" id="sfNationality" type="text" placeholder="French, Belgian, Swiss..." style="width:100%">
+        </div>
+        <div>
+          <label>Phone number *</label>
+          <div class="phone-wrap">
+            <select class="field" id="sfPhoneCode" onchange="toggleCustomCode(this)">
+              <option value="+262">🇷🇪 Réunion +262</option>
+              <option value="+33">🇫🇷 France +33</option>
+              <option value="+420">🇨🇿 Czech +420</option>
+              <option value="+421">🇸🇰 Slovakia +421</option>
+              <option value="+39">🇮🇹 Italy +39</option>
+              <option value="+352">🇱🇺 Luxembourg +352</option>
+              <option value="+49">🇩🇪 Germany +49</option>
+              <option value="+1-ca">🇨🇦 Canada +1</option>
+              <option value="+41">🇨🇭 Switzerland +41</option>
+              <option value="+1">🇺🇸 USA +1</option>
+              <option value="+32">🇧🇪 Belgium +32</option>
+              <option value="+212">🇲🇦 Morocco +212</option>
+              <option value="+43">🇦🇹 Austria +43</option>
+              <option value="+376">🇦🇩 Andorra +376</option>
+              <option value="+34">🇪🇸 Spain +34</option>
+              <option value="+351">🇵🇹 Portugal +351</option>
+              <option value="+44">🇬🇧 UK +44</option>
+              <option value="+32">🇧🇪 Belgium +32</option>
+              <option value="+other">✏️ Other (enter code)</option>
+            </select>
+            <input class="field" id="sfPhoneCustomCode" type="text" placeholder="+xxx" style="display:none;width:70px">
+            <input class="field" id="sfPhone" type="tel" placeholder="Number">
+          </div>
+        </div>
+      </div>
+    </div>
 
--- 3) Colonnes ajoutées à la table existante "inscriptions"
-alter table public.inscriptions
-  add column if not exists user_id uuid references auth.users(id) on delete set null,
-  add column if not exists group_id uuid,
-  add column if not exists referent_name text;
+    <!-- RGPD consent (signup only) -->
+    <div id="rgpdConsentWrap" style="display:none;margin-top:10px;padding:10px;background:#f0f7ff;border-radius:8px;border:1px solid #bfdbfe">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:.78rem">
+        <input type="checkbox" id="rgpdConsent" style="margin-top:3px;flex-shrink:0">
+        <span>I have read and accept the <a href="#" onclick="openPrivacyPolicy();return false;" style="color:var(--accent);font-weight:600">Privacy Policy</a> and consent to the processing of my personal data for the purpose of managing my kayak session registrations. I understand I can withdraw my consent at any time. <span style="color:var(--red)">*</span></span>
+      </label>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:6px;margin-left:20px">
+        Data controller: CINOR – Communauté Intercommunale du Nord de La Réunion · 
+        Contact DPO: <a href="mailto:nelly.tornare@cinor.re" style="color:var(--accent)">nelly.tornare@cinor.re</a>
+      </p>
+    </div>
 
--- 4) Activer la sécurité au niveau des lignes (RLS)
-alter table public.profiles enable row level security;
-alter table public.inscriptions enable row level security;
-alter table public.config enable row level security;
+    <div class="auth-err" id="authErr"></div>
+    <button class="btn btn-primary" id="authSubmitBtn" style="width:100%;margin-top:6px" onclick="submitAuth()">Se connecter</button>
+    <div style="text-align:center;margin-top:10px" id="forgotLinkWrap">
+      <a href="#" id="forgotLink" onclick="showForgot();return false;" style="font-size:.78rem;color:var(--accent)">Mot de passe oublié ?</a>
+    </div>
+    <div id="forgotWrap" style="display:none;margin-top:12px">
+      <input class="field" id="forgotEmail" type="email" placeholder="Ton email" style="width:100%;margin-bottom:6px">
+      <button class="btn btn-primary" style="width:100%" onclick="sendReset()">Envoyer le lien de réinitialisation</button>
+      <div class="auth-err" id="forgotMsg" style="margin-top:6px"></div>
+    </div>
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+    <button class="btn" style="width:100%;font-size:.8rem" onclick="openPublicView()">👁 Voir le planning sans se connecter</button>
+  </div>
+</div>
 
--- Fonction utilitaire : l'utilisateur connecté est-il admin ?
-create or replace function public.is_admin()
-returns boolean
-language sql
-security definer set search_path = public
-stable
-as $$
-  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
-$$;
+<!-- Écran en attente de validation admin -->
+<div class="status-screen" id="pendingScreen" style="display:none">
+  <div class="status-box">
+    <div class="status-icon">⏳</div>
+    <span class="pending-badge">En attente de validation</span>
+    <h2>Request submitted!</h2>
+    <p>Your registration has been received.<br>
+    The administrator will review your request and send you a confirmation email once your access is activated.</p>
+    <p style="margin-top:12px;font-size:.78rem">A question? Contact us directly.</p>
+    <button class="btn" style="margin-top:16px;width:100%" onclick="logout()">Log out</button>
+  </div>
+</div>
 
--- ── Policies "profiles" ──────────────────────────────────────────
-drop policy if exists "profiles_select_own_or_admin" on public.profiles;
-create policy "profiles_select_own_or_admin" on public.profiles
-  for select using (auth.uid() = id or public.is_admin());
+<!-- Écran compte bloqué -->
+<div class="status-screen" id="blockedScreen" style="display:none">
+  <div class="status-box">
+    <div class="status-icon">🚫</div>
+    <span class="blocked-badge">Accès suspendu</span>
+    <h2>Access not authorized</h2>
+    <p>Your access to the planning has been suspended.<br>
+    Contact the administrator for more information.</p>
+    <button class="btn" style="margin-top:16px;width:100%" onclick="logout()">Log out</button>
+  </div>
+</div>
 
-drop policy if exists "profiles_update_own_or_admin" on public.profiles;
-create policy "profiles_update_own_or_admin" on public.profiles
-  for update using (auth.uid() = id or public.is_admin());
+<!-- Vue publique (sans connexion) -->
+<div class="auth-screen" id="publicScreen" style="display:none;align-items:flex-start;padding-top:20px">
+  <div style="width:100%;max-width:700px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn" onclick="closePublicView()">← Retour connexion</button>
+      <h2 style="margin:0;font-size:1rem">🚣 Planning Kayak WT — Vue publique</h2>
+    </div>
+    <div id="publicCalendar"></div>
+  </div>
+</div>
 
--- ── Policies "inscriptions" ──────────────────────────────────────
--- Lecture : tout utilisateur connecté voit la liste complète des inscrits
-drop policy if exists "inscriptions_select_all_logged_in" on public.inscriptions;
-create policy "inscriptions_select_all_logged_in" on public.inscriptions
-  for select using (auth.role() = 'authenticated');
+<header style="display:none" id="appHeader">
+  <div class="brand">
+    <div class="brand-logos" style="display:flex;align-items:center;gap:8px">
+      <img src="data:image/png;base64,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" alt="La Réunion" style="height:32px;object-fit:contain">
+      <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAA1AFADASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAYHAQUIAwT/xAAvEAABAwQBAwMCBQUBAAAAAAABAgMEAAUGERIHITETQVEicRRCUmGBCBUjkbEz/8QAGQEBAQEBAQEAAAAAAAAAAAAAAAQDBQIG/8QAKBEAAQQCAQMDBAMAAAAAAAAAAQACAxEEITESUXETgfAFQWGhIrHR/9oADAMBAAIRAxEAPwDsqlKURKV5S5DMWM5IkOJbabTyWpXgCqqdzmbmXUteFY5MXBgw+ZnTG9eqvgQFpQfygKITvzvZ8CqIMZ811oAWT2UuVltxwNWSaAHJJ+cq2qVEsJvDUpPGJbH2YC3FIakPSS444RvSlBXcb0fc/vUhvFzgWiA5PucpqLGbG1OOHQ+w9yfgDZPtXiSJzH9J5WkM7ZWdY+f0vrrNc4ZFlPVjqrezZMItVzxbGVL4O3SSyqO64jfdfJWiO3hCO/yR7dEw2fw0RmP6i3PTQlHNZ2pWhrZPydVpPjGADqIs/bt5XpkgfdDS9qUpUy0SlKURV/1quxtEPGXX1lu3uZDFTOX7Bscljf7c0pP8VyzhOR3rpb1UddurHOVHecZlRlKPKS2tW+SCPPL6VJV4Pb5rp3+oe/YvaMAeg5PAnXBu5q9CLGhoPqreH1JKV60gpIBBP8A+Kq3H8U6gXHF4N0veIiTFYbU3BgqeSm4R2iP/AEU4rS9n2bTxA8lJ7Cvo/pj2MxiHjTrGyBfg/o+21xM6N/rdY2AAdbII/HzxtTjH75KvrjibDOYL76DLdYRHMZUIKJ+lSdqWpXzwGyfJTutjbrrhmPSv7ldpN5ut3TsGXItklz0vlLQKSlsfY7PuTXMmX2OTiC42a4zcrrHQi4KhvomfTMt8tKefBSgBzSU7IOh4IIq+JmTSrlGsy3LUqTOuNtjSnGI/Nt5K3GwohJR3A2d6OwAa2lwbIAP8Td1QOu6hmym4kfqgbvV2eew5BUnm9XoTpLNhx+8XB89klcZSE/8ACf8AlSXAmsglMu3vJtsy5H0sQwNJjND21+pR7nffQArS4jggWti6Xx+880q5ot8q4+s2k+xXxACiPjuPndWFXIy5MeMenA3yefYH/Fd9PgypXifKcfw3geSKvxfHlZpSlc1dtKUpRFggHyN671B7h1SxaLfJlobReJ7kB4MTXYNqfkMxnD+Ra0JIB+fipxVBZzg98umW3OfYZuL49Nfl+oLtBu0uPKQlJGy7HT/jdXoaJOgd1XiRxSOIkNLGZ7mgdK2XUV7p1ds2fs16gZJdF2mSidNt9vtT0hl2QtpIQ48ptJKgGwEhOwOxB3VgYzkuLTMql2K3x3Il4TDZnOtPQ1MrcZcA4qBUO+uySPyka0NVVuV9P7tM6i3/ACOPJxy4x56I6UplXqZCcbLbaW1KUI+t8lfJIHbXk1uequL3DJ2bBe8fySy2bLIkRyJIeEhRZcYdbKXUJVoqUEq2Ukjfk9jVj2ROaxnWePYGgeO16U4dsuoaKl0XqjiEn8AqPLkuNXC8Ks0R0RV8HpCfPE67o325+Oxqb1UF0we2mF04s+N3a1oiYtdWZDiXXtLfSlJCuIAO1qUSe+vJ71b1QZDIm0Y7+/PnX6VMbnOu1mlKVOtUpSlESscU73xG/tSlETine9Df2pxT+kf6pSiJofA/1WaUoiUpSiL/2Q==" alt="SEVI" style="height:36px;object-fit:contain">
+      <img src="data:image/png;base64,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" alt="CINOR" style="height:32px;object-fit:contain">
+    </div>
+    <div class="brand-text">
+      <h1 id="hTitle">Planning Kayak WT</h1>
+      <p id="hSubtitle">Jul 2026 – Mar 2027</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span class="admin-pill" id="adminPill">⚡ Admin</span>
+    <span id="syncDot" title="Synchronisé" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9ca3af;margin-right:2px;transition:background .4s" ></span>
+    <button class="btn btn-lang" id="langBtn" onclick="toggleLang()">EN</button>
+    <span class="user-pill" id="userPill" style="display:none"></span>
+    <button class="btn btn-sm" id="profileBtn" onclick="openProfile()" style="display:none">👤 Mon profil</button>
+    <button class="btn btn-sm" id="logoutBtn" onclick="logout()" style="display:none">Déconnexion</button>
+  </div>
+</header>
 
--- Création : un utilisateur connecté ne peut créer que des inscriptions à son nom (user_id = lui-même)
-drop policy if exists "inscriptions_insert_own" on public.inscriptions;
-create policy "inscriptions_insert_own" on public.inscriptions
-  for insert with check (auth.uid() = user_id or public.is_admin());
+<div class="app-body" id="appBody" style="display:none">
+  <div class="cal-nav">
+    <button class="nav-btn" id="btnPrev" onclick="navPrev()">← Précédent</button>
+    <div class="cal-nav-center">
+      <div class="cal-title" id="calTitle"></div>
+      <div class="view-toggle">
+        <button class="view-btn" id="vbMonth" onclick="setView('month')">Mois</button>
+        <button class="view-btn active" id="vbWeek" onclick="setView('week')">Semaine</button>
+      </div>
+    </div>
+    <button class="nav-btn" id="btnNext" onclick="navNext()">Suivant →</button>
+  </div>
 
--- Modification : uniquement ses propres inscriptions, ou l'admin (toutes)
-drop policy if exists "inscriptions_update_own_or_admin" on public.inscriptions;
-create policy "inscriptions_update_own_or_admin" on public.inscriptions
-  for update using (auth.uid() = user_id or public.is_admin());
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div><span id="legAvail">Places disponibles / Available spots</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div><span id="legAlmost">Presque plein / Almost full</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div><span id="legFull">Complet / Full</span></div>
+  </div>
 
--- Suppression : uniquement ses propres inscriptions, ou l'admin (toutes)
-drop policy if exists "inscriptions_delete_own_or_admin" on public.inscriptions;
-create policy "inscriptions_delete_own_or_admin" on public.inscriptions
-  for delete using (auth.uid() = user_id or public.is_admin());
+  <div id="calContainer"></div>
+  <div id="dayPanel" style="display:none"></div>
 
--- ── Policies "config" (réglages admin : capacité, ordre, jours fermés…) ──
-drop policy if exists "config_select_logged_in" on public.config;
-create policy "config_select_logged_in" on public.config
-  for select using (auth.role() = 'authenticated');
+  <div class="admin-section" id="adminPanel" style="display:none">
+    <h3>⚡ <span id="aTitle">Panneau Administrateur / Admin Panel</span></h3>
+    <div class="toggle-row">
+      <div class="toggle-wrap" id="priorityToggle" onclick="togglePriority()"></div>
+      <span id="aPrioLabel">Activer la priorité des créneaux / Enable slot priority</span>
+    </div>
+    <div class="admin-grid">
+      <div class="admin-card">
+        <h4 id="aMorTitle">Ordre — Matin / Morning</h4>
+        <div id="adminMorning"></div>
+      </div>
+      <div class="admin-card">
+        <h4 id="aAftTitle">Ordre — Après-midi / Afternoon</h4>
+        <div id="adminAfternoon"></div>
+      </div>
+      <div class="admin-card">
+        <h4 id="aCapTitle">Capacité / Capacity per slot</h4>
+        <div id="adminCap"></div>
+      </div>
+      <div class="admin-card">
+        <h4 id="aDowTitle">Jours ouvert/fermé — Open/Closed days</h4>
+        <div class="dow-grid" id="adminDowGrid"></div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:10px 0">
+        <h4 id="aDateTitle" style="margin-bottom:8px">Date spécifique / Specific date</h4>
+        <div class="close-date-wrap">
+          <input type="date" class="field" id="adminCloseDate" min="2026-11-01" max="2027-03-01" style="flex:1">
+          <button class="btn btn-sm" id="aToggleBtn" onclick="adminToggleClose()">Fermer/Ouvrir</button>
+        </div>
+        <div class="closed-list" id="adminClosedList"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
+      <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
+      <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
+    </div>
 
-drop policy if exists "config_write_admin_only" on public.config;
-create policy "config_write_admin_only" on public.config
-  for all using (public.is_admin()) with check (public.is_admin());
+    <!-- Horaires personnalisés par jour -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4>🕐 Horaires personnalisés par date</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
+        Définis des créneaux spécifiques pour un jour précis. Laisse vide = horaires par défaut.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <input type="date" class="field" id="customSlotDate" style="width:160px"
+          min="2026-07-06" max="2027-03-31">
+        <button class="btn btn-sm btn-primary" onclick="loadCustomSlotEditor()">Modifier les horaires</button>
+      </div>
+      <div id="customSlotEditor" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+          <div>
+            <b style="font-size:.8rem;display:block;margin-bottom:6px">🌅 Matin</b>
+            <div id="csMorningList"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <input class="field" id="csMorningNew" placeholder="ex: 7h30-8h30" style="flex:1;font-size:.78rem">
+              <button class="btn btn-sm" onclick="addCustomSlot('morning')">+ Ajouter</button>
+            </div>
+          </div>
+          <div>
+            <b style="font-size:.8rem;display:block;margin-bottom:6px">🌇 Après-midi</b>
+            <div id="csAfternoonList"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <input class="field" id="csAfternoonNew" placeholder="ex: 16h30-17h30" style="flex:1;font-size:.78rem">
+              <button class="btn btn-sm" onclick="addCustomSlot('afternoon')">+ Ajouter</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" onclick="saveCustomSlots()">💾 Enregistrer ces horaires</button>
+          <button class="btn btn-sm" style="color:var(--red)" onclick="resetCustomSlots()">🗑 Supprimer (revenir aux horaires par défaut)</button>
+        </div>
+        <div id="csMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+      </div>
+      <div id="customSlotSummary" style="margin-top:10px;font-size:.78rem;color:var(--text3)"></div>
+    </div>
+  </div>
+</div>
 
--- ════════════════════════════════════════════════════════════════
--- DERNIÈRE ÉTAPE (à faire APRÈS avoir créé ton compte sur le site) :
--- Remplace l'email ci-dessous par le tien puis exécute cette ligne
--- pour te donner les droits admin :
---
--- update public.profiles set is_admin = true where email = 'nelly.tornare@cinor.re';
--- ════════════════════════════════════════════════════════════════
+<!-- Modal demandes d'accès admin -->
+<div class="modal-bg" id="accessRequestsModal">
+  <div class="modal-box" style="max-width:600px">
+    <h3>🔐 Demandes d'accès</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-sm" id="filterPending" onclick="filterRequests('pending')" style="background:var(--accent);color:white">⏳ En attente</button>
+      <button class="btn btn-sm" id="filterApproved" onclick="filterRequests('approved')">✅ Validés</button>
+      <button class="btn btn-sm" id="filterBlocked" onclick="filterRequests('blocked')">🚫 Bloqués</button>
+    </div>
+    <div style="max-height:420px;overflow:auto" id="accessRequestsList"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal('accessRequestsModal')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal récap utilisateurs admin -->
+<div class="modal-bg" id="adminUsersModal">
+  <div class="modal-box" style="max-width:520px">
+    <h3>👥 Récapitulatif par utilisateur</h3>
+    <div style="max-height:380px;overflow:auto" id="adminUsersBody"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal('adminUsersModal')">Fermer</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="moveModal">
+  <div class="modal-box">
+    <h3>↔ <span id="mMoveTitle">Déplacer / Move participant</span></h3>
+    <p id="moveInfo"></p>
+    <div class="modal-fields">
+      <div>
+        <label id="mMoveDateLabel">Nouvelle date / New date</label>
+        <input type="date" class="field" id="moveDate" min="2026-11-01" max="2027-03-01" style="width:100%">
+      </div>
+      <div>
+        <label id="mMoveSlotLabel">Nouveau créneau / New slot</label>
+        <select class="field" id="moveSlot" style="width:100%"></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="mMoveCancelBtn" onclick="closeModal('moveModal')">Annuler / Cancel</button>
+      <button class="btn btn-primary" id="mMoveConfirmBtn" onclick="confirmMove()">Déplacer / Move</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Mon profil -->
+<div class="modal-bg" id="profileModal">
+  <div class="modal-box" style="max-width:520px">
+    <h3>👤 Mon profil</h3>
+    <p id="profileEmailLine" style="margin-bottom:10px"></p>
+    <div style="max-height:240px;overflow:auto" id="profileRegList"></div>
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+    <div>
+      <h4 style="margin-bottom:10px;font-size:.9rem">🔒 Changer mon mot de passe</h4>
+      <div class="modal-fields">
+        <div>
+          <label>Nouveau mot de passe</label>
+          <input class="field" id="newPassword" type="password" placeholder="Nouveau mot de passe (min. 6 car.)" style="width:100%">
+        </div>
+        <div>
+          <label>Confirmer</label>
+          <input class="field" id="confirmPassword" type="password" placeholder="Répète le mot de passe" style="width:100%">
+        </div>
+      </div>
+      <div class="auth-err" id="pwdChangeErr" style="min-height:1em"></div>
+      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Mettre à jour le mot de passe</button>
+    </div>
+    <div class="modal-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <button class="btn" style="color:var(--red);font-size:.78rem" onclick="requestDataDeletion()">🗑 Delete my account & data</button>
+      <button class="btn" onclick="closeModal('profileModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal inscription (individuelle ou groupe) -->
+<div class="modal-bg" id="registerModal">
+  <div class="modal-box" style="max-width:480px">
+    <h3 id="regModalTitle">Register</h3>
+    <p id="regModalSub" style="margin-bottom:6px"></p>
+    <!-- Badge Kayak Cross si applicable -->
+    <div id="regKxBanner" style="display:none;background:#fff7ed;border:1.5px solid #f97316;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+      <b style="color:#f97316">🏄 KAYAK CROSS session</b>
+      <div style="margin-top:8px;font-size:.85rem">
+        <label style="font-weight:600;display:block;margin-bottom:4px">Kayak Cross Rental</label>
+        <div style="display:flex;gap:16px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="kxRental" id="kxRentalYes" value="yes"> <span>Yes, I need a rental kayak</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="kxRental" id="kxRentalNo" value="no" checked> <span>No, I have my own</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div id="regParticipants"></div>
+    <button class="btn btn-sm" style="margin-bottom:12px" onclick="addParticipantRow()">+ Add participant</button>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('registerModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitRegistration()">Register</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Modal Politique de confidentialité / Privacy Policy -->
+<div class="modal-bg" id="privacyModal">
+  <div class="modal-box" style="max-width:640px;max-height:85vh;overflow-y:auto">
+    <h3>🔒 Privacy Policy / Politique de confidentialité</h3>
+    <div style="font-size:.82rem;line-height:1.7;color:var(--text2)">
+
+      <h4 style="color:var(--accent);margin-top:16px">1. Data Controller / Responsable du traitement</h4>
+      <p><b>CINOR – Communauté Intercommunale du Nord de La Réunion</b><br>
+      Contact : <a href="mailto:nelly.tornare@cinor.re">nelly.tornare@cinor.re</a></p>
+
+      <h4 style="color:var(--accent);margin-top:16px">2. Data Collected / Données collectées</h4>
+      <p>During registration, we collect the following personal data :<br>
+      <em>Lors de l'inscription, nous collectons les données personnelles suivantes :</em></p>
+      <ul style="margin-left:16px">
+        <li>First name & last name / Prénom et nom</li>
+        <li>Email address / Adresse email</li>
+        <li>Phone number / Numéro de téléphone</li>
+        <li>Nationality / Nationalité</li>
+        <li>Billing address / Adresse de facturation</li>
+        <li>Training camp dates (arrival / departure) / Dates de stage (arrivée / départ)</li>
+        <li>Session registrations / Inscriptions aux séances</li>
+      </ul>
+
+      <h4 style="color:var(--accent);margin-top:16px">3. Purpose & Legal Basis / Finalité & Base légale</h4>
+      <p>Your data is processed exclusively for managing kayak Winter Training session registrations.<br>
+      <em>Vos données sont traitées exclusivement pour la gestion des inscriptions aux séances de kayak du Winter Training.</em><br>
+      <b>Legal basis / Base légale :</b> Consent (Art. 6.1.a GDPR) / Consentement (Art. 6.1.a RGPD)</p>
+
+      <h4 style="color:var(--accent);margin-top:16px">4. Data Retention / Durée de conservation</h4>
+      <p>Your data is retained for the duration of your training camp, plus a maximum of 12 months after the end of the season (March 2027).<br>
+      <em>Vos données sont conservées pendant la durée de votre stage, puis au maximum 12 mois après la fin de la saison (mars 2027).</em></p>
+
+      <h4 style="color:var(--accent);margin-top:16px">5. Data Hosting / Hébergement des données</h4>
+      <p>Data is hosted by <b>Supabase</b> (servers located in the European Union, eu-west-1 region). No transfer outside the EU.<br>
+      <em>Les données sont hébergées par Supabase (serveurs en Union Européenne, région eu-west-1). Aucun transfert hors UE.</em></p>
+
+      <h4 style="color:var(--accent);margin-top:16px">6. Your Rights / Vos droits</h4>
+      <p>Under GDPR, you have the right to / En vertu du RGPD, vous disposez du droit de :</p>
+      <ul style="margin-left:16px">
+        <li><b>Access</b> your data / <b>Accéder</b> à vos données</li>
+        <li><b>Rectify</b> inaccurate data / <b>Rectifier</b> des données inexactes</li>
+        <li><b>Erase</b> your data ("right to be forgotten") / <b>Effacer</b> vos données (droit à l'oubli)</li>
+        <li><b>Restrict</b> processing / <b>Limiter</b> le traitement</li>
+        <li><b>Data portability</b> / <b>Portabilité</b> des données</li>
+        <li><b>Withdraw consent</b> at any time / <b>Retirer votre consentement</b> à tout moment</li>
+      </ul>
+      <p>To exercise your rights, contact / Pour exercer vos droits, contactez :<br>
+      📧 <a href="mailto:nelly.tornare@cinor.re"><b>nelly.tornare@cinor.re</b></a></p>
+      <p>You also have the right to lodge a complaint with the CNIL (France) :<br>
+      <em>Vous pouvez également déposer une réclamation auprès de la CNIL :</em><br>
+      🌐 <a href="https://www.cnil.fr" target="_blank">www.cnil.fr</a> — 3, Place de Fontenoy, 75007 Paris</p>
+
+      <h4 style="color:var(--accent);margin-top:16px">7. Data Deletion / Suppression des données</h4>
+      <p>You can request the deletion of your account and all associated data directly from your profile page.<br>
+      <em>Vous pouvez demander la suppression de votre compte et de toutes vos données depuis votre page de profil.</em></p>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="closeModal('privacyModal')">I understand / J'ai compris</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TRADUCTIONS / TRANSLATIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let LANG = 'fr';
+const TR = {
+  fr: {
+    appTitle:'Planning Kayak WT', appSub:'Nov 2026 – Mars 2027',
+    adminBtn:'Admin', adminBtnExit:'Quitter Admin',
+    prevBtn:'← Précédent', nextBtn:'Suivant →',
+    viewMonth:'Mois', viewWeek:'Semaine',
+    legAvail:'Places disponibles', legAlmost:'Presque plein', legFull:'Complet',
+    aTitle:'Panneau Administrateur', aPrioLabel:'Activer la priorité des créneaux',
+    aMorTitle:'Ordre créneaux — Matin', aAftTitle:'Ordre créneaux — Après-midi',
+    aCapTitle:'Capacité par créneau', aDowTitle:'Jours de la semaine — Ouvert / Fermé',
+    aDateTitle:'Fermer / Ouvrir une date précise', aToggleBtn:'Fermer / Ouvrir',
+    mAdminTitle:'Accès Administrateur', mAdminDesc:'Entrez le code admin pour accéder au panneau.',
+    mCodeLabel:'Code admin', mCancelBtn:'Annuler', mValidBtn:'Valider',
+    mMoveTitle:'Déplacer un participant', mMoveDateLabel:'Nouvelle date',
+    mMoveSlotLabel:'Nouveau créneau', mMoveCancelBtn:'Annuler', mMoveConfirmBtn:'Déplacer',
+    morning:'Matin', afternoon:'Après-midi', closed:'Fermé', closedAdmin:'Fermé (admin)',
+    closedMsg:'Ce jour est fermé — aucune séance.',
+    slotOpen:'Disponible', slotMid:'Presque plein', slotFull:'Complet', slotLocked:'🔒 Verrouillé',
+    lockedMsg:"S'ouvre après remplissage du créneau",
+    registered:'inscrits', noReg:'Aucun inscrit pour le moment.',
+    fullMsg:'Créneau complet — plus de places disponibles.',
+    namePH:'Nom Prénom', roleAth:'Athlète', roleCoach:'Encadrant', regBtn:"S'inscrire",
+    copyBtn:'📋 Copier', waBtn:'📲 WhatsApp',
+    copyOk:'Copié !', copyErr:'Erreur de copie.',
+    toastAdded:'inscrit(e) sur', toastRemoved:'désinscrit(e).', toastMoved:'déplacé vers',
+    toastFull:'Créneau complet.', toastNoName:'Entrez un nom et prénom.', toastNoDate:'Sélectionnez une date.',
+    toastNoTarget:'Choisissez une date cible.', toastTargetFull:'Créneau cible complet.',
+    toastDateClosed:'fermé.', toastDateOpen:'rouvert.', toastReset:'réinitialisé.',
+    adminClosedPfx:'Dates fermées manuellement : ', adminNoneClosed:'Aucune date fermée manuellement.',
+    dowNames:['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'],
+    dowFull:['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'],
+    months:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+    calHeads:['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'],
+    dowOpen:'Ouvert', dowClosed:'Fermé',
+    moveInfoTpl:'Participant : {name} ({role}) — sur {slot} le {date}',
+  },
+  en: {
+    appTitle:'Kayak WT Schedule', appSub:'Nov 2026 – Mar 2027',
+    adminBtn:'Admin', adminBtnExit:'Exit Admin',
+    prevBtn:'← Previous', nextBtn:'Next →',
+    viewMonth:'Month', viewWeek:'Week',
+    legAvail:'Available spots', legAlmost:'Almost full', legFull:'Full',
+    aTitle:'Admin Panel', aPrioLabel:'Enable slot priority rule',
+    aMorTitle:'Slot order — Morning', aAftTitle:'Slot order — Afternoon',
+    aCapTitle:'Capacity per slot', aDowTitle:'Weekdays — Open / Closed',
+    aDateTitle:'Close / Open a specific date', aToggleBtn:'Close / Open',
+    mAdminTitle:'Admin Access', mAdminDesc:'Enter the admin code to access the panel.',
+    mCodeLabel:'Admin code', mCancelBtn:'Cancel', mValidBtn:'Confirm',
+    mMoveTitle:'Move a participant', mMoveDateLabel:'New date',
+    mMoveSlotLabel:'New slot', mMoveCancelBtn:'Cancel', mMoveConfirmBtn:'Move',
+    morning:'Morning', afternoon:'Afternoon', closed:'Closed', closedAdmin:'Closed (admin)',
+    closedMsg:'This day is closed — no sessions.',
+    slotOpen:'Available', slotMid:'Almost full', slotFull:'Full', slotLocked:'🔒 Locked',
+    lockedMsg:'Opens after slot is full:',
+    registered:'registered', noReg:'No participants yet.',
+    fullMsg:'Slot full — no spots left.',
+    namePH:'First Last Name', roleAth:'Athlete', roleCoach:'Coach', regBtn:'Register',
+    copyBtn:'📋 Copy', waBtn:'📲 WhatsApp',
+    copyOk:'Copied!', copyErr:'Copy failed.',
+    toastAdded:'registered on', toastRemoved:'unregistered.', toastMoved:'moved to',
+    toastFull:'Slot is full.', toastNoName:'Please enter a name.', toastNoDate:'Please select a date.',
+    toastNoTarget:'Please choose a target date.', toastTargetFull:'Target slot is full.',
+    toastDateClosed:'closed.', toastDateOpen:'re-opened.', toastReset:'reset.',
+    adminClosedPfx:'Manually closed dates: ', adminNoneClosed:'No manually closed dates.',
+    dowNames:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+    dowFull:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    months:['January','February','March','April','May','June','July','August','September','October','November','December'],
+    calHeads:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    dowOpen:'Open', dowClosed:'Closed',
+    moveInfoTpl:'Participant: {name} ({role}) — on {slot} on {date}',
+  }
+};
+function t(k){ return TR[LANG][k] || k; }
+
+function applyI18n(){
+  const ids = ['hTitle','hSubtitle','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
+    'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
+    'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
+    'mMoveTitle','mMoveDateLabel','mMoveSlotLabel','mMoveCancelBtn','mMoveConfirmBtn',
+    'btnPrev','btnNext'];
+  const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
+    'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
+    'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
+    'mMoveTitle','mMoveDateLabel','mMoveSlotLabel','mMoveCancelBtn','mMoveConfirmBtn',
+    'prevBtn','nextBtn'];
+  ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
+  document.getElementById('vbMonth').textContent = t('viewMonth');
+  document.getElementById('vbWeek').textContent = t('viewWeek');
+  document.getElementById('langBtn').textContent = LANG==='fr'?'EN':'FR';
+}
+
+function toggleLang(){ LANG = LANG==='fr'?'en':'fr'; applyI18n(); render(); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONFIG
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const START = new Date(2026,6,6);   // 6 juillet 2026
+const END   = new Date(2027,2,31);  // 31 mars 2027
+
+let S = {
+  view:'week', currentDate:new Date(2026,6,6), selectedDate:null,
+  isAdmin:false, priorityOn:true,
+  priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
+  morningOrder:['7h-8h','8h-9h','9h-10h','10h-11h','11h-12h'],
+  afternoonOrder:['12h-13h','13h-14h','14h-15h','15h-16h','16h-17h'],
+  capacity:{'7h-8h':15,'8h-9h':15,'9h-10h':15,'10h-11h':15,'11h-12h':15,'12h-13h':15,'13h-14h':15,'14h-15h':15,'15h-16h':15,'16h-17h':15},
+  closedDow:{},
+  customClosed:{},
+  customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
+  kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
+  data:{}, expanded:{}, movePending:null,
+  session:null, profile:null, authMode:'login', regPending:null, regCounter:0,
+  waitlist:{},
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SUPABASE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const SUPABASE_URL = "https://ccwcpysuertjslqefbkl.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjd2NweXN1ZXJ0anNscWVmYmtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MjgwOTUsImV4cCI6MjA5NzQwNDA5NX0.6ga21mTpxkcxuFOPRQgCk2IJ25E2kATKm_kE9L5KbUk";
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Auth ───────────────────────────────────────────────────────────────
+
+function switchAuthTab(mode){
+  S.authMode = mode;
+  document.getElementById('tabLogin').classList.toggle('active', mode==='login');
+  document.getElementById('tabSignup').classList.toggle('active', mode==='signup');
+  document.getElementById('loginFields').style.display = mode==='login' ? 'block' : 'none';
+  document.getElementById('signupFields').style.display = mode==='signup' ? 'block' : 'none';
+  document.getElementById('rgpdConsentWrap').style.display = mode==='signup' ? 'block' : 'none';
+  document.getElementById('forgotLinkWrap').style.display = mode==='login' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = mode==='signup' ? 'Send my access request' : 'Log in';
+  document.getElementById('authErr').textContent = '';
+}
+
+async function submitAuth(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authErr');
+  errEl.textContent = '';
+  if(!email || !password){ errEl.textContent = 'Email et mot de passe requis.'; return; }
+
+  if(S.authMode==='signup'){
+    const firstName  = document.getElementById('sfFirstName').value.trim();
+    const lastName   = document.getElementById('sfLastName').value.trim();
+    const arrival    = document.getElementById('sfArrival').value;
+    const departure  = document.getElementById('sfDeparture').value;
+    const address    = document.getElementById('sfAddress').value.trim();
+    const nationality= document.getElementById('sfNationality').value.trim();
+    const phoneCode  = document.getElementById('sfPhoneCode').value === '+other'
+      ? document.getElementById('sfPhoneCustomCode').value.trim()
+      : document.getElementById('sfPhoneCode').value.replace('-ca','');
+    const phoneNum   = document.getElementById('sfPhone').value.trim();
+    const phone      = phoneCode + ' ' + phoneNum;
+
+    if(!document.getElementById('rgpdConsent').checked){
+      errEl.textContent = 'You must accept the Privacy Policy to continue.'; return;
+    }
+    if(!arrival||!departure)   { errEl.textContent='Arrival and departure dates are required.'; return; }
+    if(arrival > departure)    { errEl.textContent='Arrival date must be before departure date.'; return; }
+    if(!address)               { errEl.textContent='Billing address is required.'; return; }
+    if(!nationality)           { errEl.textContent='Nationality is required.'; return; }
+    if(!phoneNum)              { errEl.textContent='Phone number is required.'; return; }
+    if(password.length < 6)    { errEl.textContent='Password must be at least 6 characters.'; return; }
+
+    const { data, error } = await sb.auth.signUp({
+      email, password,
+      options: { data: {
+        first_name: firstName, last_name: lastName,
+        full_name: firstName + ' ' + lastName,
+        arrival_date: arrival, departure_date: departure,
+        billing_address: address, nationality, phone
+      }}
+    });
+    if(error){ errEl.textContent = error.message; return; }
+    // Notifier l'admin de la nouvelle demande
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+        method:'POST',
+        headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+        body:JSON.stringify({ type:'NEW_REQUEST', record:{
+          nom: firstName+' '+lastName, email, arrival, departure, nationality, phone, address
+        }})
+      });
+    } catch(e){}
+    if(data.session){
+      await onAuthed(data.session);
+    } else {
+      errEl.style.color='#15803d';
+      errEl.textContent='Demande envoyée ! Tu recevras un email de confirmation quand ton accès sera validé.';
+    }
+  } else {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ errEl.textContent = "Email ou mot de passe incorrect."; return; }
+    await onAuthed(data.session);
+  }
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  S.session=null; S.profile=null; S.isAdmin=false;
+  ['pendingScreen','blockedScreen','appHeader','appBody'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display='none';
+  });
+  document.getElementById('authScreen').style.display='flex';
+}
+
+async function onAuthed(session){
+  S.session = session;
+  let { data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+  if(!profile){
+    await new Promise(r=>setTimeout(r,800));
+    ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle());
+  }
+  S.profile = profile;
+  S.isAdmin = !!(profile && profile.is_admin);
+
+  // Masquer tous les écrans
+  ['authScreen','pendingScreen','blockedScreen'].forEach(id=>{
+    document.getElementById(id).style.display='none';
+  });
+
+  // Compte bloqué
+  if(profile?.blocked && !S.isAdmin){
+    document.getElementById('blockedScreen').style.display='flex';
+    return;
+  }
+  // En attente de validation
+  if(!profile?.approved && !S.isAdmin){
+    document.getElementById('pendingScreen').style.display='flex';
+    return;
+  }
+
+  // Accès autorisé
+  document.getElementById('appHeader').style.display='flex';
+  document.getElementById('appBody').style.display='block';
+  document.getElementById('userPill').style.display='inline-flex';
+  document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
+  document.getElementById('profileBtn').style.display='inline-block';
+  document.getElementById('logoutBtn').style.display='inline-block';
+  document.getElementById('adminPill').style.display = S.isAdmin ? 'inline' : 'none';
+  await load();
+  await loadConfig();
+  let d = new Date(2026,6,6);
+  // Si l'utilisateur a une période de stage, naviguer vers son arrivée
+  if(profile?.arrival_date && !S.isAdmin){
+    const arr = new Date(profile.arrival_date+'T12:00:00');
+    if(arr >= START && arr <= END) d = arr;
+  }
+  while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
+  S.selectedDate=d; S.currentDate=d;
+  S.expanded[`${dk(d)}-${S.morningOrder[0]}`]=true;
+  render();
+}
+
+// ── Inscriptions (lecture/écriture authentifiée, RLS appliquée côté serveur) ──
+
+async function sbInsertMany(rows){
+  const { data, error } = await sb.from('inscriptions').insert(rows).select();
+  if(error) throw error;
+  return data;
+}
+
+async function sbDelete(id) {
+  const { error } = await sb.from('inscriptions').delete().eq('id', id);
+  if(error) throw error;
+}
+
+function rowsToData(rows){
+  const out = {};
+  rows.forEach(r => {
+    if(!out[r.date]) out[r.date]={};
+    if(!out[r.date][r.creneau]) out[r.date][r.creneau]=[];
+    out[r.date][r.creneau].push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental });
+  });
+  return out;
+}
+
+async function load() {
+  const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
+  if(error){ console.error('Supabase load error', error); return; }
+  S.data = rowsToData(rows||[]);
+}
+
+// ── Config admin (closedDow, customClosed, capacity, ordre créneaux) ──
+
+async function saveConfig() {
+  if(!S.isAdmin) return;
+  const cfg = {
+    closedDow:      S.closedDow,
+    customClosed:   S.customClosed,
+    capacity:       S.capacity,
+    morningOrder:   S.morningOrder,
+    afternoonOrder: S.afternoonOrder,
+    priorityOn:     S.priorityOn,
+    priorityDays:   S.priorityDays,
+    customSlots:    S.customSlots,
+    kayakCross:     S.kayakCross,
+  };
+  const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
+  if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
+  showSyncDot(true);
+}
+
+async function loadConfig() {
+  const { data: rows, error } = await sb.from('config').select('value').eq('key','admin');
+  if(error || !rows || !rows.length) return;
+  const cfg = rows[0].value;
+  if (cfg.closedDow      !== undefined) S.closedDow      = cfg.closedDow;
+  if (cfg.customClosed   !== undefined) S.customClosed   = cfg.customClosed;
+  if (cfg.capacity       !== undefined) S.capacity       = cfg.capacity;
+  if (cfg.morningOrder   !== undefined) S.morningOrder   = cfg.morningOrder;
+  if (cfg.afternoonOrder !== undefined) S.afternoonOrder = cfg.afternoonOrder;
+  if (cfg.priorityOn     !== undefined) S.priorityOn     = cfg.priorityOn;
+  if (cfg.priorityDays   !== undefined) S.priorityDays   = cfg.priorityDays;
+  if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
+  if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
+}
+
+// ── Polling temps réel ────────────────────────────────────────────────
+
+async function silentReload() {
+  if (!S.session) return;
+  if (document.querySelector('.modal-bg.show')) return;
+  const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
+  if(error) return;
+  const newData = rowsToData(rows||[]);
+  const strip = d => JSON.stringify(d, (k,v) => k==='_id'?undefined:v);
+  if (strip(newData) !== strip(S.data)) {
+    S.data = newData;
+    renderCal();
+    renderDayPanel();
+    showSyncDot(true);
+  } else {
+    showSyncDot(false);
+  }
+}
+
+function showSyncDot(updated) {
+  const dot = document.getElementById('syncDot');
+  if (!dot) return;
+  dot.title = updated ? 'Données mises à jour !' : 'Synchronisé';
+  dot.style.background = updated ? '#16a34a' : '#9ca3af';
+  if (updated) setTimeout(() => { dot.style.background = '#9ca3af'; }, 2000);
+}
+
+// Ancienne fonction save() — non utilisée (on insère/supprime à chaud)
+async function save() { /* remplacé par sbInsert / sbDelete */ }
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// UTILS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function dk(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function parseDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
+
+function isClosed(d){
+  const k=dk(d);
+  if(S.customClosed[k]===false) return false;  // ouvert forcé par admin
+  if(S.customClosed[k]===true)  return true;   // fermé par admin
+  if(S.closedDow[d.getDay()])   return true;   // jour de semaine fermé
+  return false;
+}
+function outOfRange(d){ return d<START||d>END; }
+function closedLabel(d){
+  const k=dk(d);
+  if(S.customClosed[k]===true) return t('closedAdmin');
+  if(S.closedDow[d.getDay()])  return t('closed');
+  return '';
+}
+function allSlots(dateK){
+  // Si l'admin a défini des créneaux custom pour cette date, on les utilise
+  if(dateK && S.customSlots && S.customSlots[dateK]){
+    const cs = S.customSlots[dateK];
+    return [...(cs.morning||[]), ...(cs.afternoon||[])];
+  }
+  return [...S.morningOrder,...S.afternoonOrder];
+}
+function morningSlots(dateK){
+  if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].morning||[];
+  return S.morningOrder;
+}
+function afternoonSlots(dateK){
+  if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].afternoon||[];
+  return S.afternoonOrder;
+}
+function getSlot(dateK,slot){
+  if(!S.data[dateK]) S.data[dateK]={};
+  if(!S.data[dateK][slot]) S.data[dateK][slot]=[];
+  return S.data[dateK][slot];
+}
+function cap(slot){ return S.capacity[slot]||15; }
+function isKayakCross(dateK, slot){
+  return !!(S.kayakCross && S.kayakCross[dateK] && S.kayakCross[dateK][slot]);
+}
+async function toggleKayakCross(dateK, slot){
+  if(!S.isAdmin) return;
+  if(!S.kayakCross) S.kayakCross={};
+  if(!S.kayakCross[dateK]) S.kayakCross[dateK]={};
+  S.kayakCross[dateK][slot] = !S.kayakCross[dateK][slot];
+  if(!S.kayakCross[dateK][slot]) delete S.kayakCross[dateK][slot];
+  if(!Object.keys(S.kayakCross[dateK]).length) delete S.kayakCross[dateK];
+  await saveConfig();
+  renderDayPanel(); renderCal();
+  toast(isKayakCross(dateK,slot)?'🏄 Kayak Cross activé !':'Slalom rétabli','success');
+}
+function toggleCustomCode(sel){
+  const c = document.getElementById('sfPhoneCustomCode');
+  if(sel.value==='+other'){ c.style.display='block'; } else { c.style.display='none'; }
+}
+function isLocked(dateK,slot){
+  if(S.isAdmin) return false;
+  if(!S.priorityOn) return false;
+  if(!S.priorityDays[dateK]) return false;
+  for(const g of [morningSlots(dateK),afternoonSlots(dateK)]){
+    const idx=g.indexOf(slot); if(idx<0) continue;
+    for(let i=0;i<idx;i++) if(getSlot(dateK,g[i]).length<cap(g[i])) return true;
+    return false;
+  }
+  return false;
+}
+function slotStatus(dateK,slot){
+  if(isLocked(dateK,slot)) return 'locked';
+  const n=getSlot(dateK,slot).length, c=cap(slot);
+  if(n>=c) return 'full'; if(n/c>=0.6) return 'mid'; return 'open';
+}
+function dayStatus(d){
+  if(isClosed(d)||outOfRange(d)) return null;
+  const k=dk(d); let total=0,totalCap=0;
+  allSlots(k).forEach(s=>{ total+=getSlot(k,s).length; totalCap+=cap(s); });
+  if(total===0) return 'green'; if(total/totalCap>=0.65) return 'red'; return 'orange';
+}
+function weekStart(d){
+  const dt=new Date(d), day=dt.getDay();
+  dt.setDate(dt.getDate()-(day===0?6:day-1)); return dt;
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function roleDisplay(r){ return r==='Encadrant'?t('roleCoach'):t('roleAth'); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RENDER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function render(){ renderCal(); renderDayPanel(); renderAdmin(); applyI18n(); }
+
+function renderCal(){
+  document.getElementById('vbMonth').className='view-btn'+(S.view==='month'?' active':'');
+  document.getElementById('vbWeek').className='view-btn'+(S.view==='week'?' active':'');
+  document.getElementById('calContainer').innerHTML=S.view==='month'?renderMonth():renderWeek();
+}
+
+function renderMonth(){
+  const d=S.currentDate;
+  document.getElementById('calTitle').textContent=`${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+  const first=new Date(d.getFullYear(),d.getMonth(),1);
+  const offset=(first.getDay()+6)%7;
+  const daysCount=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  let h='<div class="month-grid">';
+  t('calHeads').forEach(x=>h+=`<div class="cal-head">${x}</div>`);
+  for(let i=0;i<offset;i++) h+='<div class="cal-cell cc-empty"></div>';
+  for(let n=1;n<=daysCount;n++){
+    const dt=new Date(d.getFullYear(),d.getMonth(),n);
+    const k=dk(dt), closed=isClosed(dt), oor=outOfRange(dt);
+    const sel=S.selectedDate&&dk(S.selectedDate)===k;
+    const st=dayStatus(dt), label=closedLabel(dt);
+    let cls='cal-cell';
+    if(closed||oor) cls+=' cc-closed';
+    if(sel&&!closed&&!oor) cls+=' cc-selected';
+    const click=(!closed&&!oor)?`onclick="selectDay('${k}')"`:'';
+    h+=`<div class="${cls}" ${click}>
+      <div class="cc-num">${n}</div>
+      ${label?`<div class="cc-tag">${esc(label)}</div>`:''}
+      ${!closed&&!oor&&st?`<div class="cc-dot d-${st}"></div>`:''}
+    </div>`;
+  }
+  h+='</div>'; return h;
+}
+
+function renderWeek(){
+  const ws=weekStart(S.currentDate), we=new Date(ws); we.setDate(ws.getDate()+6);
+  document.getElementById('calTitle').textContent=
+    `${ws.getDate()} ${t('months')[ws.getMonth()]} — ${we.getDate()} ${t('months')[we.getMonth()]} ${we.getFullYear()}`;
+  let h='<div class="week-grid">';
+  for(let i=0;i<7;i++){
+    const dt=new Date(ws); dt.setDate(ws.getDate()+i);
+    const k=dk(dt), closed=isClosed(dt)||outOfRange(dt);
+    const sel=S.selectedDate&&dk(S.selectedDate)===k;
+    const lbl=closedLabel(dt);
+    let cls='wk-col'+(sel?' wk-selected':'')+(closed?' wk-closed':'');
+    const click=!closed?`onclick="selectDay('${k}')"`:'';
+    h+=`<div class="${cls}" ${click}>
+      <div class="wk-head">
+        <div class="wk-dayname">${t('dowNames')[dt.getDay()]}</div>
+        <div class="wk-daynum">${dt.getDate()}</div>
+        ${lbl&&closed?`<div class="wk-closed-lbl">${esc(lbl)}</div>`:''}
+      </div>`;
+    if(closed){
+      h+=`<div class="wk-closed-label">${lbl||t('closed')}</div>`;
+    } else {
+      h+=`<div class="wk-section">${t('morning')}</div>`;
+      morningSlots(k).forEach(slot=>{
+        const aths=getSlot(k,slot),c=cap(slot),pct=Math.min(1,aths.length/c);
+        const locked=isLocked(k,slot)&&!S.isAdmin;
+        const kx=isKayakCross(k,slot);
+        const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
+        h+=`<div class="wk-slot${locked?' wk-locked':''}${kx?' kx-wk-slot':''}">
+          <div class="wk-slot-time">${slot}${kx?'<span style="font-size:.55rem;display:block;color:#f97316;font-weight:700">KX</span>':''}</div>
+          <div class="wk-slot-count">${aths.length}/${c}</div>
+          <div class="wk-bar" style="background:var(--border2)"><div style="width:${pct*100}%;height:100%;background:${kx?'#f97316':color};border-radius:2px"></div></div>
+        </div>`;
+      });
+      h+=`<div class="wk-section" style="border-top:1px solid var(--border)">${t('afternoon')}</div>`;
+      afternoonSlots(k).forEach(slot=>{
+        const aths=getSlot(k,slot),c=cap(slot),pct=Math.min(1,aths.length/c);
+        const locked=isLocked(k,slot)&&!S.isAdmin;
+        const kx=isKayakCross(k,slot);
+        const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
+        h+=`<div class="wk-slot${locked?' wk-locked':''}${kx?' kx-wk-slot':''}">
+          <div class="wk-slot-time">${slot}${kx?'<span style="font-size:.55rem;display:block;color:#f97316;font-weight:700">KX</span>':''}</div>
+          <div class="wk-slot-count">${aths.length}/${c}</div>
+          <div class="wk-bar" style="background:var(--border2)"><div style="width:${pct*100}%;height:100%;background:${kx?'#f97316':color};border-radius:2px"></div></div>
+        </div>`;
+      });
+    }
+    h+='</div>';
+  }
+  h+='</div>'; return h;
+}
+
+function renderDayPanel(){
+  const el=document.getElementById('dayPanel');
+  if(!S.selectedDate){ el.style.display='none'; return; }
+  el.style.display='block';
+  const d=S.selectedDate, k=dk(d), closed=isClosed(d);
+  const dayName=t('dowFull')[d.getDay()];
+  const dateStr=`${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+  const lbl=closed?closedLabel(d):'';
+  let h=`<div class="day-panel">
+    <div class="dp-header">
+      <div>
+        <div class="dp-title">📅 ${dateStr}</div>
+        ${lbl?`<div class="dp-subtitle">🚫 ${esc(lbl)}</div>`:''}
+      </div>
+      <div class="dp-actions">
+        <button class="btn btn-sm" onclick="copyText()">${t('copyBtn')}</button>
+        <button class="btn btn-sm btn-wa" onclick="sendWA()">${t('waBtn')}</button>
+      </div>
+    </div>`;
+  if(closed){
+    h+=`<div style="padding:28px;text-align:center;color:var(--text3)">${t('closedMsg')}</div>`;
+  } else {
+    h+=`<div class="slots-body">
+      <div class="slot-group"><div class="slot-group-title">🌅 ${t('morning')}</div>`;
+    morningSlots(k).forEach(slot=>h+=renderSlot(k,slot));
+    h+=`</div><div class="slot-group"><div class="slot-group-title">🌇 ${t('afternoon')}</div>`;
+    afternoonSlots(k).forEach(slot=>h+=renderSlot(k,slot));
+    h+=`</div></div>`;
+  }
+  h+='</div>'; el.innerHTML=h;
+}
+
+function renderSlot(dateK,slot){
+  const aths=getSlot(dateK,slot),c=cap(slot),st=slotStatus(dateK,slot);
+  const pct=Math.min(1,aths.length/c), exp=S.expanded[`${dateK}-${slot}`];
+  const kx=isKayakCross(dateK,slot);
+  const labels={open:t('slotOpen'),mid:t('slotMid'),full:t('slotFull'),locked:t('slotLocked')};
+  const bCls={open:'sb-open',mid:'sb-mid',full:'sb-full',locked:'sb-locked'};
+  let prevSlot='';
+  if(st==='locked'){
+    const g=morningSlots(dateK).includes(slot)?morningSlots(dateK):afternoonSlots(dateK);
+    const idx=g.indexOf(slot); if(idx>0) prevSlot=g[idx-1];
+  }
+  let h=`<div class="slot-card s-${st}${kx?' kx-slot':''}">
+    <div class="slot-header" onclick="toggleSlot('${dateK}','${slot}')">
+      <div class="slot-time">${slot}${kx?`<span class="kx-badge">🏄 KAYAK CROSS</span>`:'<span style="font-size:.65rem;color:var(--text3);margin-left:6px">SLALOM</span>'}</div>
+      <div class="slot-count-text">${aths.length} / ${c} ${t('registered')}</div>
+      <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${kx?'#f97316':''}"></div></div>
+      <span class="slot-badge ${bCls[st]}">${labels[st]}</span>
+      ${S.isAdmin?`<button class="kx-toggle${kx?' active':''}" onclick="event.stopPropagation();toggleKayakCross('${dateK}','${slot}')" title="Kayak Cross / Slalom">🏄 KX</button>`:''}
+      <span class="slot-chevron${exp?' open':''}">▼</span>
+    </div>`;
+  if(st==='locked'&&!S.isAdmin)
+    h+=`<div class="locked-msg">⏳ ${t('lockedMsg')} ${prevSlot}</div>`;
+  if(exp){
+    h+=`<div class="slot-body"><div class="athletes-list">`;
+    if(aths.length===0){
+      h+=`<div class="empty-slot">${t('noReg')}</div>`;
+    } else {
+      aths.forEach((a,i)=>{
+        const mine = S.session && a.user_id===S.session.user.id;
+        const canEdit = S.isAdmin || mine;
+        h+=`<div class="ath-row">
+          <span class="ath-num">${i+1}</span>
+          <span class="ath-name">${esc(a.name)}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}${a.rental?'<span style="font-size:.65rem;background:#fed7aa;color:#9a3412;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">🚣 Rental</span>':''}</span>
+          <span class="ath-role-badge ${a.role==='Encadrant'?'role-encadrant':'role-athlete'}">${esc(roleDisplay(a.role))}</span>
+          <div class="ath-actions">
+            ${S.isAdmin?`<button class="ath-btn mv" onclick="openMove('${dateK}','${slot}',${i})">↔</button>`:''}
+            ${canEdit?`<button class="ath-btn del" onclick="removeAthlete('${dateK}','${slot}',${i})">✕</button>`:''}
+          </div>
+        </div>`;
+      });
+    }
+    h+=`</div>`;
+    if(st!=='full'&&!(st==='locked'&&!S.isAdmin)){
+      h+=`<div class="add-form">
+        <button class="btn btn-sm btn-primary" onclick="openRegister('${dateK}','${slot}')">${t('regBtn')}</button>
+      </div>`;
+    } else if(st==='full'){
+      const wl=getWaitlist(dateK,slot);
+      const alreadyWaiting = S.session && wl.find(e=>e.user_id===S.session.user.id);
+      h+=`<div class="add-form">
+        <span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span>
+        ${S.session && !alreadyWaiting ? `<button class="btn btn-sm" style="margin-left:8px" onclick="joinWaitlist('${dateK}','${slot}')">⏳ Liste d'attente</button>` : ''}
+        ${alreadyWaiting ? `<span style="font-size:.75rem;color:#92400e;margin-left:8px">⏳ Tu es sur liste d'attente</span>` : ''}
+        ${wl.length ? `<span style="font-size:.72rem;color:var(--text3);margin-left:6px">${wl.length} en attente</span>` : ''}
+      </div>`;
+      h+=`<div class="full-msg">${t('fullMsg')}</div>`;
+    }
+    h+=`</div>`;
+  }
+  h+=`</div>`; return h;
+}
+
+function renderAdmin(){
+  const panel=document.getElementById('adminPanel');
+  if(!S.isAdmin){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  document.getElementById('priorityToggle').className='toggle-wrap'+(S.priorityOn?' on':'');
+
+  let mh='';
+  S.morningOrder.forEach((slot,i)=>{
+    mh+=`<div class="prio-row"><div class="prio-label">${i+1}. ${slot}</div>
+    <div class="prio-btns">
+      <button class="prio-btn" onclick="movePrio('morning',${i},-1)">↑</button>
+      <button class="prio-btn" onclick="movePrio('morning',${i},1)">↓</button>
+    </div></div>`;
+  });
+  document.getElementById('adminMorning').innerHTML=mh;
+
+  let ah='';
+  S.afternoonOrder.forEach((slot,i)=>{
+    ah+=`<div class="prio-row"><div class="prio-label">${i+1}. ${slot}</div>
+    <div class="prio-btns">
+      <button class="prio-btn" onclick="movePrio('afternoon',${i},-1)">↑</button>
+      <button class="prio-btn" onclick="movePrio('afternoon',${i},1)">↓</button>
+    </div></div>`;
+  });
+  document.getElementById('adminAfternoon').innerHTML=ah;
+
+  let ch='';
+  allSlots().forEach(slot=>{
+    ch+=`<div class="cap-row"><div style="flex:1">${slot}</div>
+      <input type="number" class="cap-input" value="${cap(slot)}" min="1" max="100" onchange="updateCap('${slot}',this.value)">
+    </div>`;
+  });
+  document.getElementById('adminCap').innerHTML=ch;
+
+  // DOW buttons (0=dim..6=sam)
+  let dh='';
+  for(let dow=0;dow<7;dow++){
+    const isCl=!!S.closedDow[dow];
+    dh+=`<button class="dow-btn ${isCl?'dow-closed':'dow-open'}" onclick="toggleDow(${dow})">
+      ${t('dowNames')[dow]}<br><small>${isCl?t('dowClosed'):t('dowOpen')}</small>
+    </button>`;
+  }
+  document.getElementById('adminDowGrid').innerHTML=dh;
+
+  // Closed dates list
+  const keys=Object.keys(S.customClosed).filter(k=>S.customClosed[k]===true).sort();
+  document.getElementById('adminClosedList').textContent=keys.length
+    ?t('adminClosedPfx')+keys.join(', ')
+    :t('adminNoneClosed');
+  renderCustomSlotSummary();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ACTIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function selectDay(k){
+  const d=parseDate(k);
+  if(isClosed(d)||outOfRange(d)) return;
+  S.selectedDate=d; S.currentDate=d; render();
+  setTimeout(()=>document.getElementById('dayPanel').scrollIntoView({behavior:'smooth',block:'start'}),60);
+}
+function setView(v){ S.view=v; render(); }
+function navPrev(){
+  if(S.view==='month') S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()-1,1);
+  else { const d=new Date(S.currentDate); d.setDate(d.getDate()-7); S.currentDate=d; }
+  render();
+}
+function navNext(){
+  if(S.view==='month') S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()+1,1);
+  else { const d=new Date(S.currentDate); d.setDate(d.getDate()+7); S.currentDate=d; }
+  render();
+}
+function toggleSlot(dateK,slot){
+  S.expanded[`${dateK}-${slot}`]=!S.expanded[`${dateK}-${slot}`]; renderDayPanel();
+}
+// ── Inscription (individuelle ou groupe avec référent) ──────────────────
+function openRegister(dateK,slot){
+  if(!S.session){ toast('Log in to register.','error'); return; }
+  if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
+    if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
+      toast(`Registration only available from ${S.profile.arrival_date} to ${S.profile.departure_date}.`,'error');
+      return;
+    }
+  }
+  S.regPending = { dateK, slot };
+  S.regCounter = 0;
+  const kx = isKayakCross(dateK, slot);
+  document.getElementById('regModalTitle').textContent = kx ? `🏄 Register — KAYAK CROSS — ${slot}` : `Register — ${slot}`;
+  document.getElementById('regModalSub').textContent = `${dateK} · ${S.profile?.full_name||S.session.user.email}`;
+  // Afficher/masquer la section rental
+  const kxBanner = document.getElementById('regKxBanner');
+  kxBanner.style.display = kx ? 'block' : 'none';
+  document.getElementById('kxRentalNo').checked = true;
+  document.getElementById('regParticipants').innerHTML='';
+  addParticipantRow(S.profile?.full_name||'');
+  document.getElementById('registerModal').classList.add('show');
+}
+function addParticipantRow(prefillName){
+  const id = 'p'+(S.regCounter++);
+  const wrap = document.getElementById('regParticipants');
+  const row = document.createElement('div');
+  row.className='group-row';
+  row.id='row-'+id;
+  row.innerHTML = `
+    <input class="field" type="text" id="n-${id}" placeholder="Full name" value="${esc(prefillName||'')}">
+    <select class="field" id="r-${id}">
+      <option value="Athlète">Athlete</option>
+      <option value="Encadrant">Coach</option>
+    </select>
+    <button class="ath-btn del" onclick="document.getElementById('row-${id}').remove()">✕</button>`;
+  wrap.appendChild(row);
+}
+async function submitRegistration(){
+  if(!S.regPending||!S.session) return;
+  const { dateK, slot } = S.regPending;
+  const rows = [...document.querySelectorAll('#regParticipants .group-row')];
+  const participants = rows.map(r=>{
+    const name = r.querySelector('input').value.trim();
+    const role = r.querySelector('select').value;
+    return name ? {name,role} : null;
+  }).filter(Boolean);
+  if(!participants.length){ toast('Please enter at least one name.','error'); return; }
+  const free = cap(slot) - getSlot(dateK,slot).length;
+  if(participants.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
+  const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
+  const referentName = S.profile?.full_name || S.session.user.email;
+  const kx = isKayakCross(dateK, slot);
+  const rental = kx && document.getElementById('kxRentalYes').checked;
+  const payload = participants.map(p => ({
+    date: dateK, creneau: slot, nom: p.name, role: p.role,
+    user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
+    kayak_rental: rental
+  }));
+  try {
+    const inserted = await sbInsertMany(payload);
+    inserted.forEach(r => getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental }));
+    toast(`${participants.length} inscription(s) ajoutée(s) sur ${slot} !`,"success");
+    closeModal('registerModal');
+    sendUserConfirmation(participants, dateK, slot); // email de confirmation à l'utilisateur
+    renderDayPanel(); renderCal();
+  } catch(e){ toast("Erreur lors de l'inscription — réessayez.","error"); }
+}
+
+async function removeAthlete(dateK,slot,idx){
+  const a=getSlot(dateK,slot)[idx];
+  const mine = S.session && a.user_id===S.session.user.id;
+  if(!S.isAdmin && !mine){ toast("Tu ne peux annuler que tes propres inscriptions.","error"); return; }
+  const name=a.name;
+  try {
+    if(a._id) await sbDelete(a._id);
+    getSlot(dateK,slot).splice(idx,1);
+    toast(`${name} ${t("toastRemoved")}`,"success");
+    checkAndNotifyWaitlist(dateK, slot); // prévenir la liste d'attente
+    renderDayPanel(); renderCal();
+  } catch(e){ toast("Erreur réseau — réessayez.","error"); }
+}
+
+// ── Profil : "Mes inscriptions" ──────────────────────────────────────
+function openProfile(){
+  if(!S.session) return;
+  document.getElementById('profileEmailLine').textContent = `Connecté en tant que ${S.profile?.full_name||''} (${S.session.user.email})${S.isAdmin?' — Admin':''}`;
+  const mine = [];
+  Object.keys(S.data).forEach(dateK=>{
+    Object.keys(S.data[dateK]).forEach(slot=>{
+      S.data[dateK][slot].forEach((a,idx)=>{
+        if(a.user_id===S.session.user.id) mine.push({dateK,slot,idx,...a});
+      });
+    });
+  });
+  mine.sort((a,b)=>a.dateK.localeCompare(b.dateK));
+  const list = document.getElementById('profileRegList');
+  if(!mine.length){
+    list.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Aucune inscription pour le moment.</p>`;
+  } else {
+    list.innerHTML = mine.map(a=>`
+      <div class="profile-reg-item">
+        <div class="profile-reg-meta">
+          <b>${esc(a.name)} — ${esc(roleDisplay(a.role))}</b>
+          <span>${a.dateK} — ${a.slot}</span>
+        </div>
+        <button class="ath-btn del" onclick="removeAthlete('${a.dateK}','${a.slot}',${a.idx}); openProfile();">✕ Annuler</button>
+      </div>`).join('');
+  }
+  document.getElementById('profileModal').classList.add('show');
+}
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+function togglePriority(){ S.priorityOn=!S.priorityOn; saveConfig(); render(); }
+function movePrio(group,idx,dir){
+  const arr=group==='morning'?S.morningOrder:S.afternoonOrder;
+  const ni=idx+dir; if(ni<0||ni>=arr.length) return;
+  [arr[idx],arr[ni]]=[arr[ni],arr[idx]]; saveConfig(); render();
+}
+function updateCap(slot,val){ S.capacity[slot]=Math.max(1,parseInt(val)||15); saveConfig(); renderDayPanel(); }
+
+// Toggle jour de semaine
+function toggleDow(dow){
+  S.closedDow[dow]=!S.closedDow[dow];
+  if(!S.closedDow[dow]) delete S.closedDow[dow];
+  if(S.selectedDate&&isClosed(S.selectedDate)) S.selectedDate=null;
+  saveConfig(); render();
+}
+
+// Fermer/ouvrir date spécifique (cycle: défaut → fermé → ouvert forcé → défaut)
+function adminToggleClose(){
+  const v=document.getElementById('adminCloseDate').value;
+  if(!v){ toast(t('toastNoDate'),'error'); return; }
+  if(S.customClosed[v]===undefined){
+    S.customClosed[v]=true;
+    toast(`${v} ${t('toastDateClosed')}`,'success');
+  } else if(S.customClosed[v]===true){
+    S.customClosed[v]=false;
+    toast(`${v} ${t('toastDateOpen')}`,'success');
+  } else {
+    delete S.customClosed[v];
+    toast(`${v} — ${t('toastReset')}`,'success');
+  }
+  const dt=parseDate(v);
+  if(S.selectedDate&&dk(S.selectedDate)===v&&isClosed(dt)) S.selectedDate=null;
+  saveConfig(); render();
+}
+
+function openMove(dateK,slot,idx){
+  const a=getSlot(dateK,slot)[idx];
+  S.movePending={dateK,slot,idx,name:a.name,role:a.role};
+  document.getElementById('moveInfo').textContent=
+    t('moveInfoTpl').replace('{name}',a.name).replace('{role}',roleDisplay(a.role)).replace('{slot}',slot).replace('{date}',dateK);
+  const sel=document.getElementById('moveSlot');
+  sel.innerHTML=allSlots().map(s=>`<option value="${s}"${s===slot?' selected':''}>${s}</option>`).join('');
+  document.getElementById('moveDate').value=dateK;
+  document.getElementById('moveModal').classList.add('show');
+}
+async function confirmMove(){
+  if(!S.movePending) return;
+  const {dateK,slot,idx,name,role}=S.movePending;
+  const nd=document.getElementById('moveDate').value;
+  const ns=document.getElementById('moveSlot').value;
+  if(!nd){ toast(t('toastNoTarget'),'error'); return; }
+  if(getSlot(nd,ns).length>=cap(ns)){ toast(t('toastTargetFull'),'error'); return; }
+  const a=getSlot(dateK,slot)[idx];
+  try {
+    if(a._id) await sbDelete(a._id);
+    const newId=await sbInsert(nd,ns,name,role);
+    getSlot(dateK,slot).splice(idx,1);
+    getSlot(nd,ns).push({name,role,_id:newId});
+    toast(`${name} ${t('toastMoved')} ${ns} (${nd}).`,'success');
+    closeModal('moveModal'); S.movePending=null; render();
+  } catch(e){ toast('Erreur réseau — réessayez.','error'); }
+}
+
+function buildText(){
+  if(!S.selectedDate) return '';
+  const d=S.selectedDate, k=dk(d);
+  const dayName=t('dowFull')[d.getDay()];
+  let tx=`📅 ${t('appTitle')}\n${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}\n${'─'.repeat(30)}\n\n`;
+  allSlots().forEach(slot=>{
+    const aths=getSlot(k,slot), c=cap(slot), st=slotStatus(k,slot);
+    if(st==='locked') return;
+    const icon=st==='full'?'🔴':st==='mid'?'🟡':'🟢';
+    tx+=`${icon} ${slot} — ${aths.length}/${c} ${t('registered')}\n`;
+    aths.forEach((a,i)=>tx+=`   ${i+1}. ${a.name} (${roleDisplay(a.role)})\n`);
+    if(aths.length===0) tx+=`   (${t('noReg')})\n`;
+    tx+='\n';
+  });
+  return tx.trim();
+}
+function copyText(){
+  const tx=buildText(); if(!tx) return;
+  navigator.clipboard.writeText(tx)
+    .then(()=>toast(t('copyOk'),'success'))
+    .catch(()=>toast(t('copyErr'),'error'));
+}
+function sendWA(){
+  const tx=buildText(); if(!tx) return;
+  window.open('https://wa.me/?text='+encodeURIComponent(tx),'_blank');
+}
+function toast(msg,type=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='toast show'+(type?` t-${type}`:'');
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.className='toast',2800);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NOUVELLES FONCTIONNALITÉS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── Mot de passe oublié ──────────────────────────────────────────────
+function showForgot(){
+  const w=document.getElementById('forgotWrap');
+  w.style.display = w.style.display==='none'?'block':'none';
+  document.getElementById('forgotLink').textContent = w.style.display==='none'?'Mot de passe oublié ?':'Masquer';
+}
+async function sendReset(){
+  const email=document.getElementById('forgotEmail').value.trim();
+  const msg=document.getElementById('forgotMsg');
+  if(!email){ msg.textContent='Saisis ton email.'; return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if(error){ msg.textContent=error.message; return; }
+  msg.style.color='#15803d';
+  msg.textContent='Email envoyé ! Vérifie ta boîte (et tes spams).';
+}
+
+// ── Vue publique (sans connexion) ────────────────────────────────────
+function openPublicView(){
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('publicScreen').style.display='flex';
+  renderPublicCal();
+}
+function closePublicView(){
+  document.getElementById('publicScreen').style.display='none';
+  document.getElementById('authScreen').style.display='flex';
+}
+function renderPublicCal(){
+  const container=document.getElementById('publicCalendar');
+  const start=new Date(2026,10,2), end=new Date(2027,2,31);
+  let d=new Date(); if(d<start)d=new Date(start);
+  let cards=''; let count=0;
+  while(d<=end && count<14){
+    const dow=d.getDay();
+    if(dow!==0 && dow!==6){ // on exclut week-end par défaut pour la vue publique
+      const label=d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+      cards+=`<div class="public-slot"><b>${label}</b><span style="font-size:.75rem;color:#6b7280">Connecte-toi pour voir et réserver les places disponibles.</span></div>`;
+      count++;
+    }
+    d=new Date(d); d.setDate(d.getDate()+1);
+  }
+  container.innerHTML=`
+    <div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+      <p style="color:#6b7280;font-size:.85rem;margin-bottom:16px">
+        Planning <b>Nov 2026 – Mars 2027</b> — Prochaines séances disponibles.<br>
+        Crée un compte ou connecte-toi pour voir la liste des inscrits et réserver ta place.
+      </p>
+      ${cards||'<p>Aucune séance prochainement.</p>'}
+    </div>`;
+}
+
+// ── Liste d'attente ──────────────────────────────────────────────────
+function wlKey(dateK,slot){ return `${dateK}||${slot}`; }
+function getWaitlist(dateK,slot){ const k=wlKey(dateK,slot); if(!S.waitlist[k])S.waitlist[k]=[]; return S.waitlist[k]; }
+
+async function joinWaitlist(dateK,slot){
+  if(!S.session){ toast("Connecte-toi pour rejoindre la liste d'attente.","error"); return; }
+  const wl=getWaitlist(dateK,slot);
+  if(wl.find(e=>e.user_id===S.session.user.id)){ toast("Tu es déjà sur la liste d'attente.","error"); return; }
+  wl.push({ name:S.profile?.full_name||S.session.user.email, user_id:S.session.user.id, email:S.profile?.email||S.session.user.email });
+  try { await sb.from('waitlist').insert({ date:dateK, creneau:slot, nom:S.profile?.full_name||'', user_id:S.session.user.id }); }
+  catch(e){ /* table optionnelle */ }
+  toast(`⏳ Ajouté(e) à la liste d'attente pour ${slot} !`,"success");
+  renderDayPanel();
+}
+
+async function checkAndNotifyWaitlist(dateK,slot){
+  const wl=getWaitlist(dateK,slot);
+  if(!wl.length) return;
+  const free=cap(slot)-getSlot(dateK,slot).length;
+  if(free<=0) return;
+  const first=wl[0];
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body:JSON.stringify({ type:'WAITLIST', record:{ nom:first.name, email:first.email, date:dateK, creneau:slot } })
+    });
+  } catch(e){}
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────
+function exportCSV(){
+  const rows=[['Date','Créneau','Nom','Rôle','Référent']];
+  Object.keys(S.data).sort().forEach(dateK=>{
+    Object.keys(S.data[dateK]).sort().forEach(slot=>{
+      S.data[dateK][slot].forEach(a=>{
+        rows.push([dateK,slot,a.name,a.role||'',a.referent||'']);
+      });
+    });
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download=`inscriptions-kayak-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Export CSV téléchargé !','success');
+}
+
+// ── Horaires personnalisés par date ──────────────────────────────────
+let _csDate = null;
+let _csTmp = { morning:[], afternoon:[] };
+
+function loadCustomSlotEditor(){
+  const dateEl = document.getElementById('customSlotDate');
+  const dateK = dateEl.value;
+  if(!dateK){ alert('Sélectionne une date.'); return; }
+  _csDate = dateK;
+  // Charger les créneaux existants (custom ou défaut)
+  const existing = S.customSlots[dateK];
+  _csTmp = {
+    morning:   [...(existing ? existing.morning   : S.morningOrder)],
+    afternoon: [...(existing ? existing.afternoon : S.afternoonOrder)],
+  };
+  renderCustomSlotEditor();
+  document.getElementById('customSlotEditor').style.display = 'block';
+  document.getElementById('csMsg').textContent = '';
+}
+
+function renderCustomSlotEditor(){
+  ['morning','afternoon'].forEach(period=>{
+    const list = document.getElementById(period==='morning'?'csMorningList':'csAfternoonList');
+    list.innerHTML = _csTmp[period].map((slot,i)=>`
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="flex:1;font-size:.82rem;background:var(--bg2,#f5f6fa);padding:4px 8px;border-radius:6px">${esc(slot)}</span>
+        ${i>0?`<button class="ath-btn mv" onclick="moveCustomSlot('${period}',${i},-1)">↑</button>`:'<span style="width:22px"></span>'}
+        ${i<_csTmp[period].length-1?`<button class="ath-btn mv" onclick="moveCustomSlot('${period}',${i},1)">↓</button>`:'<span style="width:22px"></span>'}
+        <button class="ath-btn del" onclick="removeCustomSlot('${period}',${i})">✕</button>
+      </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau — ajoutes-en ci-dessous.</p>`;
+  });
+}
+
+function addCustomSlot(period){
+  const inputId = period==='morning'?'csMorningNew':'csAfternoonNew';
+  const val = document.getElementById(inputId).value.trim();
+  if(!val){ return; }
+  _csTmp[period].push(val);
+  document.getElementById(inputId).value = '';
+  renderCustomSlotEditor();
+}
+
+function removeCustomSlot(period,idx){
+  _csTmp[period].splice(idx,1);
+  renderCustomSlotEditor();
+}
+
+function moveCustomSlot(period,idx,dir){
+  const arr = _csTmp[period];
+  const newIdx = idx+dir;
+  if(newIdx<0||newIdx>=arr.length) return;
+  [arr[idx],arr[newIdx]]=[arr[newIdx],arr[idx]];
+  renderCustomSlotEditor();
+}
+
+async function saveCustomSlots(){
+  if(!_csDate) return;
+  if(!S.customSlots) S.customSlots={};
+  if(_csTmp.morning.length===0 && _csTmp.afternoon.length===0){
+    delete S.customSlots[_csDate];
+  } else {
+    S.customSlots[_csDate] = { morning:[..._csTmp.morning], afternoon:[..._csTmp.afternoon] };
+  }
+  await saveConfig();
+  document.getElementById('csMsg').style.color='#16a34a';
+  document.getElementById('csMsg').textContent = `✅ Horaires enregistrés pour le ${_csDate}`;
+  renderCustomSlotSummary();
+  render();
+}
+
+async function resetCustomSlots(){
+  if(!_csDate) return;
+  if(S.customSlots) delete S.customSlots[_csDate];
+  _csTmp = { morning:[...S.morningOrder], afternoon:[...S.afternoonOrder] };
+  renderCustomSlotEditor();
+  await saveConfig();
+  document.getElementById('csMsg').style.color='#6b7280';
+  document.getElementById('csMsg').textContent = `Horaires remis par défaut pour le ${_csDate}`;
+  renderCustomSlotSummary();
+  render();
+}
+
+function renderCustomSlotSummary(){
+  const el = document.getElementById('customSlotSummary');
+  if(!el) return;
+  const keys = Object.keys(S.customSlots||{}).sort();
+  if(!keys.length){ el.textContent = 'Aucun horaire personnalisé défini.'; return; }
+  el.innerHTML = '<b>Dates avec horaires personnalisés :</b> ' +
+    keys.map(k=>{
+      const cs=S.customSlots[k];
+      return `<span style="margin-right:8px">${k} (${(cs.morning||[]).length} mat. / ${(cs.afternoon||[]).length} ap-m.)
+        <button class="ath-btn del" style="font-size:.65rem;padding:1px 5px" onclick="quickResetDate('${k}')">✕</button></span>`;
+    }).join('');
+}
+
+async function quickResetDate(dateK){
+  if(!confirm(`Supprimer les horaires personnalisés du ${dateK} ?`)) return;
+  delete S.customSlots[dateK];
+  await saveConfig();
+  renderCustomSlotSummary();
+  render();
+}
+
+// ── RGPD ─────────────────────────────────────────────────────────────
+function openPrivacyPolicy(){
+  document.getElementById('privacyModal').classList.add('show');
+}
+
+async function requestDataDeletion(){
+  const confirmed = confirm(
+    'Are you sure you want to delete your account and all your personal data?\n\n' +
+    'Êtes-vous sûr(e) de vouloir supprimer votre compte et toutes vos données personnelles ?\n\n' +
+    'This action is irreversible. / Cette action est irréversible.'
+  );
+  if(!confirmed) return;
+  try {
+    // 1) Supprimer toutes les inscriptions de l'utilisateur
+    await sb.from('inscriptions').delete().eq('user_id', S.session.user.id);
+    // 2) Supprimer le profil
+    await sb.from('profiles').delete().eq('id', S.session.user.id);
+    // 3) Notifier l'admin
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'DATA_DELETION', record:{ nom: S.profile?.full_name||'', email: S.session.user.email }})
+    }).catch(()=>{});
+    // 4) Déconnexion (le compte auth reste, l'admin peut le purger manuellement via Supabase)
+    toast('Your data has been deleted. Logging out...', 'success');
+    setTimeout(()=>logout(), 2000);
+  } catch(e){
+    toast('Error during deletion. Please contact nelly.tornare@cinor.re', 'error');
+  }
+}
+
+// ── Changement de mot de passe ───────────────────────────────────────
+async function changePassword(){
+  const pwd = document.getElementById('newPassword').value;
+  const conf = document.getElementById('confirmPassword').value;
+  const err = document.getElementById('pwdChangeErr');
+  err.style.color = 'var(--red)';
+  err.textContent = '';
+  if(!pwd || pwd.length < 6){ err.textContent = 'Le mot de passe doit faire au moins 6 caractères.'; return; }
+  if(pwd !== conf){ err.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+  const { error } = await sb.auth.updateUser({ password: pwd });
+  if(error){ err.textContent = error.message; return; }
+  err.style.color = '#15803d';
+  err.textContent = '✅ Mot de passe mis à jour avec succès !';
+  document.getElementById('newPassword').value = '';
+  document.getElementById('confirmPassword').value = '';
+}
+
+// ── Gestion des accès (admin) ────────────────────────────────────────
+let _requestFilter = 'pending';
+let _allProfiles = [];
+
+async function openAccessRequests(){
+  if(!S.isAdmin) return;
+  const { data } = await sb.from('profiles').select('*').eq('is_admin', false).order('created_at', { ascending: false });
+  _allProfiles = data || [];
+  filterRequests('pending');
+  document.getElementById('accessRequestsModal').classList.add('show');
+  const pending = _allProfiles.filter(p=>!p.approved&&!p.blocked).length;
+  const badge = document.getElementById('pendingBadge');
+  if(badge){ badge.style.display = pending ? 'inline' : 'none'; badge.textContent = pending; }
+}
+
+function filterRequests(filter){
+  _requestFilter = filter;
+  ['pending','approved','blocked'].forEach(f=>{
+    const btn = document.getElementById('filter'+f.charAt(0).toUpperCase()+f.slice(1));
+    if(btn){ btn.style.background = f===filter ? 'var(--accent)' : ''; btn.style.color = f===filter ? 'white' : ''; }
+  });
+  let list = _allProfiles;
+  if(filter==='pending')  list = list.filter(p=>!p.approved&&!p.blocked);
+  if(filter==='approved') list = list.filter(p=>p.approved&&!p.blocked);
+  if(filter==='blocked')  list = list.filter(p=>p.blocked);
+  const el = document.getElementById('accessRequestsList');
+  if(!list.length){ el.innerHTML=`<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aucun utilisateur dans cette catégorie.</p>`; return; }
+  el.innerHTML = list.map(p=>`
+    <div class="request-card">
+      <b>${esc(p.full_name||p.email)}</b>
+      <div class="rc-meta">📧 ${esc(p.email)} · 📞 ${esc(p.phone||'—')} · 🌍 ${esc(p.nationality||'—')}</div>
+      <div class="rc-meta">📅 Stage : ${p.arrival_date||'?'} → ${p.departure_date||'?'}</div>
+      <div class="rc-meta">🏠 ${esc(p.billing_address||'—')}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${!p.approved&&!p.blocked ? `<button class="approve-btn" onclick="approveUser('${p.id}','${esc(p.full_name||'')}','${esc(p.email)}','${p.arrival_date||''}','${p.departure_date||''}')">✅ Valider l'accès</button>` : ''}
+        ${p.approved&&!p.blocked  ? `<span style="font-size:.75rem;color:#16a34a;font-weight:700">✅ Accès actif</span>` : ''}
+        ${!p.blocked ? `<button class="block-btn" onclick="blockUser('${p.id}')">🚫 Bloquer</button>` : ''}
+        ${p.blocked  ? `<button class="unblock-btn" onclick="unblockUser('${p.id}')">🔓 Débloquer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function approveUser(userId, name, email, arrival, departure){
+  const { error } = await sb.from('profiles').update({ approved: true, blocked: false }).eq('id', userId);
+  if(error){ toast('Erreur lors de la validation.','error'); return; }
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'APPROVED', record:{ email, nom:name, arrival_date:arrival, departure_date:departure }})
+    });
+  } catch(e){}
+  toast(`✅ Accès validé pour ${name}`,'success');
+  await openAccessRequests();
+}
+
+async function blockUser(userId){
+  const { error } = await sb.from('profiles').update({ blocked: true }).eq('id', userId);
+  if(error){ toast('Erreur.','error'); return; }
+  toast('Utilisateur bloqué.','success');
+  await openAccessRequests();
+}
+
+async function unblockUser(userId){
+  const { error } = await sb.from('profiles').update({ blocked: false }).eq('id', userId);
+  if(error){ toast('Erreur.','error'); return; }
+  toast('Utilisateur débloqué.','success');
+  await openAccessRequests();
+}
+
+async function refreshPendingBadge(){
+  if(!S.isAdmin) return;
+  const { data } = await sb.from('profiles').select('id').eq('approved',false).eq('blocked',false).eq('is_admin',false);
+  const count = data?.length||0;
+  const badge = document.getElementById('pendingBadge');
+  if(badge){ badge.style.display = count ? 'inline' : 'none'; badge.textContent = count; }
+}
+
+function openAdminUsers(){
+  if(!S.isAdmin) return;
+  const counts={}, names={}, sessions={};
+  Object.keys(S.data).sort().forEach(dateK=>{
+    Object.keys(S.data[dateK]).sort().forEach(slot=>{
+      S.data[dateK][slot].forEach(a=>{
+        const uid=a.user_id||'inconnu';
+        counts[uid]=(counts[uid]||0)+1;
+        if(!names[uid]) names[uid]=a.referent||a.name||uid.slice(0,8)+'…';
+        if(!sessions[uid]) sessions[uid]=[];
+        sessions[uid].push({dateK,slot,name:a.name,role:a.role,kx:isKayakCross(dateK,slot)});
+      });
+    });
+  });
+  const sorted=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  document.getElementById('adminUsersBody').innerHTML=sorted.length
+    ? sorted.map(uid=>`
+        <div class="admin-user-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <div class="au-name">${esc(names[uid])}</div>
+            <div class="au-count">${counts[uid]} séance(s)</div>
+          </div>
+          <div style="font-size:.75rem;color:var(--text3);padding-left:4px">
+            ${(sessions[uid]||[]).map(s=>`
+              <span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:10px;background:${s.kx?'#fff7ed':'#f0f7ff'};border:1px solid ${s.kx?'#f97316':'#1d4ed8'};color:${s.kx?'#c2410c':'#1e40af'}">
+                ${s.dateK} ${s.slot}${s.kx?' 🏄':''}
+              </span>`).join('')}
+          </div>
+        </div>`).join('')
+    : '<p style="color:var(--text3);font-size:.85rem">Aucune inscription.</p>';
+  document.getElementById('adminUsersModal').classList.add('show');
+}
+
+// ── Confirmation email à l'utilisateur ───────────────────────────────
+async function sendUserConfirmation(participants,dateK,slot){
+  if(!S.session||!S.profile?.email) return;
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        type:'CONFIRM_USER',
+        record:{ email:S.profile.email, nom:S.profile.full_name||S.profile.email, date:dateK, creneau:slot },
+        participants
+      })
+    });
+  } catch(e){}
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(async()=>{
+  switchAuthTab('login');
+  const { data: { session } } = await sb.auth.getSession();
+  if(session){
+    await onAuthed(session);
+  }
+  sb.auth.onAuthStateChange((event, session) => {
+    if(event==='SIGNED_OUT'){
+      S.session=null; S.profile=null; S.isAdmin=false;
+      document.getElementById('authScreen').style.display='flex';
+      document.getElementById('appHeader').style.display='none';
+      document.getElementById('appBody').style.display='none';
+    }
+  });
+  // ⏱ Temps réel : rechargement silencieux toutes les 10 secondes
+  setInterval(silentReload, 10000);
+})();
+</script>
+</body>
+</html>
