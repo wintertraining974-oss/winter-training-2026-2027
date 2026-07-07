@@ -293,6 +293,18 @@ select.field { min-width: 110px; cursor: pointer; }
       </div>
     </div>
 
+    <!-- RGPD consent (signup only) -->
+    <div id="rgpdConsentWrap" style="display:none;margin-top:10px;padding:10px;background:#f0f7ff;border-radius:8px;border:1px solid #bfdbfe">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:.78rem">
+        <input type="checkbox" id="rgpdConsent" style="margin-top:3px;flex-shrink:0">
+        <span>I have read and accept the <a href="#" onclick="openPrivacyPolicy();return false;" style="color:var(--accent);font-weight:600">Privacy Policy</a> and consent to the processing of my personal data for the purpose of managing my kayak session registrations. I understand I can withdraw my consent at any time. <span style="color:var(--red)">*</span></span>
+      </label>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:6px;margin-left:20px">
+        Data controller: CINOR – Communauté Intercommunale du Nord de La Réunion · 
+        Contact DPO: <a href="mailto:nelly.tornare@cinor.re" style="color:var(--accent)">nelly.tornare@cinor.re</a>
+      </p>
+    </div>
+
     <div class="auth-err" id="authErr"></div>
     <button class="btn btn-primary" id="authSubmitBtn" style="width:100%;margin-top:6px" onclick="submitAuth()">Se connecter</button>
     <div style="text-align:center;margin-top:10px" id="forgotLinkWrap">
@@ -308,7 +320,26 @@ select.field { min-width: 110px; cursor: pointer; }
   </div>
 </div>
 
-<!-- Écran en attente de validation admin -->
+<!-- Écran réinitialisation mot de passe (après clic sur le lien email) -->
+<div class="status-screen" id="resetPwdScreen" style="display:none">
+  <div class="status-box" style="text-align:left">
+    <div class="status-icon" style="text-align:center">🔐</div>
+    <h2 style="text-align:center">Set a new password</h2>
+    <p style="text-align:center;margin-bottom:16px">Choose a new password for your account.</p>
+    <div class="modal-fields">
+      <div>
+        <label>New password *</label>
+        <input class="field" id="resetPwd1" type="password" placeholder="Minimum 6 characters" style="width:100%">
+      </div>
+      <div>
+        <label>Confirm password *</label>
+        <input class="field" id="resetPwd2" type="password" placeholder="Repeat password" style="width:100%" onkeydown="if(event.key==='Enter')submitResetPwd()">
+      </div>
+    </div>
+    <div class="auth-err" id="resetPwdErr" style="min-height:1em;margin-top:6px"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="submitResetPwd()">Save new password</button>
+  </div>
+</div>
 <div class="status-screen" id="pendingScreen" style="display:none">
   <div class="status-box">
     <div class="status-icon">⏳</div>
@@ -535,8 +566,9 @@ select.field { min-width: 110px; cursor: pointer; }
       <div class="auth-err" id="pwdChangeErr" style="min-height:1em"></div>
       <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Mettre à jour le mot de passe</button>
     </div>
-    <div class="modal-actions" style="margin-top:14px">
-      <button class="btn" onclick="closeModal('profileModal')">Fermer</button>
+    <div class="modal-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <button class="btn" style="color:var(--red);font-size:.78rem" onclick="requestDataDeletion()">🗑 Delete my account & data</button>
+      <button class="btn" onclick="closeModal('profileModal')">Close</button>
     </div>
   </div>
 </div>
@@ -571,6 +603,68 @@ select.field { min-width: 110px; cursor: pointer; }
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Modal Politique de confidentialité / Privacy Policy -->
+<div class="modal-bg" id="privacyModal">
+  <div class="modal-box" style="max-width:640px;max-height:85vh;overflow-y:auto">
+    <h3>🔒 Privacy Policy / Politique de confidentialité</h3>
+    <div style="font-size:.82rem;line-height:1.7;color:var(--text2)">
+
+      <h4 style="color:var(--accent);margin-top:16px">1. Data Controller / Responsable du traitement</h4>
+      <p><b>CINOR – Communauté Intercommunale du Nord de La Réunion</b><br>
+      Contact : <a href="mailto:nelly.tornare@cinor.re">nelly.tornare@cinor.re</a></p>
+
+      <h4 style="color:var(--accent);margin-top:16px">2. Data Collected / Données collectées</h4>
+      <p>During registration, we collect the following personal data :<br>
+      <em>Lors de l'inscription, nous collectons les données personnelles suivantes :</em></p>
+      <ul style="margin-left:16px">
+        <li>First name & last name / Prénom et nom</li>
+        <li>Email address / Adresse email</li>
+        <li>Phone number / Numéro de téléphone</li>
+        <li>Nationality / Nationalité</li>
+        <li>Billing address / Adresse de facturation</li>
+        <li>Training camp dates (arrival / departure) / Dates de stage (arrivée / départ)</li>
+        <li>Session registrations / Inscriptions aux séances</li>
+      </ul>
+
+      <h4 style="color:var(--accent);margin-top:16px">3. Purpose & Legal Basis / Finalité & Base légale</h4>
+      <p>Your data is processed exclusively for managing kayak Winter Training session registrations.<br>
+      <em>Vos données sont traitées exclusivement pour la gestion des inscriptions aux séances de kayak du Winter Training.</em><br>
+      <b>Legal basis / Base légale :</b> Consent (Art. 6.1.a GDPR) / Consentement (Art. 6.1.a RGPD)</p>
+
+      <h4 style="color:var(--accent);margin-top:16px">4. Data Retention / Durée de conservation</h4>
+      <p>Your data is retained for the duration of your training camp, plus a maximum of 12 months after the end of the season (March 2027).<br>
+      <em>Vos données sont conservées pendant la durée de votre stage, puis au maximum 12 mois après la fin de la saison (mars 2027).</em></p>
+
+      <h4 style="color:var(--accent);margin-top:16px">5. Data Hosting / Hébergement des données</h4>
+      <p>Data is hosted by <b>Supabase</b> (servers located in the European Union, eu-west-1 region). No transfer outside the EU.<br>
+      <em>Les données sont hébergées par Supabase (serveurs en Union Européenne, région eu-west-1). Aucun transfert hors UE.</em></p>
+
+      <h4 style="color:var(--accent);margin-top:16px">6. Your Rights / Vos droits</h4>
+      <p>Under GDPR, you have the right to / En vertu du RGPD, vous disposez du droit de :</p>
+      <ul style="margin-left:16px">
+        <li><b>Access</b> your data / <b>Accéder</b> à vos données</li>
+        <li><b>Rectify</b> inaccurate data / <b>Rectifier</b> des données inexactes</li>
+        <li><b>Erase</b> your data ("right to be forgotten") / <b>Effacer</b> vos données (droit à l'oubli)</li>
+        <li><b>Restrict</b> processing / <b>Limiter</b> le traitement</li>
+        <li><b>Data portability</b> / <b>Portabilité</b> des données</li>
+        <li><b>Withdraw consent</b> at any time / <b>Retirer votre consentement</b> à tout moment</li>
+      </ul>
+      <p>To exercise your rights, contact / Pour exercer vos droits, contactez :<br>
+      📧 <a href="mailto:nelly.tornare@cinor.re"><b>nelly.tornare@cinor.re</b></a></p>
+      <p>You also have the right to lodge a complaint with the CNIL (France) :<br>
+      <em>Vous pouvez également déposer une réclamation auprès de la CNIL :</em><br>
+      🌐 <a href="https://www.cnil.fr" target="_blank">www.cnil.fr</a> — 3, Place de Fontenoy, 75007 Paris</p>
+
+      <h4 style="color:var(--accent);margin-top:16px">7. Data Deletion / Suppression des données</h4>
+      <p>You can request the deletion of your account and all associated data directly from your profile page.<br>
+      <em>Vous pouvez demander la suppression de votre compte et de toutes vos données depuis votre page de profil.</em></p>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="closeModal('privacyModal')">I understand / J'ai compris</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -679,6 +773,7 @@ const END   = new Date(2027,2,31);  // 31 mars 2027
 let S = {
   view:'week', currentDate:new Date(2026,6,6), selectedDate:null,
   isAdmin:false, priorityOn:true,
+  priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
   morningOrder:['7h-8h','8h-9h','9h-10h','10h-11h','11h-12h'],
   afternoonOrder:['12h-13h','13h-14h','14h-15h','15h-16h','16h-17h'],
   capacity:{'7h-8h':15,'8h-9h':15,'9h-10h':15,'10h-11h':15,'11h-12h':15,'12h-13h':15,'13h-14h':15,'14h-15h':15,'15h-16h':15,'16h-17h':15},
@@ -707,8 +802,9 @@ function switchAuthTab(mode){
   document.getElementById('tabSignup').classList.toggle('active', mode==='signup');
   document.getElementById('loginFields').style.display = mode==='login' ? 'block' : 'none';
   document.getElementById('signupFields').style.display = mode==='signup' ? 'block' : 'none';
+  document.getElementById('rgpdConsentWrap').style.display = mode==='signup' ? 'block' : 'none';
   document.getElementById('forgotLinkWrap').style.display = mode==='login' ? 'block' : 'none';
-  document.getElementById('authSubmitBtn').textContent = mode==='signup' ? 'Envoyer ma demande d\'accès' : 'Se connecter';
+  document.getElementById('authSubmitBtn').textContent = mode==='signup' ? 'Send my access request' : 'Log in';
   document.getElementById('authErr').textContent = '';
 }
 
@@ -732,7 +828,9 @@ async function submitAuth(){
     const phoneNum   = document.getElementById('sfPhone').value.trim();
     const phone      = phoneCode + ' ' + phoneNum;
 
-    if(!firstName||!lastName)  { errEl.textContent='First name and last name are required.'; return; }
+    if(!document.getElementById('rgpdConsent').checked){
+      errEl.textContent = 'You must accept the Privacy Policy to continue.'; return;
+    }
     if(!arrival||!departure)   { errEl.textContent='Arrival and departure dates are required.'; return; }
     if(arrival > departure)    { errEl.textContent='Arrival date must be before departure date.'; return; }
     if(!address)               { errEl.textContent='Billing address is required.'; return; }
@@ -776,7 +874,7 @@ async function submitAuth(){
 async function logout(){
   await sb.auth.signOut();
   S.session=null; S.profile=null; S.isAdmin=false;
-  ['pendingScreen','blockedScreen','appHeader','appBody'].forEach(id=>{
+  ['pendingScreen','blockedScreen','resetPwdScreen','appHeader','appBody'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display='none';
   });
@@ -871,6 +969,7 @@ async function saveConfig() {
     morningOrder:   S.morningOrder,
     afternoonOrder: S.afternoonOrder,
     priorityOn:     S.priorityOn,
+    priorityDays:   S.priorityDays,
     customSlots:    S.customSlots,
     kayakCross:     S.kayakCross,
   };
@@ -889,6 +988,7 @@ async function loadConfig() {
   if (cfg.morningOrder   !== undefined) S.morningOrder   = cfg.morningOrder;
   if (cfg.afternoonOrder !== undefined) S.afternoonOrder = cfg.afternoonOrder;
   if (cfg.priorityOn     !== undefined) S.priorityOn     = cfg.priorityOn;
+  if (cfg.priorityDays   !== undefined) S.priorityDays   = cfg.priorityDays;
   if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
   if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
 }
@@ -983,9 +1083,15 @@ function toggleCustomCode(sel){
   if(sel.value==='+other'){ c.style.display='block'; } else { c.style.display='none'; }
 }
 function isLocked(dateK,slot){
+  if(S.isAdmin) return false;
+  if(!S.priorityOn) return false;
+  if(!S.priorityDays[dateK]) return false;
+  if(isKayakCross(dateK,slot)) return false; // KX toujours accessible en priorité
   for(const g of [morningSlots(dateK),afternoonSlots(dateK)]){
     const idx=g.indexOf(slot); if(idx<0) continue;
-    for(let i=0;i<idx;i++) if(getSlot(dateK,g[i]).length<cap(g[i])) return true;
+    for(let i=0;i<idx;i++){
+      if(!isKayakCross(dateK,g[i]) && getSlot(dateK,g[i]).length<cap(g[i])) return true;
+    }
     return false;
   }
   return false;
@@ -1680,6 +1786,60 @@ async function quickResetDate(dateK){
   render();
 }
 
+// ── Réinitialisation mot de passe (retour depuis email) ──────────────
+async function submitResetPwd(){
+  const p1 = document.getElementById('resetPwd1').value;
+  const p2 = document.getElementById('resetPwd2').value;
+  const err = document.getElementById('resetPwdErr');
+  err.style.color = 'var(--red)'; err.textContent = '';
+  if(!p1 || p1.length < 6){ err.textContent = 'Password must be at least 6 characters.'; return; }
+  if(p1 !== p2){ err.textContent = 'Passwords do not match.'; return; }
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if(error){ err.textContent = error.message; return; }
+  err.style.color = '#15803d';
+  err.textContent = '✅ Password updated! Redirecting...';
+  document.getElementById('resetPwd1').value = '';
+  document.getElementById('resetPwd2').value = '';
+  // Récupérer la session et charger l'app
+  setTimeout(async()=>{
+    document.getElementById('resetPwdScreen').style.display = 'none';
+    const { data: { session } } = await sb.auth.getSession();
+    if(session) await onAuthed(session);
+    else { document.getElementById('authScreen').style.display='flex'; }
+  }, 1500);
+}
+
+// ── RGPD ─────────────────────────────────────────────────────────────
+function openPrivacyPolicy(){
+  document.getElementById('privacyModal').classList.add('show');
+}
+
+async function requestDataDeletion(){
+  const confirmed = confirm(
+    'Are you sure you want to delete your account and all your personal data?\n\n' +
+    'Êtes-vous sûr(e) de vouloir supprimer votre compte et toutes vos données personnelles ?\n\n' +
+    'This action is irreversible. / Cette action est irréversible.'
+  );
+  if(!confirmed) return;
+  try {
+    // 1) Supprimer toutes les inscriptions de l'utilisateur
+    await sb.from('inscriptions').delete().eq('user_id', S.session.user.id);
+    // 2) Supprimer le profil
+    await sb.from('profiles').delete().eq('id', S.session.user.id);
+    // 3) Notifier l'admin
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-registration`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'DATA_DELETION', record:{ nom: S.profile?.full_name||'', email: S.session.user.email }})
+    }).catch(()=>{});
+    // 4) Déconnexion (le compte auth reste, l'admin peut le purger manuellement via Supabase)
+    toast('Your data has been deleted. Logging out...', 'success');
+    setTimeout(()=>logout(), 2000);
+  } catch(e){
+    toast('Error during deletion. Please contact nelly.tornare@cinor.re', 'error');
+  }
+}
+
 // ── Changement de mot de passe ───────────────────────────────────────
 async function changePassword(){
   const pwd = document.getElementById('newPassword').value;
@@ -1829,18 +1989,75 @@ async function sendUserConfirmation(participants,dateK,slot){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 (async()=>{
   switchAuthTab('login');
-  const { data: { session } } = await sb.auth.getSession();
-  if(session){
-    await onAuthed(session);
-  }
-  sb.auth.onAuthStateChange((event, session) => {
-    if(event==='SIGNED_OUT'){
-      S.session=null; S.profile=null; S.isAdmin=false;
+
+  // ── Détecter les callbacks depuis les emails Supabase ──────────────
+  // Supabase peut envoyer des liens avec ?code=... (PKCE) ou #access_token=... (implicite)
+  const hashParams  = new URLSearchParams(window.location.hash.replace('#',''));
+  const queryParams = new URLSearchParams(window.location.search);
+  const urlType     = hashParams.get('type') || queryParams.get('type');
+  const urlCode     = queryParams.get('code');
+  const urlError    = queryParams.get('error_description') || hashParams.get('error_description');
+
+  if(urlError){
+    // Lien expiré ou déjà utilisé
+    const errEl = document.getElementById('authErr');
+    errEl.textContent = 'This link has expired or has already been used. Please request a new one.';
+    document.getElementById('authScreen').style.display='flex';
+  } else if(urlCode){
+    // Confirmation email ou reset password via PKCE (code dans l'URL)
+    const { data, error } = await sb.auth.exchangeCodeForSession(urlCode);
+    if(error){
+      document.getElementById('authErr').textContent = 'Invalid or expired link. Please try again.';
       document.getElementById('authScreen').style.display='flex';
-      document.getElementById('appHeader').style.display='none';
-      document.getElementById('appBody').style.display='none';
+    } else if(data.session){
+      // Nettoyer l'URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Vérifier si c'est un reset de mot de passe
+      const { data: { user } } = await sb.auth.getUser();
+      if(user?.recovery_sent_at || urlType==='recovery'){
+        // Afficher l'écran de nouveau mot de passe
+        document.getElementById('resetPwdScreen').style.display='flex';
+      } else {
+        await onAuthed(data.session);
+      }
+    }
+  } else if(urlType === 'recovery' && hashParams.get('access_token')){
+    // Reset password via token dans le hash (mode implicite)
+    window.history.replaceState({}, document.title, window.location.pathname);
+    const { data, error } = await sb.auth.setSession({
+      access_token:  hashParams.get('access_token'),
+      refresh_token: hashParams.get('refresh_token') || ''
+    });
+    if(!error && data.session){
+      document.getElementById('resetPwdScreen').style.display='flex';
+    }
+  } else {
+    // Connexion normale : vérifier session existante
+    const { data: { session } } = await sb.auth.getSession();
+    if(session) await onAuthed(session);
+  }
+
+  // ── Écouter les changements d'auth ─────────────────────────────────
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if(event === 'PASSWORD_RECOVERY'){
+      // L'utilisateur a cliqué sur un lien de reset → afficher l'écran de nouveau mdp
+      ['authScreen','pendingScreen','blockedScreen','appHeader','appBody'].forEach(id=>{
+        const el=document.getElementById(id); if(el) el.style.display='none';
+      });
+      document.getElementById('resetPwdScreen').style.display='flex';
+    } else if(event === 'SIGNED_IN' && session){
+      // Email confirmé ou reconnexion après reset
+      if(document.getElementById('resetPwdScreen').style.display==='flex') return;
+      if(!S.session) await onAuthed(session);
+    } else if(event === 'SIGNED_OUT'){
+      S.session=null; S.profile=null; S.isAdmin=false;
+      ['resetPwdScreen','pendingScreen','blockedScreen','appHeader','appBody'].forEach(id=>{
+        const el=document.getElementById(id); if(el) el.style.display='none';
+      });
+      document.getElementById('authScreen').style.display='flex';
     }
   });
+
   // ⏱ Temps réel : rechargement silencieux toutes les 10 secondes
   setInterval(silentReload, 10000);
 })();
