@@ -1082,17 +1082,25 @@ function toggleCustomCode(sel){
   const c = document.getElementById('sfPhoneCustomCode');
   if(sel.value==='+other'){ c.style.display='block'; } else { c.style.display='none'; }
 }
+function isPriorityActive(dateK){
+  if(!S.priorityOn) return false;
+  // Si aucun jour n'est explicitement configuré → priorité sur tous les jours (comportement par défaut)
+  const days = Object.keys(S.priorityDays||{});
+  if(days.length === 0) return true;
+  return !!S.priorityDays[dateK];
+}
+
 function isLocked(dateK,slot){
   if(S.isAdmin) return false;
-  if(!S.priorityOn) return false;
-  if(!S.priorityDays[dateK]) return false;
-  if(isKayakCross(dateK,slot)) return false; // KX toujours accessible en priorité
-  for(const g of [morningSlots(dateK),afternoonSlots(dateK)]){
-    const idx=g.indexOf(slot); if(idx<0) continue;
-    for(let i=0;i<idx;i++){
-      if(!isKayakCross(dateK,g[i]) && getSlot(dateK,g[i]).length<cap(g[i])) return true;
-    }
-    return false;
+  if(!isPriorityActive(dateK)) return false;
+  if(isKayakCross(dateK,slot)) return false; // KX toujours accessible
+  // Construire la liste des créneaux SLALOM uniquement (KX exclus) pour le calcul de priorité
+  const g = [...morningSlots(dateK),...afternoonSlots(dateK)].filter(s=>!isKayakCross(dateK,s));
+  const idx = g.indexOf(slot);
+  if(idx < 0) return false;
+  // Un créneau slalom est bloqué si un créneau slalom AVANT lui dans l'ordre n'est pas plein
+  for(let i=0; i<idx; i++){
+    if(getSlot(dateK,g[i]).length < cap(g[i])) return true;
   }
   return false;
 }
