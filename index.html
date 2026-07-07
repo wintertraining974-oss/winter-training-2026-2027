@@ -1093,14 +1093,18 @@ function isPriorityActive(dateK){
 function isLocked(dateK,slot){
   if(S.isAdmin) return false;
   if(!isPriorityActive(dateK)) return false;
-  if(isKayakCross(dateK,slot)) return false; // KX toujours accessible
-  // Construire la liste des créneaux SLALOM uniquement (KX exclus) pour le calcul de priorité
-  const g = [...morningSlots(dateK),...afternoonSlots(dateK)].filter(s=>!isKayakCross(dateK,s));
-  const idx = g.indexOf(slot);
-  if(idx < 0) return false;
-  // Un créneau slalom est bloqué si un créneau slalom AVANT lui dans l'ordre n'est pas plein
-  for(let i=0; i<idx; i++){
-    if(getSlot(dateK,g[i]).length < cap(g[i])) return true;
+  if(isKayakCross(dateK,slot)) return false; // KX toujours libre
+  // Chercher le groupe (matin ou après-midi) du créneau et calculer la priorité dans ce groupe uniquement
+  for(const group of [morningSlots(dateK), afternoonSlots(dateK)]){
+    if(!group.includes(slot)) continue;
+    // Chaîne de priorité = créneaux SLALOM de ce groupe uniquement (KX exclus)
+    const chain = group.filter(s => !isKayakCross(dateK, s));
+    const idx = chain.indexOf(slot);
+    if(idx <= 0) return false; // premier créneau slalom du groupe → jamais bloqué
+    for(let i=0; i<idx; i++){
+      if(getSlot(dateK, chain[i]).length < cap(chain[i])) return true;
+    }
+    return false;
   }
   return false;
 }
