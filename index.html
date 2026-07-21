@@ -1056,11 +1056,6 @@ async function onAuthed(session){
   await load();
   await loadConfig();
   let d = todayClamped();
-  // Si l'utilisateur a une période de stage, naviguer vers son arrivée
-  if(profile?.arrival_date && !S.isAdmin){
-    const arr = new Date(profile.arrival_date+'T12:00:00');
-    if(arr >= START && arr <= END) d = arr;
-  }
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
   S.selectedDate=d; S.currentDate=d;
   S.expanded[`${dk(d)}-${S.morningOrder[0]}`]=true;
