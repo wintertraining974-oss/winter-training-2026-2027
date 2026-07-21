@@ -413,6 +413,10 @@ select.field { min-width: 110px; cursor: pointer; }
     <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div><span id="legFull">Complet / Full</span></div>
   </div>
 
+  <div style="margin-bottom:14px">
+    <button class="btn btn-sm" id="whoRegisteredBtn" style="display:none" onclick="openGlobalPlanning()">👥 Qui est déjà inscrit ?</button>
+  </div>
+
   <div id="calContainer"></div>
   <div id="dayPanel" style="display:none"></div>
 
@@ -525,25 +529,27 @@ select.field { min-width: 110px; cursor: pointer; }
     <div class="admin-card" style="margin-top:16px">
       <h4>🗓 Vue planning global</h4>
       <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
-        Affiche tous les créneaux sur plusieurs jours avec le nom des inscrits.
+        Affiche tous les créneaux sur plusieurs jours avec le nom des inscrits. Ce même planning est accessible à tous les utilisateurs connectés via le bouton « 👥 Qui est déjà inscrit ? » au-dessus du calendrier.
       </p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <input type="date" class="field" id="gpStartDate" style="width:160px" min="2026-07-06" max="2027-03-31">
-        <select class="field" id="gpDays" style="width:140px">
-          <option value="7">7 jours</option>
-          <option value="14">14 jours</option>
-          <option value="30">30 jours</option>
-        </select>
-        <button class="btn btn-sm btn-primary" onclick="openGlobalPlanning()">📅 Afficher</button>
-      </div>
+      <button class="btn btn-sm btn-primary" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
     </div>
   </div>
 </div>
 
-<!-- Modal Vue planning global -->
+<!-- Modal Vue planning global (accessible à tous les utilisateurs connectés) -->
 <div class="modal-bg" id="globalPlanningModal">
   <div class="modal-box" style="max-width:96vw;width:96vw;max-height:90vh;overflow:auto">
-    <h3>🗓 Vue planning global</h3>
+    <h3>👥 Qui est déjà inscrit ?</h3>
+    <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Seuls les créneaux ayant déjà des inscrits sont affichés.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <input type="date" class="field" id="gpStartDate" style="width:160px" min="2026-07-06" max="2027-03-31">
+      <select class="field" id="gpDays" style="width:140px">
+        <option value="7">7 jours</option>
+        <option value="14" selected>14 jours</option>
+        <option value="30">30 jours</option>
+      </select>
+      <button class="btn btn-sm btn-primary" onclick="refreshGlobalPlanning()">🔄 Actualiser</button>
+    </div>
     <div id="globalPlanningBody" style="overflow:auto"></div>
     <div class="modal-actions" style="margin-top:14px">
       <button class="btn" onclick="closeModal('globalPlanningModal')">Fermer</button>
@@ -970,6 +976,7 @@ async function onAuthed(session){
   document.getElementById('profileBtn').style.display='inline-block';
   document.getElementById('logoutBtn').style.display='inline-block';
   document.getElementById('adminPill').style.display = S.isAdmin ? 'inline' : 'none';
+  document.getElementById('whoRegisteredBtn').style.display='inline-block';
   await load();
   await loadConfig();
   let d = new Date(2026,6,6);
@@ -2197,14 +2204,23 @@ async function quickResetDateCap(dateK){
   render();
 }
 
-// ── Vue planning global (admin) ───────────────────────────────────────
+// ── Vue planning global (accessible à tous les utilisateurs connectés) ─
 function openGlobalPlanning(){
-  if(!S.isAdmin) return;
+  if(!S.session) return;
+  const startInput = document.getElementById('gpStartDate');
+  if(!startInput.value){
+    // Par défaut : début de la semaine actuellement affichée
+    startInput.value = dk(weekStart(S.currentDate));
+  }
+  refreshGlobalPlanning();
+  document.getElementById('globalPlanningModal').classList.add('show');
+}
+
+function refreshGlobalPlanning(){
   const startVal = document.getElementById('gpStartDate').value;
-  const days = parseInt(document.getElementById('gpDays').value) || 7;
+  const days = parseInt(document.getElementById('gpDays').value) || 14;
   const start = startVal ? parseDate(startVal) : new Date(S.currentDate);
   renderGlobalPlanning(start, days);
-  document.getElementById('globalPlanningModal').classList.add('show');
 }
 
 function renderGlobalPlanning(start, days){
