@@ -897,8 +897,17 @@ function toggleLang(){ LANG = LANG==='fr'?'en':'fr'; applyI18n(); render(); }
 const START = new Date(2026,6,6);   // 6 juillet 2026
 const END   = new Date(2027,2,31);  // 31 mars 2027
 
+// Retourne la date du jour (calendrier réel), bornée à la période de la saison [START, END].
+function todayClamped(){
+  const now = new Date();
+  let d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if(d < START) d = new Date(START);
+  if(d > END) d = new Date(END);
+  return d;
+}
+
 let S = {
-  view:'week', currentDate:new Date(2026,6,6), selectedDate:null,
+  view:'week', currentDate:todayClamped(), selectedDate:null,
   isAdmin:false, priorityOn:true,
   priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
   morningOrder:['7h-8h','8h-9h','9h-10h','10h-11h','11h-12h'],
@@ -1046,7 +1055,7 @@ async function onAuthed(session){
   document.getElementById('whoRegisteredBtn').style.display='inline-block';
   await load();
   await loadConfig();
-  let d = new Date(2026,6,6);
+  let d = todayClamped();
   // Si l'utilisateur a une période de stage, naviguer vers son arrivée
   if(profile?.arrival_date && !S.isAdmin){
     const arr = new Date(profile.arrival_date+'T12:00:00');
