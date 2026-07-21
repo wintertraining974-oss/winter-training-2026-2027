@@ -498,10 +498,8 @@ select.field { min-width: 110px; cursor: pointer; }
 
     <!-- Capacité personnalisée par date (sélection multiple via mini-calendrier) -->
     <div class="admin-card" style="margin-top:16px">
-      <h4>🔢 Capacité personnalisée par date</h4>
-      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
-        Coche un ou plusieurs jours dans le mini-calendrier ci-dessous, puis défini la capacité à appliquer à tous les jours cochés (ex : lundi 15 juillet = 15 places, mardi 16 = 20 places). Laisse vide = capacité par défaut.
-      </p>
+      <h4 id="aDateCapTitle">🔢 Capacité personnalisée par date</h4>
+      <p id="aDateCapDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <button class="btn btn-sm" onclick="dcCalNav(-1)">←</button>
         <b id="dcCalLabel" style="font-size:.85rem"></b>
@@ -509,16 +507,16 @@ select.field { min-width: 110px; cursor: pointer; }
       </div>
       <div id="dcMiniCal" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:8px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-        <button class="btn btn-sm" onclick="dcClearSelection()">Tout désélectionner</button>
+        <button class="btn btn-sm" id="dcClearBtn" onclick="dcClearSelection()">Tout désélectionner</button>
         <span id="dcSelectedCount" style="font-size:.78rem;color:var(--text3)"></span>
       </div>
       <div id="dcSelectedChips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"></div>
-      <button class="btn btn-sm btn-primary" onclick="loadDateCapEditor()" style="margin-bottom:10px">Modifier la capacité des jours cochés</button>
+      <button class="btn btn-sm btn-primary" id="dcModifyBtn" onclick="loadDateCapEditor()" style="margin-bottom:10px">Modifier la capacité des jours cochés</button>
       <div id="dateCapEditor" style="display:none">
         <div id="dateCapList" style="margin-bottom:10px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-sm btn-primary" onclick="saveDateCap()">💾 Enregistrer pour tous les jours cochés</button>
-          <button class="btn btn-sm" style="color:var(--red)" onclick="resetDateCap()">🗑 Supprimer (revenir à la capacité par défaut)</button>
+          <button class="btn btn-sm btn-primary" id="dcSaveBtn" onclick="saveDateCap()">💾 Enregistrer pour tous les jours cochés</button>
+          <button class="btn btn-sm" id="dcResetBtn" style="color:var(--red)" onclick="resetDateCap()">🗑 Supprimer (revenir à la capacité par défaut)</button>
         </div>
         <div id="dcMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
       </div>
@@ -527,11 +525,9 @@ select.field { min-width: 110px; cursor: pointer; }
 
     <!-- Vue planning global -->
     <div class="admin-card" style="margin-top:16px">
-      <h4>🗓 Vue planning global</h4>
-      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
-        Affiche tous les créneaux sur plusieurs jours avec le nom des inscrits. Ce même planning est accessible à tous les utilisateurs connectés via le bouton « 👥 Qui est déjà inscrit ? » au-dessus du calendrier.
-      </p>
-      <button class="btn btn-sm btn-primary" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
+      <h4 id="aGlobalPlanTitle">🗓 Vue planning global</h4>
+      <p id="aGlobalPlanDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
+      <button class="btn btn-sm btn-primary" id="aGlobalPlanBtn" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
     </div>
   </div>
 </div>
@@ -539,16 +535,16 @@ select.field { min-width: 110px; cursor: pointer; }
 <!-- Modal Vue planning global (accessible à tous les utilisateurs connectés) -->
 <div class="modal-bg" id="globalPlanningModal">
   <div class="modal-box" style="max-width:96vw;width:96vw;max-height:90vh;overflow:auto">
-    <h3>👥 Qui est déjà inscrit ?</h3>
-    <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Seuls les créneaux ayant déjà des inscrits sont affichés.</p>
+    <h3 id="gpModalTitle">👥 Qui est déjà inscrit ?</h3>
+    <p id="gpModalSub" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="date" class="field" id="gpStartDate" style="width:160px" min="2026-07-06" max="2027-03-31">
       <select class="field" id="gpDays" style="width:140px">
-        <option value="7">7 jours</option>
-        <option value="14" selected>14 jours</option>
-        <option value="30">30 jours</option>
+        <option value="7" id="gpDays7Opt">7 jours</option>
+        <option value="14" id="gpDays14Opt" selected>14 jours</option>
+        <option value="30" id="gpDays30Opt">30 jours</option>
       </select>
-      <button class="btn btn-sm btn-primary" onclick="refreshGlobalPlanning()">🔄 Actualiser</button>
+      <button class="btn btn-sm btn-primary" id="gpRefreshBtn" onclick="refreshGlobalPlanning()">🔄 Actualiser</button>
     </div>
     <div id="globalPlanningBody" style="overflow:auto"></div>
     <div class="modal-actions" style="margin-top:14px">
@@ -766,6 +762,32 @@ const TR = {
     calHeads:['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'],
     dowOpen:'Ouvert', dowClosed:'Fermé',
     moveInfoTpl:'Participant : {name} ({role}) — sur {slot} le {date}',
+    aDateCapTitle:'🔢 Capacité personnalisée par date',
+    aDateCapDesc:"Coche un ou plusieurs jours dans le mini-calendrier ci-dessous, puis défini la capacité à appliquer à tous les jours cochés. Laisse vide = capacité par défaut.",
+    dcClearBtn:'Tout désélectionner',
+    dcModifyBtn:'Modifier la capacité des jours cochés',
+    dcSaveBtn:'💾 Enregistrer pour tous les jours cochés',
+    dcResetBtn:'🗑 Supprimer (revenir à la capacité par défaut)',
+    dcNoDaySelected:'Aucun jour sélectionné',
+    dcDaysSelectedTpl:'{n} jour(s) sélectionné(s)',
+    dcAlertNoDay:'Coche au moins un jour dans le mini-calendrier.',
+    dcNoSlotsForDates:'Aucun créneau pour ces dates.',
+    dcSavedTpl:'✅ Capacité enregistrée pour {n} jour(s)',
+    dcResetConfirmTpl:'Revenir à la capacité par défaut pour {n} jour(s) ?',
+    dcResetDoneTpl:'Capacité remise par défaut pour {n} jour(s)',
+    dcSummaryNone:'Aucune capacité personnalisée définie.',
+    dcSummaryLabel:'Dates avec capacité personnalisée :',
+    dcConfirmDeleteTpl:'Supprimer la capacité personnalisée du {date} ?',
+    aGlobalPlanTitle:'🗓 Vue planning global',
+    aGlobalPlanDesc:'Affiche tous les créneaux sur plusieurs jours avec le nom des inscrits. Ce même planning est accessible à tous les utilisateurs connectés via le bouton « 👥 Qui est déjà inscrit ? » au-dessus du calendrier.',
+    aGlobalPlanBtn:'📅 Ouvrir la vue planning global',
+    whoRegBtn:'👥 Qui est déjà inscrit ?',
+    gpModalTitle:'👥 Qui est déjà inscrit ?',
+    gpModalSub:'Seuls les créneaux ayant déjà des inscrits sont affichés.',
+    gpRefreshBtn:'🔄 Actualiser',
+    gpDays7:'7 jours', gpDays14:'14 jours', gpDays30:'30 jours',
+    gpNoRegMsg:'Aucune inscription sur cette période.',
+    gpSlotHeader:'Créneau',
   },
   en: {
     appTitle:'Kayak WT Schedule', appSub:'Nov 2026 – Mar 2027',
@@ -801,6 +823,32 @@ const TR = {
     calHeads:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
     dowOpen:'Open', dowClosed:'Closed',
     moveInfoTpl:'Participant: {name} ({role}) — on {slot} on {date}',
+    aDateCapTitle:'🔢 Custom capacity per date',
+    aDateCapDesc:"Check one or more days in the mini calendar below, then set the capacity to apply to all checked days. Leave blank = default capacity.",
+    dcClearBtn:'Deselect all',
+    dcModifyBtn:'Edit capacity for checked days',
+    dcSaveBtn:'💾 Save for all checked days',
+    dcResetBtn:'🗑 Delete (revert to default capacity)',
+    dcNoDaySelected:'No day selected',
+    dcDaysSelectedTpl:'{n} day(s) selected',
+    dcAlertNoDay:'Check at least one day in the mini calendar.',
+    dcNoSlotsForDates:'No slots for these dates.',
+    dcSavedTpl:'✅ Capacity saved for {n} day(s)',
+    dcResetConfirmTpl:'Revert to default capacity for {n} day(s)?',
+    dcResetDoneTpl:'Capacity reset to default for {n} day(s)',
+    dcSummaryNone:'No custom capacity defined.',
+    dcSummaryLabel:'Dates with custom capacity:',
+    dcConfirmDeleteTpl:'Delete the custom capacity for {date}?',
+    aGlobalPlanTitle:'🗓 Global schedule view',
+    aGlobalPlanDesc:'Shows every slot over several days with registered names. The same view is available to all logged-in users via the "👥 Who is already registered?" button above the calendar.',
+    aGlobalPlanBtn:'📅 Open global schedule view',
+    whoRegBtn:'👥 Who is already registered?',
+    gpModalTitle:'👥 Who is already registered?',
+    gpModalSub:'Only slots that already have registrations are shown.',
+    gpRefreshBtn:'🔄 Refresh',
+    gpDays7:'7 days', gpDays14:'14 days', gpDays30:'30 days',
+    gpNoRegMsg:'No registrations for this period.',
+    gpSlotHeader:'Slot',
   }
 };
 function t(k){ return TR[LANG][k] || k; }
@@ -810,16 +858,27 @@ function applyI18n(){
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
     'mMoveTitle','mMoveDateLabel','mMoveSlotLabel','mMoveCancelBtn','mMoveConfirmBtn',
-    'btnPrev','btnNext'];
+    'btnPrev','btnNext',
+    'aDateCapTitle','aDateCapDesc','dcClearBtn','dcModifyBtn','dcSaveBtn','dcResetBtn',
+    'aGlobalPlanTitle','aGlobalPlanDesc','aGlobalPlanBtn',
+    'whoRegisteredBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
+    'gpDays7Opt','gpDays14Opt','gpDays30Opt'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
     'mMoveTitle','mMoveDateLabel','mMoveSlotLabel','mMoveCancelBtn','mMoveConfirmBtn',
-    'prevBtn','nextBtn'];
+    'prevBtn','nextBtn',
+    'aDateCapTitle','aDateCapDesc','dcClearBtn','dcModifyBtn','dcSaveBtn','dcResetBtn',
+    'aGlobalPlanTitle','aGlobalPlanDesc','aGlobalPlanBtn',
+    'whoRegBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
+    'gpDays7','gpDays14','gpDays30'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
   document.getElementById('langBtn').textContent = LANG==='fr'?'EN':'FR';
+  // Rafraîchir les vues dynamiques qui contiennent du texte traduit généré en JS
+  renderDateCapSummary();
+  renderDcMiniCal();
 }
 
 function toggleLang(){ LANG = LANG==='fr'?'en':'fr'; applyI18n(); render(); }
@@ -2117,7 +2176,7 @@ function dcRenderSelectionInfo(){
   const countEl = document.getElementById('dcSelectedCount');
   const chipsEl = document.getElementById('dcSelectedChips');
   const keys = [...(_dcSelected||[])].sort();
-  if(countEl) countEl.textContent = keys.length ? `${keys.length} jour(s) sélectionné(s)` : 'Aucun jour sélectionné';
+  if(countEl) countEl.textContent = keys.length ? t('dcDaysSelectedTpl').replace('{n}', keys.length) : t('dcNoDaySelected');
   if(chipsEl){
     chipsEl.innerHTML = keys.map(k=>`
       <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:12px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px">
@@ -2127,7 +2186,7 @@ function dcRenderSelectionInfo(){
 }
 
 function loadDateCapEditor(){
-  if(!_dcSelected.size){ alert('Coche au moins un jour dans le mini-calendrier.'); return; }
+  if(!_dcSelected.size){ alert(t('dcAlertNoDay')); return; }
   if(!S.dateCapacity) S.dateCapacity = {};
   const dates = [..._dcSelected];
   // Union des créneaux sur tous les jours sélectionnés
@@ -2154,7 +2213,7 @@ function renderDateCapEditor(){
       <div style="flex:1">${esc(slot)}</div>
       <input type="number" class="cap-input" value="${_dcTmp[slot]}" min="1" max="100"
         onchange="_dcTmp['${slot}']=Math.max(1,parseInt(this.value)||1)">
-    </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau pour ces dates.</p>`;
+    </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">${t('dcNoSlotsForDates')}</p>`;
 }
 
 async function saveDateCap(){
@@ -2165,19 +2224,19 @@ async function saveDateCap(){
   });
   await saveConfig();
   document.getElementById('dcMsg').style.color = '#16a34a';
-  document.getElementById('dcMsg').textContent = `✅ Capacité enregistrée pour ${_dcSelected.size} jour(s)`;
+  document.getElementById('dcMsg').textContent = t('dcSavedTpl').replace('{n}', _dcSelected.size);
   renderDateCapSummary();
   render();
 }
 
 async function resetDateCap(){
   if(!_dcSelected.size) return;
-  if(!confirm(`Revenir à la capacité par défaut pour ${_dcSelected.size} jour(s) ?`)) return;
+  if(!confirm(t('dcResetConfirmTpl').replace('{n}', _dcSelected.size))) return;
   _dcSelected.forEach(k=>{ if(S.dateCapacity) delete S.dateCapacity[k]; });
   document.getElementById('dateCapEditor').style.display = 'none';
   await saveConfig();
   document.getElementById('dcMsg').style.color = '#6b7280';
-  document.getElementById('dcMsg').textContent = `Capacité remise par défaut pour ${_dcSelected.size} jour(s)`;
+  document.getElementById('dcMsg').textContent = t('dcResetDoneTpl').replace('{n}', _dcSelected.size);
   renderDateCapSummary();
   render();
 }
@@ -2186,8 +2245,8 @@ function renderDateCapSummary(){
   const el = document.getElementById('dateCapSummary');
   if(!el) return;
   const keys = Object.keys(S.dateCapacity || {}).sort();
-  if(!keys.length){ el.textContent = 'Aucune capacité personnalisée définie.'; return; }
-  el.innerHTML = '<b>Dates avec capacité personnalisée :</b> ' +
+  if(!keys.length){ el.textContent = t('dcSummaryNone'); return; }
+  el.innerHTML = `<b>${t('dcSummaryLabel')}</b> ` +
     keys.map(k=>{
       const c = S.dateCapacity[k];
       const summary = Object.keys(c).map(s=>`${s}:${c[s]}`).join(', ');
@@ -2197,7 +2256,7 @@ function renderDateCapSummary(){
 }
 
 async function quickResetDateCap(dateK){
-  if(!confirm(`Supprimer la capacité personnalisée du ${dateK} ?`)) return;
+  if(!confirm(t('dcConfirmDeleteTpl').replace('{date}', dateK))) return;
   delete S.dateCapacity[dateK];
   await saveConfig();
   renderDateCapSummary();
@@ -2253,7 +2312,7 @@ function renderGlobalPlanning(start, days){
 
   let h = `<table style="border-collapse:collapse;width:100%;font-size:.78rem">
     <thead><tr>
-      <th style="position:sticky;left:0;background:var(--white);border:1px solid var(--border);padding:6px 8px;text-align:left;min-width:90px;z-index:2">Créneau</th>`;
+      <th style="position:sticky;left:0;background:var(--white);border:1px solid var(--border);padding:6px 8px;text-align:left;min-width:90px;z-index:2">${t('gpSlotHeader')}</th>`;
   dates.forEach(d=>{
     const k = dk(d);
     const closed = isClosed(d);
@@ -2264,7 +2323,7 @@ function renderGlobalPlanning(start, days){
   h += `</tr></thead><tbody>`;
 
   if(!slotsWithRegs.length){
-    h += `<tr><td colspan="${dates.length+1}" style="border:1px solid var(--border);padding:20px;text-align:center;color:var(--text3)">Aucune inscription sur cette période.</td></tr>`;
+    h += `<tr><td colspan="${dates.length+1}" style="border:1px solid var(--border);padding:20px;text-align:center;color:var(--text3)">${t('gpNoRegMsg')}</td></tr>`;
   }
 
   slotsWithRegs.forEach(slot=>{
