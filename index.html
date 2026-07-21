@@ -492,21 +492,28 @@ select.field { min-width: 110px; cursor: pointer; }
       <div id="customSlotSummary" style="margin-top:10px;font-size:.78rem;color:var(--text3)"></div>
     </div>
 
-    <!-- Capacité personnalisée par date -->
+    <!-- Capacité personnalisée par date (sélection multiple via mini-calendrier) -->
     <div class="admin-card" style="margin-top:16px">
       <h4>🔢 Capacité personnalisée par date</h4>
       <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
-        Défini une capacité différente pour un jour précis (ex : lundi 15 juillet = 15 places, mardi 16 = 20 places). Laisse vide = capacité par défaut.
+        Coche un ou plusieurs jours dans le mini-calendrier ci-dessous, puis défini la capacité à appliquer à tous les jours cochés (ex : lundi 15 juillet = 15 places, mardi 16 = 20 places). Laisse vide = capacité par défaut.
       </p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-        <input type="date" class="field" id="dateCapDate" style="width:160px"
-          min="2026-07-06" max="2027-03-31">
-        <button class="btn btn-sm btn-primary" onclick="loadDateCapEditor()">Modifier la capacité</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <button class="btn btn-sm" onclick="dcCalNav(-1)">←</button>
+        <b id="dcCalLabel" style="font-size:.85rem"></b>
+        <button class="btn btn-sm" onclick="dcCalNav(1)">→</button>
       </div>
+      <div id="dcMiniCal" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <button class="btn btn-sm" onclick="dcClearSelection()">Tout désélectionner</button>
+        <span id="dcSelectedCount" style="font-size:.78rem;color:var(--text3)"></span>
+      </div>
+      <div id="dcSelectedChips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <button class="btn btn-sm btn-primary" onclick="loadDateCapEditor()" style="margin-bottom:10px">Modifier la capacité des jours cochés</button>
       <div id="dateCapEditor" style="display:none">
         <div id="dateCapList" style="margin-bottom:10px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-sm btn-primary" onclick="saveDateCap()">💾 Enregistrer cette capacité</button>
+          <button class="btn btn-sm btn-primary" onclick="saveDateCap()">💾 Enregistrer pour tous les jours cochés</button>
           <button class="btn btn-sm" style="color:var(--red)" onclick="resetDateCap()">🗑 Supprimer (revenir à la capacité par défaut)</button>
         </div>
         <div id="dcMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
@@ -1415,6 +1422,7 @@ function renderAdmin(){
     :t('adminNoneClosed');
   renderCustomSlotSummary();
   renderDateCapSummary();
+  renderDcMiniCal();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2052,19 +2060,80 @@ async function sendUserConfirmation(participants,dateK,slot){
   } catch(e){}
 }
 
-// ── Capacité personnalisée par date ───────────────────────────────────
-let _dcDate = null;
+// ── Capacité personnalisée par date (multi-sélection) ─────────────────
+let _dcSelected = new Set();
+let _dcCalMonth = new Date(S.currentDate.getFullYear(), S.currentDate.getMonth(), 1);
 let _dcTmp = {};
 
+function dcCalNav(dir){
+  _dcCalMonth = new Date(_dcCalMonth.getFullYear(), _dcCalMonth.getMonth()+dir, 1);
+  renderDcMiniCal();
+}
+
+function renderDcMiniCal(){
+  const el = document.getElementById('dcMiniCal');
+  const label = document.getElementById('dcCalLabel');
+  if(!el || !label) return;
+  label.textContent = `${t('months')[_dcCalMonth.getMonth()]} ${_dcCalMonth.getFullYear()}`;
+  const first = new Date(_dcCalMonth.getFullYear(), _dcCalMonth.getMonth(), 1);
+  const offset = (first.getDay()+6)%7;
+  const daysCount = new Date(_dcCalMonth.getFullYear(), _dcCalMonth.getMonth()+1, 0).getDate();
+  let h = '';
+  t('calHeads').forEach(x=>h+=`<div style="text-align:center;font-size:.62rem;font-weight:700;color:var(--text3)">${x}</div>`);
+  for(let i=0;i<offset;i++) h += `<div></div>`;
+  for(let n=1;n<=daysCount;n++){
+    const dt = new Date(_dcCalMonth.getFullYear(), _dcCalMonth.getMonth(), n);
+    const k = dk(dt);
+    const oor = outOfRange(dt);
+    const closed = isClosed(dt);
+    const checked = _dcSelected.has(k);
+    h += `<label style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 2px;border-radius:6px;cursor:${oor?'default':'pointer'};background:${checked?'var(--accent-light)':'transparent'};opacity:${oor?0.3:1}">
+      <input type="checkbox" ${checked?'checked':''} ${oor?'disabled':''} onchange="dcToggleDate('${k}')" style="margin:0">
+      <span style="font-size:.68rem;font-weight:${checked?'700':'500'};color:${closed?'var(--text3)':'var(--text)'}">${n}</span>
+    </label>`;
+  }
+  el.innerHTML = h;
+  dcRenderSelectionInfo();
+}
+
+function dcToggleDate(k){
+  if(_dcSelected.has(k)) _dcSelected.delete(k); else _dcSelected.add(k);
+  renderDcMiniCal();
+}
+
+function dcClearSelection(){
+  _dcSelected.clear();
+  renderDcMiniCal();
+}
+
+function dcRenderSelectionInfo(){
+  const countEl = document.getElementById('dcSelectedCount');
+  const chipsEl = document.getElementById('dcSelectedChips');
+  const keys = [...(_dcSelected||[])].sort();
+  if(countEl) countEl.textContent = keys.length ? `${keys.length} jour(s) sélectionné(s)` : 'Aucun jour sélectionné';
+  if(chipsEl){
+    chipsEl.innerHTML = keys.map(k=>`
+      <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:12px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px">
+        ${k}<span style="cursor:pointer;font-weight:700" onclick="dcToggleDate('${k}')">✕</span>
+      </span>`).join('');
+  }
+}
+
 function loadDateCapEditor(){
-  const dateK = document.getElementById('dateCapDate').value;
-  if(!dateK){ alert('Sélectionne une date.'); return; }
-  _dcDate = dateK;
+  if(!_dcSelected.size){ alert('Coche au moins un jour dans le mini-calendrier.'); return; }
   if(!S.dateCapacity) S.dateCapacity = {};
-  const existing = S.dateCapacity[dateK] || {};
+  const dates = [..._dcSelected];
+  // Union des créneaux sur tous les jours sélectionnés
+  const slotSet = new Set();
+  dates.forEach(k=>allSlots(k).forEach(s=>slotSet.add(s)));
   _dcTmp = {};
-  allSlots(dateK).forEach(slot=>{
-    _dcTmp[slot] = existing[slot] != null ? existing[slot] : cap(slot);
+  slotSet.forEach(slot=>{
+    // Pré-remplir avec la capacité existante du premier jour sélectionné qui en a une, sinon la capacité par défaut
+    let val = null;
+    for(const k of dates){
+      if(S.dateCapacity[k] && S.dateCapacity[k][slot] != null){ val = S.dateCapacity[k][slot]; break; }
+    }
+    _dcTmp[slot] = val != null ? val : cap(slot);
   });
   renderDateCapEditor();
   document.getElementById('dateCapEditor').style.display = 'block';
@@ -2078,29 +2147,30 @@ function renderDateCapEditor(){
       <div style="flex:1">${esc(slot)}</div>
       <input type="number" class="cap-input" value="${_dcTmp[slot]}" min="1" max="100"
         onchange="_dcTmp['${slot}']=Math.max(1,parseInt(this.value)||1)">
-    </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau pour cette date.</p>`;
+    </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau pour ces dates.</p>`;
 }
 
 async function saveDateCap(){
-  if(!_dcDate) return;
+  if(!_dcSelected.size) return;
   if(!S.dateCapacity) S.dateCapacity = {};
-  S.dateCapacity[_dcDate] = { ..._dcTmp };
+  _dcSelected.forEach(k=>{
+    S.dateCapacity[k] = { ...(S.dateCapacity[k]||{}), ..._dcTmp };
+  });
   await saveConfig();
   document.getElementById('dcMsg').style.color = '#16a34a';
-  document.getElementById('dcMsg').textContent = `✅ Capacité enregistrée pour le ${_dcDate}`;
+  document.getElementById('dcMsg').textContent = `✅ Capacité enregistrée pour ${_dcSelected.size} jour(s)`;
   renderDateCapSummary();
   render();
 }
 
 async function resetDateCap(){
-  if(!_dcDate) return;
-  if(S.dateCapacity) delete S.dateCapacity[_dcDate];
-  _dcTmp = {};
-  allSlots(_dcDate).forEach(slot=>{ _dcTmp[slot] = S.capacity[slot] || 15; });
-  renderDateCapEditor();
+  if(!_dcSelected.size) return;
+  if(!confirm(`Revenir à la capacité par défaut pour ${_dcSelected.size} jour(s) ?`)) return;
+  _dcSelected.forEach(k=>{ if(S.dateCapacity) delete S.dateCapacity[k]; });
+  document.getElementById('dateCapEditor').style.display = 'none';
   await saveConfig();
   document.getElementById('dcMsg').style.color = '#6b7280';
-  document.getElementById('dcMsg').textContent = `Capacité remise par défaut pour le ${_dcDate}`;
+  document.getElementById('dcMsg').textContent = `Capacité remise par défaut pour ${_dcSelected.size} jour(s)`;
   renderDateCapSummary();
   render();
 }
@@ -2155,6 +2225,16 @@ function renderGlobalPlanning(start, days){
     });
   });
 
+  // On ne garde que les créneaux ayant au moins une inscription sur la période affichée,
+  // pour éviter un tableau trop chargé/confus avec des cases vides partout.
+  const slotsWithRegs = slotOrder.filter(slot=>{
+    return dates.some(d=>{
+      const k = dk(d);
+      if(isClosed(d) || !allSlots(k).includes(slot)) return false;
+      return getSlot(k, slot).length > 0;
+    });
+  });
+
   let h = `<table style="border-collapse:collapse;width:100%;font-size:.78rem">
     <thead><tr>
       <th style="position:sticky;left:0;background:var(--white);border:1px solid var(--border);padding:6px 8px;text-align:left;min-width:90px;z-index:2">Créneau</th>`;
@@ -2167,7 +2247,11 @@ function renderGlobalPlanning(start, days){
   });
   h += `</tr></thead><tbody>`;
 
-  slotOrder.forEach(slot=>{
+  if(!slotsWithRegs.length){
+    h += `<tr><td colspan="${dates.length+1}" style="border:1px solid var(--border);padding:20px;text-align:center;color:var(--text3)">Aucune inscription sur cette période.</td></tr>`;
+  }
+
+  slotsWithRegs.forEach(slot=>{
     h += `<tr><td style="position:sticky;left:0;background:var(--white);border:1px solid var(--border);padding:6px 8px;font-weight:700;z-index:1">${esc(slot)}</td>`;
     dates.forEach(d=>{
       const k = dk(d);
@@ -2178,10 +2262,15 @@ function renderGlobalPlanning(start, days){
       }
       const daySlots = allSlots(k);
       if(!daySlots.includes(slot)){
-        h += `<td style="border:1px solid var(--border);padding:6px 8px;color:var(--text3);text-align:center">—</td>`;
+        h += `<td style="border:1px solid var(--border);padding:6px 8px;background:#fafafa"></td>`;
         return;
       }
       const aths = getSlot(k, slot);
+      if(!aths.length){
+        // Case vide : on n'affiche rien pour rester lisible (pas de "0/15")
+        h += `<td style="border:1px solid var(--border);padding:6px 8px"></td>`;
+        return;
+      }
       const c = cap(slot, k);
       const kx = isKayakCross(k, slot);
       const pct = Math.min(1, aths.length / c);
