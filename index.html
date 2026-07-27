@@ -156,6 +156,11 @@ select.field { min-width: 110px; cursor: pointer; }
 .modal-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
 .modal-fields label { font-size: .78rem; color: var(--text3); margin-bottom: 3px; display: block; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.quick-reg-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+.quick-reg-card h2 { font-size: 1.05rem; margin-bottom: 4px; }
+.quick-reg-card .qr-sub { font-size: .82rem; color: var(--text3); margin-bottom: 16px; }
+.qr-jump { display:block; text-align:center; font-size:.78rem; color: var(--text3); margin-top:14px; cursor:pointer; }
+.qr-jump:hover { color: var(--accent); }
 .err-msg { font-size: .78rem; color: var(--red); margin-top: 6px; display: none; }
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: white; border-radius: var(--radius-sm); padding: 10px 18px; font-size: .84rem; font-weight: 500; z-index: 500; opacity: 0; transform: translateY(8px); transition: all .25s; pointer-events: none; max-width: 300px; }
 .toast.show { opacity: 1; transform: translateY(0); }
@@ -439,6 +444,53 @@ select.field { min-width: 110px; cursor: pointer; }
 </header>
 
 <div class="app-body" id="appBody" style="display:none">
+  <div class="quick-reg-card" id="quickRegPanel">
+    <h2>⚡ Quick registration</h2>
+    <p class="qr-sub">Select one or more days, one or more sessions, and one or more participants to register in a few clicks. Prefer to just browse first? <a href="#calNavAnchor" class="qr-jump" style="display:inline">jump to the calendar ↓</a></p>
+
+    <!-- Étape 1 : Sélection des jours -->
+    <div class="mdreg-section">
+      <h4>① Select days</h4>
+      <div class="mdreg-week-nav">
+        <button class="btn btn-sm" onclick="mdregPrevWeek()">← Prev</button>
+        <span id="mdregWeekLabel"></span>
+        <button class="btn btn-sm" onclick="mdregNextWeek()">Next →</button>
+      </div>
+      <div class="mdreg-days" id="mdregDaysGrid"></div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Click on available days to select them. Click again to deselect.</p>
+    </div>
+
+    <!-- Étape 2 : Sélection des créneaux -->
+    <div class="mdreg-section">
+      <h4>② Select sessions (morning &amp; afternoon)</h4>
+      <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 Morning</div>
+      <div class="mdreg-slots" id="mdregMorningSlots"></div>
+      <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 Afternoon</div>
+      <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Locked or unavailable slots are automatically skipped. 🏄 = Kayak Cross.</p>
+    </div>
+
+    <!-- Étape 3 : Sélection des membres du groupe -->
+    <div class="mdreg-section">
+      <h4>③ Select participants</h4>
+      <div id="mdregMembers"></div>
+      <button class="btn btn-sm" style="margin-top:6px" onclick="mdregAddCustom()">+ Add another person</button>
+      <div id="mdregCustoms"></div>
+    </div>
+
+    <!-- Résumé -->
+    <div class="mdreg-section">
+      <h4>Summary</h4>
+      <div class="mdreg-summary" id="mdregSummary">Select days, sessions and participants above.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="resetMultiReg()">↺ Reset selection</button>
+      <button class="btn btn-primary" onclick="submitMultiReg()">⚡ Register all</button>
+    </div>
+  </div>
+
+  <a id="calNavAnchor"></a>
   <div class="cal-nav">
     <button class="nav-btn" id="btnPrev" onclick="navPrev()">← Précédent</button>
     <div class="cal-nav-center">
@@ -703,53 +755,6 @@ select.field { min-width: 110px; cursor: pointer; }
 </div>
 
 <!-- Modal inscription rapide multi-jours -->
-<div class="modal-bg" id="multiRegModal">
-  <div class="modal-box" style="max-width:560px;max-height:90vh;overflow-y:auto">
-    <h3>📅 Register — Select days &amp; sessions</h3>
-
-    <!-- Étape 1 : Sélection des jours -->
-    <div class="mdreg-section">
-      <h4>① Select days</h4>
-      <div class="mdreg-week-nav">
-        <button class="btn btn-sm" onclick="mdregPrevWeek()">← Prev</button>
-        <span id="mdregWeekLabel"></span>
-        <button class="btn btn-sm" onclick="mdregNextWeek()">Next →</button>
-      </div>
-      <div class="mdreg-days" id="mdregDaysGrid"></div>
-      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Click on available days to select them. Click again to deselect.</p>
-    </div>
-
-    <!-- Étape 2 : Sélection des créneaux -->
-    <div class="mdreg-section">
-      <h4>② Select sessions (morning &amp; afternoon)</h4>
-      <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 Morning</div>
-      <div class="mdreg-slots" id="mdregMorningSlots"></div>
-      <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 Afternoon</div>
-      <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
-      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Locked or unavailable slots are automatically skipped. 🏄 = Kayak Cross.</p>
-    </div>
-
-    <!-- Étape 3 : Sélection des membres du groupe -->
-    <div class="mdreg-section">
-      <h4>③ Select participants</h4>
-      <div id="mdregMembers"></div>
-      <button class="btn btn-sm" style="margin-top:6px" onclick="mdregAddCustom()">+ Add another person</button>
-      <div id="mdregCustoms"></div>
-    </div>
-
-    <!-- Résumé -->
-    <div class="mdreg-section">
-      <h4>Summary</h4>
-      <div class="mdreg-summary" id="mdregSummary">Select days, sessions and participants above.</div>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('multiRegModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitMultiReg()">⚡ Register all</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <!-- Modal Politique de confidentialité / Privacy Policy -->
@@ -1144,6 +1149,7 @@ async function onAuthed(session){
   S.selectedDate=d; S.currentDate=d;
   S.expanded[`${dk(d)}-${S.morningOrder[0]}`]=true;
   render();
+  openMultiReg();
 }
 
 // ── Inscriptions (lecture/écriture authentifiée, RLS appliquée côté serveur) ──
@@ -1666,7 +1672,9 @@ function openMultiReg(preDate, preSlot){
   renderMdregSlots(preDate);
   renderMdregMembers();
   updateMdregSummary();
-  document.getElementById('multiRegModal').classList.add('show');
+}
+function resetMultiReg(){
+  openMultiReg();
 }
 
 function mdregPrevWeek(){
@@ -1890,7 +1898,7 @@ async function submitMultiReg(){
     }
   }
 
-  closeModal('multiRegModal');
+  resetMultiReg();
   renderDayPanel(); renderCal();
   if(created > 0){
     toast(`✅ ${created} registration(s) created${skipped?`, ${skipped} skipped (priority/full/closed)`:''}!`,'success');
@@ -1899,8 +1907,9 @@ async function submitMultiReg(){
   }
 }
 function openRegister(dateK, slot){
-  // La modale multi-jours remplace l'inscription simple
+  // La carte d'inscription rapide en haut de page remplace l'inscription simple
   openMultiReg(dateK, slot);
+  document.getElementById('quickRegPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function addParticipantRow(prefillName){
   const id = 'p'+(S.regCounter++);
