@@ -1728,6 +1728,12 @@ function mdregToggleDay(k){
   renderMdregWeek();
   renderMdregSlots(k); // recalculer créneaux disponibles selon les jours sélectionnés
   updateMdregSummary();
+  // Synchroniser le calendrier du bas sur la date cliquée
+  const d = parseDate(k);
+  if(!isClosed(d) && !outOfRange(d)){
+    S.selectedDate = d; S.currentDate = d;
+    renderCal(); renderDayPanel();
+  }
 }
 
 function renderMdregSlots(refDay){
