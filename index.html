@@ -418,7 +418,6 @@ select.field { min-width: 110px; cursor: pointer; }
     <span id="syncDot" title="Synchronisé" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9ca3af;margin-right:2px;transition:background .4s" ></span>
     <button class="btn btn-lang" id="langBtn" onclick="toggleLang()">EN</button>
     <span class="user-pill" id="userPill" style="display:none"></span>
-    <button class="btn btn-sm btn-primary" id="quickRegBtn" onclick="openMultiReg()" style="display:none">⚡ Quick Registration</button>
     <button class="btn btn-sm" id="profileBtn" onclick="openProfile()" style="display:none">👤 My profile</button>
     <button class="btn btn-sm" id="logoutBtn" onclick="logout()" style="display:none">Log out</button>
   </div>
@@ -691,7 +690,7 @@ select.field { min-width: 110px; cursor: pointer; }
 <!-- Modal inscription rapide multi-jours -->
 <div class="modal-bg" id="multiRegModal">
   <div class="modal-box" style="max-width:560px;max-height:90vh;overflow-y:auto">
-    <h3>⚡ Quick Multi-Day Registration</h3>
+    <h3>📅 Register — Select days &amp; sessions</h3>
 
     <!-- Étape 1 : Sélection des jours -->
     <div class="mdreg-section">
@@ -1120,7 +1119,6 @@ async function onAuthed(session){
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
   document.getElementById('profileBtn').style.display='inline-block';
-  document.getElementById('quickRegBtn').style.display='inline-block';
   document.getElementById('logoutBtn').style.display='inline-block';
   document.getElementById('adminPill').style.display = S.isAdmin ? 'inline' : 'none';
   document.getElementById('whoRegisteredBtn').style.display='inline-block';
@@ -1609,18 +1607,29 @@ let MR = {
   knownMembers: [],  // Membres connus depuis les inscriptions passées
 };
 
-function openMultiReg(){
+function openMultiReg(preDate, preSlot){
   if(!S.session){ toast('Log in to register.','error'); return; }
   MR.selectedDays.clear();
   MR.selectedSlots.clear();
   MR.selectedMembers.clear();
   MR.customCounter = 0;
-  // Semaine courante basée sur la date sélectionnée ou aujourd'hui
-  MR.weekStart = new Date(S.selectedDate || S.currentDate);
-  const d = MR.weekStart.getDay();
-  MR.weekStart.setDate(MR.weekStart.getDate() - (d===0?6:d-1));
 
-  // Collecter les membres connus depuis les inscriptions passées de cet utilisateur
+  // Pré-sélectionner le jour et le créneau si fournis
+  if(preDate){
+    MR.selectedDays.add(preDate);
+    // Semaine du jour cliqué
+    const dt = new Date(preDate+'T12:00:00');
+    MR.weekStart = new Date(dt);
+    const d = MR.weekStart.getDay();
+    MR.weekStart.setDate(MR.weekStart.getDate()-(d===0?6:d-1));
+  } else {
+    MR.weekStart = new Date(S.selectedDate||S.currentDate);
+    const d = MR.weekStart.getDay();
+    MR.weekStart.setDate(MR.weekStart.getDate()-(d===0?6:d-1));
+  }
+  if(preSlot) MR.selectedSlots.add(preSlot);
+
+  // Collecter les membres connus depuis les inscriptions passées
   const seen = new Set();
   MR.knownMembers = [];
   Object.keys(S.data).forEach(dateK=>{
@@ -1628,22 +1637,18 @@ function openMultiReg(){
       S.data[dateK][slot].forEach(a=>{
         if(a.user_id===S.session.user.id && !seen.has(a.name)){
           seen.add(a.name);
-          MR.knownMembers.push({ name: a.name, role: a.role||'Athlète' });
+          MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
         }
       });
     });
   });
-  // Ajouter le référent lui-même s'il n'est pas dans la liste
-  const selfName = S.profile?.full_name || S.session.user.email;
-  if(!seen.has(selfName)){
-    MR.knownMembers.unshift({ name: selfName, role: 'Athlète' });
-  }
-  // Pré-sélectionner soi-même
+  const selfName = S.profile?.full_name||S.session.user.email;
+  if(!seen.has(selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
   MR.selectedMembers.add(selfName);
 
-  document.getElementById('mdregCustoms').innerHTML = '';
+  document.getElementById('mdregCustoms').innerHTML='';
   renderMdregWeek();
-  renderMdregSlots();
+  renderMdregSlots(preDate);
   renderMdregMembers();
   updateMdregSummary();
   document.getElementById('multiRegModal').classList.add('show');
@@ -1698,34 +1703,42 @@ function mdregToggleDay(k){
   if(MR.selectedDays.has(k)) MR.selectedDays.delete(k);
   else MR.selectedDays.add(k);
   renderMdregWeek();
-  renderMdregSlots(); // recalculer créneaux disponibles selon les jours sélectionnés
+  renderMdregSlots(k); // recalculer créneaux disponibles selon les jours sélectionnés
   updateMdregSummary();
 }
 
-function renderMdregSlots(){
-  // Afficher les créneaux par défaut (matin + après-midi)
-  // On utilise le premier jour sélectionné pour les créneaux custom, sinon les defaults
-  const refDay = MR.selectedDays.size > 0 ? [...MR.selectedDays][0] : dk(S.selectedDate||S.currentDate);
+function renderMdregSlots(refDay){
+  // Référence : premier jour sélectionné, sinon jour courant
+  if(!refDay) refDay = MR.selectedDays.size>0 ? [...MR.selectedDays].sort()[0] : dk(S.selectedDate||S.currentDate);
 
   const morningEl = document.getElementById('mdregMorningSlots');
   const afternoonEl = document.getElementById('mdregAfternoonSlots');
-
   const mSlots = morningSlots(refDay);
   const aSlots = afternoonSlots(refDay);
 
-  morningEl.innerHTML = mSlots.map(slot=>{
+  function slotBtn(slot){
     const kx = isKayakCross(refDay, slot);
     const sel = MR.selectedSlots.has(slot);
-    return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel?' mdreg-selected':''}"
-      onclick="mdregToggleSlot('${slot}')">${slot}${kx?' 🏄':''}</button>`;
-  }).join('');
+    // Vérifier si bloqué par priorité (au moins sur un jour sélectionné)
+    const lockedOnAny = MR.selectedDays.size>0
+      ? [...MR.selectedDays].some(d=>!S.isAdmin && isLocked(d,slot))
+      : (!S.isAdmin && isLocked(refDay, slot));
+    const fullOnAll = MR.selectedDays.size>0
+      ? [...MR.selectedDays].every(d=> cap(slot,d)<=getSlot(d,slot).length)
+      : false;
+    const disabled = (lockedOnAny && !kx) || fullOnAll;
+    const lockIcon = lockedOnAny && !kx ? ' 🔒' : '';
+    const fullLabel = fullOnAll ? ' (full)' : '';
+    return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
+      style="${disabled?'opacity:.4;cursor:not-allowed;':''}"
+      ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
+      title="${disabled?(lockedOnAny?'Locked by priority — previous slot not full':'Full'):''}">
+      ${slot}${kx?' 🏄':''}${lockIcon}${fullLabel}
+    </button>`;
+  }
 
-  afternoonEl.innerHTML = aSlots.map(slot=>{
-    const kx = isKayakCross(refDay, slot);
-    const sel = MR.selectedSlots.has(slot);
-    return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel?' mdreg-selected':''}"
-      onclick="mdregToggleSlot('${slot}')">${slot}${kx?' 🏄':''}</button>`;
-  }).join('');
+  morningEl.innerHTML = mSlots.map(slotBtn).join('');
+  afternoonEl.innerHTML = aSlots.map(slotBtn).join('');
 }
 
 function mdregToggleSlot(slot){
@@ -1870,26 +1883,9 @@ async function submitMultiReg(){
     toast(`No registration created. ${skipped} slot(s) skipped (priority rules, full, or closed).`,'error');
   }
 }
-function openRegister(dateK,slot){
-  if(!S.session){ toast('Log in to register.','error'); return; }
-  if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
-    if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
-      toast(`Registration only available from ${S.profile.arrival_date} to ${S.profile.departure_date}.`,'error');
-      return;
-    }
-  }
-  S.regPending = { dateK, slot };
-  S.regCounter = 0;
-  const kx = isKayakCross(dateK, slot);
-  document.getElementById('regModalTitle').textContent = kx ? `🏄 Register — KAYAK CROSS — ${slot}` : `Register — ${slot}`;
-  document.getElementById('regModalSub').textContent = `${dateK} · ${S.profile?.full_name||S.session.user.email}`;
-  // Afficher/masquer la section rental
-  const kxBanner = document.getElementById('regKxBanner');
-  kxBanner.style.display = kx ? 'block' : 'none';
-  document.getElementById('kxRentalNo').checked = true;
-  document.getElementById('regParticipants').innerHTML='';
-  addParticipantRow(S.profile?.full_name||'');
-  document.getElementById('registerModal').classList.add('show');
+function openRegister(dateK, slot){
+  // La modale multi-jours remplace l'inscription simple
+  openMultiReg(dateK, slot);
 }
 function addParticipantRow(prefillName){
   const id = 'p'+(S.regCounter++);
