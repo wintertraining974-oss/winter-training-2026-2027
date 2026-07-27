@@ -194,6 +194,27 @@ select.field { min-width: 110px; cursor: pointer; }
 .phone-wrap { display: flex; gap: 6px; }
 .phone-wrap select { width: 110px; flex-shrink: 0; }
 .phone-wrap input { flex: 1; }
+/* ── Multi-day registration ──────────────────────────────────── */
+.mdreg-section { margin-bottom: 14px; }
+.mdreg-section h4 { font-size: .78rem; font-weight: 700; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
+.mdreg-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+.mdreg-day { padding: 5px 2px; border-radius: 6px; border: 1.5px solid var(--border); text-align: center; cursor: pointer; font-size: .68rem; transition: all .15s; user-select: none; }
+.mdreg-day:hover:not(.mdreg-day-closed) { border-color: var(--accent); background: #eff6ff; }
+.mdreg-day.mdreg-selected { background: var(--accent); color: white; border-color: var(--accent); }
+.mdreg-day.mdreg-day-closed { opacity:.35; cursor:not-allowed; }
+.mdreg-day b { display: block; font-size: .82rem; }
+.mdreg-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.mdreg-slot-btn { padding: 5px 11px; border-radius: 20px; border: 1.5px solid var(--border); font-size: .75rem; cursor: pointer; background: white; transition: all .15s; }
+.mdreg-slot-btn:hover { border-color: var(--accent); }
+.mdreg-slot-btn.mdreg-selected { background: var(--accent); color: white; border-color: var(--accent); }
+.mdreg-slot-btn.kx-slot-btn { border-color: #f97316; color: #f97316; }
+.mdreg-slot-btn.kx-slot-btn.mdreg-selected { background: #f97316; color: white; }
+.mdreg-member { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; border: 1.5px solid var(--border); margin-bottom: 5px; cursor: pointer; transition: all .15s; font-size: .85rem; }
+.mdreg-member:hover { border-color: var(--accent); background: #eff6ff; }
+.mdreg-member.mdreg-selected { border-color: var(--accent); background: #eff6ff; }
+.mdreg-member input[type=checkbox] { flex-shrink: 0; accent-color: var(--accent); width: 15px; height: 15px; }
+.mdreg-summary { background: #f0f7ff; border-radius: 8px; padding: 10px 12px; font-size: .78rem; color: var(--text2); min-height: 36px; border: 1px solid #bfdbfe; }
+.mdreg-week-nav { display: flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 600; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -397,8 +418,9 @@ select.field { min-width: 110px; cursor: pointer; }
     <span id="syncDot" title="Synchronisé" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9ca3af;margin-right:2px;transition:background .4s" ></span>
     <button class="btn btn-lang" id="langBtn" onclick="toggleLang()">EN</button>
     <span class="user-pill" id="userPill" style="display:none"></span>
-    <button class="btn btn-sm" id="profileBtn" onclick="openProfile()" style="display:none">👤 Mon profil</button>
-    <button class="btn btn-sm" id="logoutBtn" onclick="logout()" style="display:none">Déconnexion</button>
+    <button class="btn btn-sm btn-primary" id="quickRegBtn" onclick="openMultiReg()" style="display:none">⚡ Quick Registration</button>
+    <button class="btn btn-sm" id="profileBtn" onclick="openProfile()" style="display:none">👤 My profile</button>
+    <button class="btn btn-sm" id="logoutBtn" onclick="logout()" style="display:none">Log out</button>
   </div>
 </header>
 
@@ -662,6 +684,54 @@ select.field { min-width: 110px; cursor: pointer; }
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('registerModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitRegistration()">Register</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal inscription rapide multi-jours -->
+<div class="modal-bg" id="multiRegModal">
+  <div class="modal-box" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3>⚡ Quick Multi-Day Registration</h3>
+
+    <!-- Étape 1 : Sélection des jours -->
+    <div class="mdreg-section">
+      <h4>① Select days</h4>
+      <div class="mdreg-week-nav">
+        <button class="btn btn-sm" onclick="mdregPrevWeek()">← Prev</button>
+        <span id="mdregWeekLabel"></span>
+        <button class="btn btn-sm" onclick="mdregNextWeek()">Next →</button>
+      </div>
+      <div class="mdreg-days" id="mdregDaysGrid"></div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Click on available days to select them. Click again to deselect.</p>
+    </div>
+
+    <!-- Étape 2 : Sélection des créneaux -->
+    <div class="mdreg-section">
+      <h4>② Select sessions (morning &amp; afternoon)</h4>
+      <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 Morning</div>
+      <div class="mdreg-slots" id="mdregMorningSlots"></div>
+      <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 Afternoon</div>
+      <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Locked or unavailable slots are automatically skipped. 🏄 = Kayak Cross.</p>
+    </div>
+
+    <!-- Étape 3 : Sélection des membres du groupe -->
+    <div class="mdreg-section">
+      <h4>③ Select participants</h4>
+      <div id="mdregMembers"></div>
+      <button class="btn btn-sm" style="margin-top:6px" onclick="mdregAddCustom()">+ Add another person</button>
+      <div id="mdregCustoms"></div>
+    </div>
+
+    <!-- Résumé -->
+    <div class="mdreg-section">
+      <h4>Summary</h4>
+      <div class="mdreg-summary" id="mdregSummary">Select days, sessions and participants above.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('multiRegModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitMultiReg()">⚡ Register all</button>
     </div>
   </div>
 </div>
@@ -1050,6 +1120,7 @@ async function onAuthed(session){
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
   document.getElementById('profileBtn').style.display='inline-block';
+  document.getElementById('quickRegBtn').style.display='inline-block';
   document.getElementById('logoutBtn').style.display='inline-block';
   document.getElementById('adminPill').style.display = S.isAdmin ? 'inline' : 'none';
   document.getElementById('whoRegisteredBtn').style.display='inline-block';
@@ -1526,7 +1597,279 @@ function navNext(){
 function toggleSlot(dateK,slot){
   S.expanded[`${dateK}-${slot}`]=!S.expanded[`${dateK}-${slot}`]; renderDayPanel();
 }
-// ── Inscription (individuelle ou groupe avec référent) ──────────────────
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INSCRIPTION RAPIDE MULTI-JOURS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let MR = {
+  weekStart: null,   // Date début de semaine affichée
+  selectedDays: new Set(),   // Set de dateK sélectionnés
+  selectedSlots: new Set(),  // Set de slots sélectionnés
+  selectedMembers: new Set(),// Set de noms sélectionnés
+  customCounter: 0,
+  knownMembers: [],  // Membres connus depuis les inscriptions passées
+};
+
+function openMultiReg(){
+  if(!S.session){ toast('Log in to register.','error'); return; }
+  MR.selectedDays.clear();
+  MR.selectedSlots.clear();
+  MR.selectedMembers.clear();
+  MR.customCounter = 0;
+  // Semaine courante basée sur la date sélectionnée ou aujourd'hui
+  MR.weekStart = new Date(S.selectedDate || S.currentDate);
+  const d = MR.weekStart.getDay();
+  MR.weekStart.setDate(MR.weekStart.getDate() - (d===0?6:d-1));
+
+  // Collecter les membres connus depuis les inscriptions passées de cet utilisateur
+  const seen = new Set();
+  MR.knownMembers = [];
+  Object.keys(S.data).forEach(dateK=>{
+    Object.keys(S.data[dateK]).forEach(slot=>{
+      S.data[dateK][slot].forEach(a=>{
+        if(a.user_id===S.session.user.id && !seen.has(a.name)){
+          seen.add(a.name);
+          MR.knownMembers.push({ name: a.name, role: a.role||'Athlète' });
+        }
+      });
+    });
+  });
+  // Ajouter le référent lui-même s'il n'est pas dans la liste
+  const selfName = S.profile?.full_name || S.session.user.email;
+  if(!seen.has(selfName)){
+    MR.knownMembers.unshift({ name: selfName, role: 'Athlète' });
+  }
+  // Pré-sélectionner soi-même
+  MR.selectedMembers.add(selfName);
+
+  document.getElementById('mdregCustoms').innerHTML = '';
+  renderMdregWeek();
+  renderMdregSlots();
+  renderMdregMembers();
+  updateMdregSummary();
+  document.getElementById('multiRegModal').classList.add('show');
+}
+
+function mdregPrevWeek(){
+  MR.weekStart = new Date(MR.weekStart);
+  MR.weekStart.setDate(MR.weekStart.getDate()-7);
+  MR.selectedDays.clear();
+  renderMdregWeek(); updateMdregSummary();
+}
+function mdregNextWeek(){
+  MR.weekStart = new Date(MR.weekStart);
+  MR.weekStart.setDate(MR.weekStart.getDate()+7);
+  MR.selectedDays.clear();
+  renderMdregWeek(); updateMdregSummary();
+}
+
+function renderMdregWeek(){
+  const ws = MR.weekStart;
+  const we = new Date(ws); we.setDate(ws.getDate()+6);
+  document.getElementById('mdregWeekLabel').textContent =
+    `${ws.getDate()} ${t('months')[ws.getMonth()]} — ${we.getDate()} ${t('months')[we.getMonth()]} ${we.getFullYear()}`;
+
+  const grid = document.getElementById('mdregDaysGrid');
+  // En-têtes jours
+  const heads = ['M','T','W','T','F','S','S'];
+  let h = heads.map(d=>`<div style="text-align:center;font-size:.65rem;color:var(--text3);padding-bottom:2px">${d}</div>`).join('');
+
+  for(let i=0;i<7;i++){
+    const dt = new Date(ws); dt.setDate(ws.getDate()+i);
+    const k = dk(dt);
+    const closed = isClosed(dt)||outOfRange(dt);
+    // Vérifier période de stage
+    let outOfStage = false;
+    if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
+      outOfStage = k < S.profile.arrival_date || k > S.profile.departure_date;
+    }
+    const disabled = closed || outOfStage;
+    const sel = MR.selectedDays.has(k);
+    const dow = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i];
+    h += `<div class="mdreg-day${sel?' mdreg-selected':''}${disabled?' mdreg-day-closed':''}"
+      ${disabled?'':`onclick="mdregToggleDay('${k}')"`}>
+      <span style="font-size:.65rem;opacity:.75">${dow}</span>
+      <b>${dt.getDate()}</b>
+    </div>`;
+  }
+  grid.innerHTML = h;
+}
+
+function mdregToggleDay(k){
+  if(MR.selectedDays.has(k)) MR.selectedDays.delete(k);
+  else MR.selectedDays.add(k);
+  renderMdregWeek();
+  renderMdregSlots(); // recalculer créneaux disponibles selon les jours sélectionnés
+  updateMdregSummary();
+}
+
+function renderMdregSlots(){
+  // Afficher les créneaux par défaut (matin + après-midi)
+  // On utilise le premier jour sélectionné pour les créneaux custom, sinon les defaults
+  const refDay = MR.selectedDays.size > 0 ? [...MR.selectedDays][0] : dk(S.selectedDate||S.currentDate);
+
+  const morningEl = document.getElementById('mdregMorningSlots');
+  const afternoonEl = document.getElementById('mdregAfternoonSlots');
+
+  const mSlots = morningSlots(refDay);
+  const aSlots = afternoonSlots(refDay);
+
+  morningEl.innerHTML = mSlots.map(slot=>{
+    const kx = isKayakCross(refDay, slot);
+    const sel = MR.selectedSlots.has(slot);
+    return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel?' mdreg-selected':''}"
+      onclick="mdregToggleSlot('${slot}')">${slot}${kx?' 🏄':''}</button>`;
+  }).join('');
+
+  afternoonEl.innerHTML = aSlots.map(slot=>{
+    const kx = isKayakCross(refDay, slot);
+    const sel = MR.selectedSlots.has(slot);
+    return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel?' mdreg-selected':''}"
+      onclick="mdregToggleSlot('${slot}')">${slot}${kx?' 🏄':''}</button>`;
+  }).join('');
+}
+
+function mdregToggleSlot(slot){
+  if(MR.selectedSlots.has(slot)) MR.selectedSlots.delete(slot);
+  else MR.selectedSlots.add(slot);
+  renderMdregSlots();
+  updateMdregSummary();
+}
+
+function renderMdregMembers(){
+  const el = document.getElementById('mdregMembers');
+  if(!MR.knownMembers.length){
+    el.innerHTML = '<p style="font-size:.8rem;color:var(--text3)">No previous participants found. Add people below.</p>';
+    return;
+  }
+  el.innerHTML = MR.knownMembers.map((m,i)=>{
+    const sel = MR.selectedMembers.has(m.name);
+    return `<label class="mdreg-member${sel?' mdreg-selected':''}" onclick="mdregToggleMember('${esc(m.name)}',${i})">
+      <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();mdregToggleMember('${esc(m.name)}',${i})">
+      <span style="flex:1">${esc(m.name)}</span>
+      <span style="font-size:.72rem;color:var(--text3)">${m.role==='Encadrant'?'Coach':'Athlete'}</span>
+    </label>`;
+  }).join('');
+}
+
+function mdregToggleMember(name, idx){
+  if(MR.selectedMembers.has(name)) MR.selectedMembers.delete(name);
+  else MR.selectedMembers.add(name);
+  renderMdregMembers();
+  updateMdregSummary();
+}
+
+function mdregAddCustom(){
+  const id = 'mc'+(MR.customCounter++);
+  const wrap = document.getElementById('mdregCustoms');
+  const row = document.createElement('div');
+  row.className = 'group-row'; row.id = id;
+  row.style.marginTop = '6px';
+  row.innerHTML = `
+    <input class="field" type="text" id="n-${id}" placeholder="Full name" oninput="updateMdregSummary()">
+    <select class="field" id="r-${id}">
+      <option value="Athlète">Athlete</option>
+      <option value="Encadrant">Coach</option>
+    </select>
+    <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateMdregSummary()">✕</button>`;
+  wrap.appendChild(row);
+}
+
+function updateMdregSummary(){
+  const days = [...MR.selectedDays].sort();
+  const slots = [...MR.selectedSlots];
+  // Membres depuis la liste connue
+  const members = [...MR.selectedMembers];
+  // Membres custom
+  [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
+    const n = r.querySelector('input')?.value?.trim();
+    if(n) members.push(n);
+  });
+
+  const el = document.getElementById('mdregSummary');
+  if(!days.length && !slots.length && !members.length){
+    el.textContent = 'Select days, sessions and participants above.'; return;
+  }
+  const total = days.length * slots.length * members.length;
+  el.innerHTML = `
+    <div style="margin-bottom:4px"><b>📅 Days (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>🕐 Sessions (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>👤 Participants (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
+    <div style="margin-top:6px;font-weight:700;color:var(--accent)">→ ${total} registration(s) to create</div>`;
+}
+
+async function submitMultiReg(){
+  if(!S.session) return;
+  const days = [...MR.selectedDays].sort();
+  const slots = [...MR.selectedSlots];
+  if(!days.length){ toast('Select at least one day.','error'); return; }
+  if(!slots.length){ toast('Select at least one session.','error'); return; }
+
+  // Construire la liste des participants
+  const participants = [];
+  MR.selectedMembers.forEach(name=>{
+    const member = MR.knownMembers.find(m=>m.name===name);
+    participants.push({ name, role: member?.role||'Athlète' });
+  });
+  [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
+    const n = r.querySelector('input')?.value?.trim();
+    const role = r.querySelector('select')?.value||'Athlète';
+    if(n) participants.push({ name: n, role });
+  });
+  if(!participants.length){ toast('Select at least one participant.','error'); return; }
+
+  const referentName = S.profile?.full_name || S.session.user.email;
+  const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
+  let created = 0, skipped = 0;
+  const errors = [];
+
+  // Itérer sur chaque combinaison jour × créneau × participant
+  for(const dateK of days){
+    for(const slot of slots){
+      // Vérifier période de stage
+      if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
+        if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
+          skipped++; continue;
+        }
+      }
+      // Vérifier jour fermé
+      const dt = new Date(dateK+'T12:00:00');
+      if(isClosed(dt)||outOfRange(dt)){ skipped++; continue; }
+      // Vérifier si le créneau existe ce jour
+      const daySlots = allSlots(dateK);
+      if(!daySlots.includes(slot)){ skipped++; continue; }
+      // Vérifier priorité (seulement pour les utilisateurs non-admin)
+      if(!S.isAdmin && isLocked(dateK, slot)){ skipped++; continue; }
+      // Vérifier places disponibles
+      const free = cap(slot,dateK) - getSlot(dateK,slot).length;
+      const toAdd = participants.slice(0, free);
+      if(!toAdd.length){ skipped++; continue; }
+      if(toAdd.length < participants.length) skipped += participants.length - toAdd.length;
+
+      const kx = isKayakCross(dateK, slot);
+      const payload = toAdd.map(p=>({
+        date: dateK, creneau: slot, nom: p.name, role: p.role,
+        user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
+        kayak_rental: false
+      }));
+      try {
+        const inserted = await sbInsertMany(payload);
+        inserted.forEach(r => getSlot(dateK,slot).push({
+          name:r.nom, role:r.role, _id:r.id, user_id:r.user_id,
+          group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental
+        }));
+        created += inserted.length;
+      } catch(e){ errors.push(`${dateK} ${slot}`); }
+    }
+  }
+
+  closeModal('multiRegModal');
+  renderDayPanel(); renderCal();
+  if(created > 0){
+    toast(`✅ ${created} registration(s) created${skipped?`, ${skipped} skipped (priority/full/closed)`:''}!`,'success');
+  } else {
+    toast(`No registration created. ${skipped} slot(s) skipped (priority rules, full, or closed).`,'error');
+  }
+}
 function openRegister(dateK,slot){
   if(!S.session){ toast('Log in to register.','error'); return; }
   if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
