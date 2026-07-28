@@ -1651,7 +1651,7 @@ function renderDayPanel(){
       <div class="dp-actions">
         <button class="btn btn-sm" onclick="copyText()">${t('copyBtn')}</button>
         <button class="btn btn-sm btn-wa" onclick="sendWA()">${t('waBtn')}</button>
-        <button class="btn btn-sm" onclick="printDaySchedule('${k}')">${t('printDayBtn')}</button>
+        <button class="btn btn-sm" onclick="printDaySchedule('${k}','kayak')">${t('printDayBtn')}</button>
       </div>
     </div>`;
   if(closed){
@@ -1742,6 +1742,9 @@ function renderMuscuDayPanel(){
   let h=`<div class="day-panel">
     <div class="dp-header">
       <div><div class="dp-title" id="muscuMuTitle">${t('muscuTitle')}</div></div>
+      <div class="dp-actions">
+        <button class="btn btn-sm" onclick="printDaySchedule('${k}','muscu')">${t('printDayBtn')}</button>
+      </div>
     </div>`;
   if(closed){
     h+=`<div style="padding:28px;text-align:center;color:var(--text3)">${t('closedMsg')}</div>`;
@@ -2322,16 +2325,19 @@ function movePrio(group,idx,dir){
 function updateCap(slot,val){ S.capacity[slot]=Math.max(1,parseInt(val)||15); saveConfig(); renderDayPanel(); }
 function updateMuscuCap(slot,val){ S.muscuCapacity[slot]=Math.max(1,parseInt(val)||8); saveConfig(); renderMuscuDayPanel(); }
 
-function printDaySchedule(dateK){
+function printDaySchedule(dateK, act){
   const d = parseDate(dateK);
   const dayName = t('dowFull')[d.getDay()];
   const dateStr = `${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
 
-  // Feuille d'émargement : colonnes = créneaux horaires, sous-colonnes = Nom Prénom + case (dossard/nationalité),
-  // lignes numérotées de 1 au maximum de la capacité, laissées vides si le créneau n'est pas complet.
-  function sheet(slots, act, extraLabel, extraKey){
+  // Feuille d'émargement : colonnes = créneaux horaires, sous-colonnes = Nom Prénom + case (dossard/nationalité).
+  // padToCapacity=true (matin) → lignes numérotées de 1 à la capacité max, vides si non complet.
+  // padToCapacity=false (après-midi) → lignes numérotées de 1 au nombre max d'inscrits réel, sans case vide superflue.
+  function sheet(slots, extraLabel, extraKey, padToCapacity){
     if(!slots.length) return `<p class="print-empty">${t('printEmptySlot')}</p>`;
-    const maxRows = Math.max(1, ...slots.map(s=>cap(s,dateK,act)));
+    const maxRows = padToCapacity
+      ? Math.max(1, ...slots.map(s=>cap(s,dateK,act)))
+      : Math.max(1, ...slots.map(s=>getSlot(dateK,s,act).length));
     let h = `<table class="print-sheet"><thead>
       <tr class="ps-slot-row"><th class="ps-num-col"></th>${slots.map(s=>{
         const kx = act==='kayak' && isKayakCross(dateK,s);
@@ -2352,19 +2358,24 @@ function printDaySchedule(dateK){
     return h;
   }
 
-  let h = `<div class="print-title">🚣 ${t('printTitle')}</div>
+  const icon = act==='muscu' ? '🏋️' : '🚣';
+  const sectionLabel = act==='muscu' ? t('printMuscuSection') : t('printKayakSection');
+  let h = `<div class="print-title">${icon} ${sectionLabel}</div>
     <div class="print-sub">${esc(dateStr)}</div>`;
   if(isClosed(d)){
     h += `<p class="print-sub">${esc(closedLabel(d))}</p>`;
+  } else if(act==='muscu'){
+    const extraLabel = t('printColNat'), extraKey = 'nationality';
+    h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
+    h += sheet(S.muscuSlots.slice(0,4), extraLabel, extraKey, true);
+    h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
+    h += sheet(S.muscuSlots.slice(4), extraLabel, extraKey, false);
   } else {
-    h += `<div class="print-section-title">🌅 ${t('morning')} — ${t('printKayakSection')}</div>`;
-    h += sheet(morningSlots(dateK), 'kayak', t('printColDossard'), 'dossard');
-    h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')} — ${t('printKayakSection')}</div>`;
-    h += sheet(afternoonSlots(dateK), 'kayak', t('printColDossard'), 'dossard');
-    h += `<div class="print-section-title" style="margin-top:20px">🏋️ ${t('printMuscuSection')} — 🌅 ${t('morning')}</div>`;
-    h += sheet(S.muscuSlots.slice(0,4), 'muscu', t('printColNat'), 'nationality');
-    h += `<div class="print-section-title" style="margin-top:20px">🏋️ ${t('printMuscuSection')} — 🌇 ${t('afternoon')}</div>`;
-    h += sheet(S.muscuSlots.slice(4), 'muscu', t('printColNat'), 'nationality');
+    const extraLabel = t('printColDossard'), extraKey = 'dossard';
+    h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
+    h += sheet(morningSlots(dateK), extraLabel, extraKey, true);
+    h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
+    h += sheet(afternoonSlots(dateK), extraLabel, extraKey, false);
   }
   document.getElementById('printArea').innerHTML = h;
   window.print();
