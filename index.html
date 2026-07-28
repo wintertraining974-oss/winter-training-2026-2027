@@ -161,6 +161,9 @@ select.field { min-width: 110px; cursor: pointer; }
 .quick-reg-card .qr-sub { font-size: .82rem; color: var(--text3); margin-bottom: 16px; }
 .qr-jump { display:block; text-align:center; font-size:.78rem; color: var(--text3); margin-top:14px; cursor:pointer; }
 .qr-jump:hover { color: var(--accent); }
+.qr-tabs { display: flex; gap: 6px; margin: 14px 0 4px; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; }
+.qr-tab { flex: 1; border: none; background: transparent; padding: 9px; border-radius: 6px; font-size: .84rem; font-weight: 700; color: var(--text3); cursor: pointer; transition: all .15s; }
+.qr-tab.active { background: var(--white); color: var(--accent); box-shadow: var(--shadow-sm); }
 .err-msg { font-size: .78rem; color: var(--red); margin-top: 6px; display: none; }
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: white; border-radius: var(--radius-sm); padding: 10px 18px; font-size: .84rem; font-weight: 500; z-index: 500; opacity: 0; transform: translateY(8px); transition: all .25s; pointer-events: none; max-width: 300px; }
 .toast.show { opacity: 1; transform: translateY(0); }
@@ -445,48 +448,58 @@ select.field { min-width: 110px; cursor: pointer; }
 
 <div class="app-body" id="appBody" style="display:none">
   <div class="quick-reg-card" id="quickRegPanel">
-    <h2>⚡ Quick registration</h2>
-    <p class="qr-sub">Select one or more days, one or more sessions, and one or more participants to register in a few clicks. Prefer to just browse first? <a href="#calNavAnchor" class="qr-jump" style="display:inline">jump to the calendar ↓</a></p>
+    <h2 id="qrTitle">⚡ Quick registration</h2>
+    <p class="qr-sub"><span id="qrSub"></span><a href="#calNavAnchor" class="qr-jump" id="qrJump" style="display:inline"></a></p>
+
+    <div class="qr-tabs" id="qrTabs">
+      <button class="qr-tab active" id="qrTabKayak" onclick="mrSwitchActivity('kayak')"></button>
+      <button class="qr-tab" id="qrTabMuscu" onclick="mrSwitchActivity('muscu')"></button>
+    </div>
 
     <!-- Étape 1 : Sélection des jours -->
     <div class="mdreg-section">
-      <h4>① Select days</h4>
+      <h4 id="qrStep1"></h4>
       <div class="mdreg-week-nav">
-        <button class="btn btn-sm" onclick="mdregPrevWeek()">← Prev</button>
+        <button class="btn btn-sm" onclick="mdregPrevWeek()">← <span id="qrPrevLbl"></span></button>
         <span id="mdregWeekLabel"></span>
-        <button class="btn btn-sm" onclick="mdregNextWeek()">Next →</button>
+        <button class="btn btn-sm" onclick="mdregNextWeek()"><span id="qrNextLbl"></span> →</button>
       </div>
       <div class="mdreg-days" id="mdregDaysGrid"></div>
-      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Click on available days to select them. Click again to deselect.</p>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrStep1Hint"></p>
     </div>
 
     <!-- Étape 2 : Sélection des créneaux -->
     <div class="mdreg-section">
-      <h4>② Select sessions (morning &amp; afternoon)</h4>
-      <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 Morning</div>
-      <div class="mdreg-slots" id="mdregMorningSlots"></div>
-      <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 Afternoon</div>
-      <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
-      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">Locked or unavailable slots are automatically skipped. 🏄 = Kayak Cross.</p>
+      <h4 id="qrStep2"></h4>
+      <div id="qrKayakSlots">
+        <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 <span id="qrMorningLbl"></span></div>
+        <div class="mdreg-slots" id="mdregMorningSlots"></div>
+        <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 <span id="qrAfternoonLbl"></span></div>
+        <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
+      </div>
+      <div id="qrMuscuSlots" style="display:none">
+        <div class="mdreg-slots" id="mdregMuscuSlots"></div>
+      </div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrStep2Hint"></p>
     </div>
 
     <!-- Étape 3 : Sélection des membres du groupe -->
     <div class="mdreg-section">
-      <h4>③ Select participants</h4>
+      <h4 id="qrStep3"></h4>
       <div id="mdregMembers"></div>
-      <button class="btn btn-sm" style="margin-top:6px" onclick="mdregAddCustom()">+ Add another person</button>
+      <button class="btn btn-sm" style="margin-top:6px" id="qrAddPerson" onclick="mdregAddCustom()"></button>
       <div id="mdregCustoms"></div>
     </div>
 
     <!-- Résumé -->
     <div class="mdreg-section">
-      <h4>Summary</h4>
-      <div class="mdreg-summary" id="mdregSummary">Select days, sessions and participants above.</div>
+      <h4 id="qrSummary"></h4>
+      <div class="mdreg-summary" id="mdregSummary"></div>
     </div>
 
     <div class="modal-actions">
-      <button class="btn" onclick="resetMultiReg()">↺ Reset selection</button>
-      <button class="btn btn-primary" onclick="submitMultiReg()">⚡ Register all</button>
+      <button class="btn" id="qrResetBtn" onclick="resetMultiReg()"></button>
+      <button class="btn btn-primary" id="qrSubmitBtn" onclick="submitMultiReg()"></button>
     </div>
   </div>
 
@@ -515,6 +528,7 @@ select.field { min-width: 110px; cursor: pointer; }
 
   <div id="calContainer"></div>
   <div id="dayPanel" style="display:none"></div>
+  <div id="muscuDayPanel" style="display:none"></div>
 
   <div class="admin-section" id="adminPanel" style="display:none">
     <h3>⚡ <span id="aTitle">Panneau Administrateur / Admin Panel</span></h3>
@@ -534,6 +548,10 @@ select.field { min-width: 110px; cursor: pointer; }
       <div class="admin-card">
         <h4 id="aCapTitle">Capacité / Capacity per slot</h4>
         <div id="adminCap"></div>
+      </div>
+      <div class="admin-card">
+        <h4 id="aMuscuCapTitle">🏋️ Capacité par créneau — Salle de musculation</h4>
+        <div id="adminMuscuCap"></div>
       </div>
       <div class="admin-card">
         <h4 id="aDowTitle">Jours ouvert/fermé — Open/Closed days</h4>
@@ -885,6 +903,32 @@ const TR = {
     gpDays7:'7 jours', gpDays14:'14 jours', gpDays30:'30 jours',
     gpNoRegMsg:'Aucune inscription sur cette période.',
     gpSlotHeader:'Créneau',
+    qrTitle:'⚡ Inscription rapide',
+    qrSub:"Sélectionnez un ou plusieurs jours, un ou plusieurs créneaux, et un ou plusieurs participants pour vous inscrire en quelques clics. Vous préférez d'abord regarder ? ",
+    qrJump:'aller au calendrier ↓',
+    qrTabKayak:'🚣 Kayak', qrTabMuscu:'🏋️ Salle de musculation',
+    qrStep1:'① Sélectionner les jours', qrStep1Hint:'Cliquez sur les jours disponibles pour les sélectionner. Recliquez pour désélectionner.',
+    qrStep2Kayak:'② Sélectionner les créneaux (matin et après-midi)',
+    qrStep2Muscu:'② Sélectionner les créneaux (1h30, de 7h30 à 18h00)',
+    qrStep2Hint:'Les créneaux verrouillés ou indisponibles sont automatiquement ignorés. 🏄 = Kayak Cross.',
+    qrStep2HintMuscu:'Les créneaux complets sont automatiquement ignorés.',
+    qrStep3:'③ Sélectionner les participants', qrAddPerson:'+ Ajouter une autre personne',
+    qrSummary:'Résumé', qrSummaryDefault:'Sélectionnez des jours, créneaux et participants ci-dessus.',
+    qrResetBtn:'↺ Réinitialiser la sélection', qrSubmitBtn:'⚡ Tout inscrire',
+    qrDaysLbl:'📅 Jours', qrSessionsLbl:'🕐 Créneaux', qrParticipantsLbl:'👤 Participants',
+    qrRegCountTpl:'→ {n} inscription(s) à créer',
+    qrNoMembers:'Aucun participant précédent trouvé. Ajoutez des personnes ci-dessous.',
+    qrLockedTitle:'Verrouillé par la priorité — créneau précédent non complet',
+    qrFullTitle:'Complet', qrFullLabel:' (complet)',
+    qrErrDay:'Sélectionnez au moins un jour.', qrErrSlot:'Sélectionnez au moins un créneau.',
+    qrErrPart:'Sélectionnez au moins un participant.',
+    qrCreatedTpl:'✅ {n} inscription(s) créée(s){skip}',
+    qrSkippedTpl:', {n} ignorée(s) (priorité/complet/fermé)',
+    qrNoneCreatedTpl:'Aucune inscription créée. {n} créneau(x) ignoré(s) (règles de priorité, complet ou fermé).',
+    qrLoginToRegister:'Connectez-vous pour vous inscrire.',
+    muscuTitle:'🏋️ Salle de musculation', muscuMax:'places max',
+    aMuscuCapTitle:'🏋️ Capacité par créneau — Salle de musculation',
+    qrPrevLbl:'Préc.', qrNextLbl:'Suivant',
   },
   en: {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mar 2027',
@@ -946,6 +990,32 @@ const TR = {
     gpDays7:'7 days', gpDays14:'14 days', gpDays30:'30 days',
     gpNoRegMsg:'No registrations for this period.',
     gpSlotHeader:'Slot',
+    qrTitle:'⚡ Quick registration',
+    qrSub:'Select one or more days, one or more sessions, and one or more participants to register in a few clicks. Prefer to just browse first? ',
+    qrJump:'jump to the calendar ↓',
+    qrTabKayak:'🚣 Kayak', qrTabMuscu:'🏋️ Weight room',
+    qrStep1:'① Select days', qrStep1Hint:'Click on available days to select them. Click again to deselect.',
+    qrStep2Kayak:'② Select sessions (morning & afternoon)',
+    qrStep2Muscu:'② Select sessions (1h30, from 7:30 to 18:00)',
+    qrStep2Hint:'Locked or unavailable slots are automatically skipped. 🏄 = Kayak Cross.',
+    qrStep2HintMuscu:'Full slots are automatically skipped.',
+    qrStep3:'③ Select participants', qrAddPerson:'+ Add another person',
+    qrSummary:'Summary', qrSummaryDefault:'Select days, sessions and participants above.',
+    qrResetBtn:'↺ Reset selection', qrSubmitBtn:'⚡ Register all',
+    qrDaysLbl:'📅 Days', qrSessionsLbl:'🕐 Sessions', qrParticipantsLbl:'👤 Participants',
+    qrRegCountTpl:'→ {n} registration(s) to create',
+    qrNoMembers:'No previous participants found. Add people below.',
+    qrLockedTitle:'Locked by priority — previous slot not full',
+    qrFullTitle:'Full', qrFullLabel:' (full)',
+    qrErrDay:'Select at least one day.', qrErrSlot:'Select at least one session.',
+    qrErrPart:'Select at least one participant.',
+    qrCreatedTpl:'✅ {n} registration(s) created{skip}',
+    qrSkippedTpl:', {n} skipped (priority/full/closed)',
+    qrNoneCreatedTpl:'No registration created. {n} slot(s) skipped (priority rules, full, or closed).',
+    qrLoginToRegister:'Log in to register.',
+    muscuTitle:'🏋️ Weight room', muscuMax:'spots max',
+    aMuscuCapTitle:'🏋️ Capacity per slot — Weight room',
+    qrPrevLbl:'Prev', qrNextLbl:'Next',
   }
 };
 function t(k){ return TR[LANG][k] || k; }
@@ -959,7 +1029,10 @@ function applyI18n(){
     'aDateCapTitle','aDateCapDesc','dcClearBtn','dcModifyBtn','dcSaveBtn','dcResetBtn',
     'aGlobalPlanTitle','aGlobalPlanDesc','aGlobalPlanBtn',
     'whoRegisteredBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
-    'gpDays7Opt','gpDays14Opt','gpDays30Opt'];
+    'gpDays7Opt','gpDays14Opt','gpDays30Opt',
+    'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
+    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
+    'qrResetBtn','qrSubmitBtn','aMuscuCapTitle'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
@@ -968,15 +1041,27 @@ function applyI18n(){
     'aDateCapTitle','aDateCapDesc','dcClearBtn','dcModifyBtn','dcSaveBtn','dcResetBtn',
     'aGlobalPlanTitle','aGlobalPlanDesc','aGlobalPlanBtn',
     'whoRegBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
-    'gpDays7','gpDays14','gpDays30'];
+    'gpDays7','gpDays14','gpDays30',
+    'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
+    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
+    'qrResetBtn','qrSubmitBtn','aMuscuCapTitle'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
   document.getElementById('langBtn').textContent = LANG==='fr'?'EN':'FR';
+  // Étape 2 (créneaux) : le libellé dépend de l'activité sélectionnée dans la carte d'inscription rapide
+  const step2El = document.getElementById('qrStep2');
+  if(step2El) step2El.textContent = MR.activity==='muscu' ? t('qrStep2Muscu') : t('qrStep2Kayak');
+  const step2HintEl = document.getElementById('qrStep2Hint');
+  if(step2HintEl) step2HintEl.textContent = MR.activity==='muscu' ? t('qrStep2HintMuscu') : t('qrStep2Hint');
+  const morningLbl = document.getElementById('qrMorningLbl'); if(morningLbl) morningLbl.textContent = t('morning');
+  const afternoonLbl = document.getElementById('qrAfternoonLbl'); if(afternoonLbl) afternoonLbl.textContent = t('afternoon');
+  if(document.getElementById('mdregSummary')) updateMdregSummary();
   // Rafraîchir les vues dynamiques qui contiennent du texte traduit généré en JS
   renderDateCapSummary();
   renderDcMiniCal();
 }
+
 
 function toggleLang(){ LANG = LANG==='fr'?'en':'fr'; applyI18n(); render(); }
 
@@ -1008,6 +1093,10 @@ let S = {
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
   data:{}, expanded:{}, movePending:null,
+  // ── Salle de musculation (activité parallèle) ──────────────────────
+  muscuSlots:['7h30-9h00','9h00-10h30','10h30-12h00','12h00-13h30','13h30-15h00','15h00-16h30','16h30-18h00'],
+  muscuCapacity:{'7h30-9h00':8,'9h00-10h30':8,'10h30-12h00':8,'12h00-13h30':8,'13h30-15h00':8,'15h00-16h30':8,'16h30-18h00':8},
+  muscuData:{},
   session:null, profile:null, authMode:'login', regPending:null, regCounter:0,
   waitlist:{},
 };
@@ -1165,9 +1254,11 @@ async function sbDelete(id) {
   if(error) throw error;
 }
 
-function rowsToData(rows){
+function rowsToData(rows, act='kayak'){
   const out = {};
   rows.forEach(r => {
+    const rAct = r.activity || 'kayak'; // colonne absente/NULL = anciennes inscriptions kayak
+    if(rAct !== act) return;
     if(!out[r.date]) out[r.date]={};
     if(!out[r.date][r.creneau]) out[r.date][r.creneau]=[];
     out[r.date][r.creneau].push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental });
@@ -1178,7 +1269,8 @@ function rowsToData(rows){
 async function load() {
   const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
   if(error){ console.error('Supabase load error', error); return; }
-  S.data = rowsToData(rows||[]);
+  S.data = rowsToData(rows||[], 'kayak');
+  S.muscuData = rowsToData(rows||[], 'muscu');
 }
 
 // ── Config admin (closedDow, customClosed, capacity, ordre créneaux) ──
@@ -1196,6 +1288,7 @@ async function saveConfig() {
     customSlots:    S.customSlots,
     kayakCross:     S.kayakCross,
     dateCapacity:   S.dateCapacity,
+    muscuCapacity:  S.muscuCapacity,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -1216,6 +1309,7 @@ async function loadConfig() {
   if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
   if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
   if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
+  if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -1225,16 +1319,22 @@ async function silentReload() {
   if (document.querySelector('.modal-bg.show')) return;
   const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
   if(error) return;
-  const newData = rowsToData(rows||[]);
+  const newData = rowsToData(rows||[], 'kayak');
+  const newMuscuData = rowsToData(rows||[], 'muscu');
   const strip = d => JSON.stringify(d, (k,v) => k==='_id'?undefined:v);
+  let updated = false;
   if (strip(newData) !== strip(S.data)) {
     S.data = newData;
     renderCal();
     renderDayPanel();
-    showSyncDot(true);
-  } else {
-    showSyncDot(false);
+    updated = true;
   }
+  if (strip(newMuscuData) !== strip(S.muscuData)) {
+    S.muscuData = newMuscuData;
+    renderMuscuDayPanel();
+    updated = true;
+  }
+  showSyncDot(updated);
 }
 
 function showSyncDot(updated) {
@@ -1283,17 +1383,20 @@ function afternoonSlots(dateK){
   if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].afternoon||[];
   return S.afternoonOrder;
 }
-function cap(slot,dateK){
+function cap(slot,dateK,act='kayak'){
+  if(act==='muscu') return S.muscuCapacity[slot]||8;
   if(dateK && S.dateCapacity && S.dateCapacity[dateK] && S.dateCapacity[dateK][slot]!=null){
     return S.dateCapacity[dateK][slot];
   }
   return S.capacity[slot]||15;
 }
-function getSlot(dateK,slot){
-  if(!S.data[dateK]) S.data[dateK]={};
-  if(!S.data[dateK][slot]) S.data[dateK][slot]=[];
-  return S.data[dateK][slot];
+function getSlot(dateK,slot,act='kayak'){
+  const store = act==='muscu' ? S.muscuData : S.data;
+  if(!store[dateK]) store[dateK]={};
+  if(!store[dateK][slot]) store[dateK][slot]=[];
+  return store[dateK][slot];
 }
+function muscuSlotsOf(){ return S.muscuSlots; }
 function isKayakCross(dateK, slot){
   return !!(S.kayakCross && S.kayakCross[dateK] && S.kayakCross[dateK][slot]);
 }
@@ -1338,11 +1441,12 @@ function isLocked(dateK,slot){
   }
   return false;
 }
-function slotStatus(dateK,slot){
-  if(isLocked(dateK,slot)) return 'locked';
-  const n=getSlot(dateK,slot).length, c=cap(slot,dateK);
+function slotStatus(dateK,slot,act='kayak'){
+  if(act==='kayak' && isLocked(dateK,slot)) return 'locked';
+  const n=getSlot(dateK,slot,act).length, c=cap(slot,dateK,act);
   if(n>=c) return 'full'; if(n/c>=0.6) return 'mid'; return 'open';
 }
+function slotKey(dateK,slot,act='kayak'){ return act==='muscu' ? `muscu|${dateK}|${slot}` : `${dateK}-${slot}`; }
 function dayStatus(d){
   if(isClosed(d)||outOfRange(d)) return null;
   const k=dk(d); let total=0,totalCap=0;
@@ -1359,7 +1463,7 @@ function roleDisplay(r){ return r==='Encadrant'?t('roleCoach'):t('roleAth'); }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // RENDER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function render(){ renderCal(); renderDayPanel(); renderAdmin(); applyI18n(); }
+function render(){ renderCal(); renderDayPanel(); renderMuscuDayPanel(); renderAdmin(); applyI18n(); }
 
 function renderCal(){
   document.getElementById('vbMonth').className='view-btn'+(S.view==='month'?' active':'');
@@ -1477,10 +1581,10 @@ function renderDayPanel(){
   h+='</div>'; el.innerHTML=h;
 }
 
-function renderSlot(dateK,slot){
-  const aths=getSlot(dateK,slot),c=cap(slot,dateK),st=slotStatus(dateK,slot);
-  const pct=Math.min(1,aths.length/c), exp=S.expanded[`${dateK}-${slot}`];
-  const kx=isKayakCross(dateK,slot);
+function renderSlot(dateK,slot,act='kayak'){
+  const aths=getSlot(dateK,slot,act),c=cap(slot,dateK,act),st=slotStatus(dateK,slot,act);
+  const pct=Math.min(1,aths.length/c), exp=S.expanded[slotKey(dateK,slot,act)];
+  const kx=act==='kayak'?isKayakCross(dateK,slot):false;
   const labels={open:t('slotOpen'),mid:t('slotMid'),full:t('slotFull'),locked:t('slotLocked')};
   const bCls={open:'sb-open',mid:'sb-mid',full:'sb-full',locked:'sb-locked'};
   let prevSlot='';
@@ -1489,12 +1593,12 @@ function renderSlot(dateK,slot){
     const idx=g.indexOf(slot); if(idx>0) prevSlot=g[idx-1];
   }
   let h=`<div class="slot-card s-${st}${kx?' kx-slot':''}">
-    <div class="slot-header" onclick="toggleSlot('${dateK}','${slot}')">
-      <div class="slot-time">${slot}${kx?`<span class="kx-badge">🏄 KAYAK CROSS</span>`:'<span style="font-size:.65rem;color:var(--text3);margin-left:6px">SLALOM</span>'}</div>
+    <div class="slot-header" onclick="toggleSlot('${dateK}','${slot}','${act}')">
+      <div class="slot-time">${slot}${kx?`<span class="kx-badge">🏄 KAYAK CROSS</span>`:(act==='kayak'?'<span style="font-size:.65rem;color:var(--text3);margin-left:6px">SLALOM</span>':'')}</div>
       <div class="slot-count-text">${aths.length} / ${c} ${t('registered')}</div>
       <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${kx?'#f97316':''}"></div></div>
       <span class="slot-badge ${bCls[st]}">${labels[st]}</span>
-      ${S.isAdmin?`<button class="kx-toggle${kx?' active':''}" onclick="event.stopPropagation();toggleKayakCross('${dateK}','${slot}')" title="Kayak Cross / Slalom">🏄 KX</button>`:''}
+      ${(S.isAdmin&&act==='kayak')?`<button class="kx-toggle${kx?' active':''}" onclick="event.stopPropagation();toggleKayakCross('${dateK}','${slot}')" title="Kayak Cross / Slalom">🏄 KX</button>`:''}
       <span class="slot-chevron${exp?' open':''}">▼</span>
     </div>`;
   if(st==='locked'&&!S.isAdmin)
@@ -1512,8 +1616,8 @@ function renderSlot(dateK,slot){
           <span class="ath-name">${esc(a.name)}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}${a.rental?'<span style="font-size:.65rem;background:#fed7aa;color:#9a3412;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">🚣 Rental</span>':''}</span>
           <span class="ath-role-badge ${a.role==='Encadrant'?'role-encadrant':'role-athlete'}">${esc(roleDisplay(a.role))}</span>
           <div class="ath-actions">
-            ${S.isAdmin?`<button class="ath-btn mv" onclick="openMove('${dateK}','${slot}',${i})">↔</button>`:''}
-            ${canEdit?`<button class="ath-btn del" onclick="removeAthlete('${dateK}','${slot}',${i})">✕</button>`:''}
+            ${(S.isAdmin&&act==='kayak')?`<button class="ath-btn mv" onclick="openMove('${dateK}','${slot}',${i})">↔</button>`:''}
+            ${canEdit?`<button class="ath-btn del" onclick="removeAthlete('${dateK}','${slot}',${i},'${act}')">✕</button>`:''}
           </div>
         </div>`;
       });
@@ -1521,22 +1625,46 @@ function renderSlot(dateK,slot){
     h+=`</div>`;
     if(st!=='full'&&!(st==='locked'&&!S.isAdmin)){
       h+=`<div class="add-form">
-        <button class="btn btn-sm btn-primary" onclick="openRegister('${dateK}','${slot}')">${t('regBtn')}</button>
+        <button class="btn btn-sm btn-primary" onclick="openRegister('${dateK}','${slot}','${act}')">${t('regBtn')}</button>
       </div>`;
     } else if(st==='full'){
-      const wl=getWaitlist(dateK,slot);
-      const alreadyWaiting = S.session && wl.find(e=>e.user_id===S.session.user.id);
-      h+=`<div class="add-form">
-        <span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span>
-        ${S.session && !alreadyWaiting ? `<button class="btn btn-sm" style="margin-left:8px" onclick="joinWaitlist('${dateK}','${slot}')">⏳ Liste d'attente</button>` : ''}
-        ${alreadyWaiting ? `<span style="font-size:.75rem;color:#92400e;margin-left:8px">⏳ Tu es sur liste d'attente</span>` : ''}
-        ${wl.length ? `<span style="font-size:.72rem;color:var(--text3);margin-left:6px">${wl.length} en attente</span>` : ''}
-      </div>`;
+      if(act==='kayak'){
+        const wl=getWaitlist(dateK,slot);
+        const alreadyWaiting = S.session && wl.find(e=>e.user_id===S.session.user.id);
+        h+=`<div class="add-form">
+          <span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span>
+          ${S.session && !alreadyWaiting ? `<button class="btn btn-sm" style="margin-left:8px" onclick="joinWaitlist('${dateK}','${slot}')">⏳ Liste d'attente</button>` : ''}
+          ${alreadyWaiting ? `<span style="font-size:.75rem;color:#92400e;margin-left:8px">⏳ Tu es sur liste d'attente</span>` : ''}
+          ${wl.length ? `<span style="font-size:.72rem;color:var(--text3);margin-left:6px">${wl.length} en attente</span>` : ''}
+        </div>`;
+      } else {
+        h+=`<div class="add-form"><span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span></div>`;
+      }
       h+=`<div class="full-msg">${t('fullMsg')}</div>`;
     }
     h+=`</div>`;
   }
   h+=`</div>`; return h;
+}
+
+function renderMuscuDayPanel(){
+  const el=document.getElementById('muscuDayPanel');
+  if(!el) return;
+  if(!S.selectedDate){ el.style.display='none'; return; }
+  el.style.display='block';
+  const d=S.selectedDate, k=dk(d), closed=isClosed(d);
+  let h=`<div class="day-panel">
+    <div class="dp-header">
+      <div><div class="dp-title" id="muscuMuTitle">${t('muscuTitle')}</div></div>
+    </div>`;
+  if(closed){
+    h+=`<div style="padding:28px;text-align:center;color:var(--text3)">${t('closedMsg')}</div>`;
+  } else {
+    h+=`<div class="slots-body"><div class="slot-group">`;
+    S.muscuSlots.forEach(slot=>h+=renderSlot(k,slot,'muscu'));
+    h+=`</div></div>`;
+  }
+  h+='</div>'; el.innerHTML=h;
 }
 
 function renderAdmin(){
@@ -1572,6 +1700,14 @@ function renderAdmin(){
     </div>`;
   });
   document.getElementById('adminCap').innerHTML=ch;
+
+  let mch='';
+  S.muscuSlots.forEach(slot=>{
+    mch+=`<div class="cap-row"><div style="flex:1">${slot}</div>
+      <input type="number" class="cap-input" value="${cap(slot,null,'muscu')}" min="1" max="50" onchange="updateMuscuCap('${slot}',this.value)">
+    </div>`;
+  });
+  document.getElementById('adminMuscuCap').innerHTML=mch;
 
   // DOW buttons (0=dim..6=sam)
   let dh='';
@@ -1613,13 +1749,16 @@ function navNext(){
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()+7); S.currentDate=d; }
   render();
 }
-function toggleSlot(dateK,slot){
-  S.expanded[`${dateK}-${slot}`]=!S.expanded[`${dateK}-${slot}`]; renderDayPanel();
+function toggleSlot(dateK,slot,act='kayak'){
+  const key=slotKey(dateK,slot,act);
+  S.expanded[key]=!S.expanded[key];
+  if(act==='muscu') renderMuscuDayPanel(); else renderDayPanel();
 }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INSCRIPTION RAPIDE MULTI-JOURS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let MR = {
+  activity: 'kayak',  // 'kayak' | 'muscu' — activité sélectionnée dans la carte d'inscription rapide
   weekStart: null,   // Date début de semaine affichée
   selectedDays: new Set(),   // Set de dateK sélectionnés
   selectedSlots: new Set(),  // Set de slots sélectionnés
@@ -1628,8 +1767,9 @@ let MR = {
   knownMembers: [],  // Membres connus depuis les inscriptions passées
 };
 
-function openMultiReg(preDate, preSlot){
-  if(!S.session){ toast('Log in to register.','error'); return; }
+function openMultiReg(preDate, preSlot, act){
+  if(!S.session){ toast(t('qrLoginToRegister'),'error'); return; }
+  if(act) MR.activity = act;
   MR.selectedDays.clear();
   MR.selectedSlots.clear();
   MR.selectedMembers.clear();
@@ -1650,16 +1790,18 @@ function openMultiReg(preDate, preSlot){
   }
   if(preSlot) MR.selectedSlots.add(preSlot);
 
-  // Collecter les membres connus depuis les inscriptions passées
+  // Collecter les membres connus depuis les inscriptions passées (kayak + muscu)
   const seen = new Set();
   MR.knownMembers = [];
-  Object.keys(S.data).forEach(dateK=>{
-    Object.keys(S.data[dateK]).forEach(slot=>{
-      S.data[dateK][slot].forEach(a=>{
-        if(a.user_id===S.session.user.id && !seen.has(a.name)){
-          seen.add(a.name);
-          MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
-        }
+  [S.data, S.muscuData].forEach(store=>{
+    Object.keys(store).forEach(dateK=>{
+      Object.keys(store[dateK]).forEach(slot=>{
+        store[dateK][slot].forEach(a=>{
+          if(a.user_id===S.session.user.id && !seen.has(a.name)){
+            seen.add(a.name);
+            MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
+          }
+        });
       });
     });
   });
@@ -1668,13 +1810,22 @@ function openMultiReg(preDate, preSlot){
   MR.selectedMembers.add(selfName);
 
   document.getElementById('mdregCustoms').innerHTML='';
+  document.getElementById('qrTabKayak').classList.toggle('active', MR.activity==='kayak');
+  document.getElementById('qrTabMuscu').classList.toggle('active', MR.activity==='muscu');
+  document.getElementById('qrKayakSlots').style.display = MR.activity==='muscu'?'none':'block';
+  document.getElementById('qrMuscuSlots').style.display = MR.activity==='muscu'?'block':'none';
   renderMdregWeek();
   renderMdregSlots(preDate);
   renderMdregMembers();
   updateMdregSummary();
+  applyI18n();
 }
 function resetMultiReg(){
   openMultiReg();
+}
+function mrSwitchActivity(act){
+  if(MR.activity===act) return;
+  openMultiReg(null, null, act);
 }
 
 function mdregPrevWeek(){
@@ -1698,7 +1849,7 @@ function renderMdregWeek(){
 
   const grid = document.getElementById('mdregDaysGrid');
   // En-têtes jours
-  const heads = ['M','T','W','T','F','S','S'];
+  const heads = t('calHeads').map(s=>s[0]);
   let h = heads.map(d=>`<div style="text-align:center;font-size:.65rem;color:var(--text3);padding-bottom:2px">${d}</div>`).join('');
 
   for(let i=0;i<7;i++){
@@ -1712,7 +1863,7 @@ function renderMdregWeek(){
     }
     const disabled = closed || outOfStage;
     const sel = MR.selectedDays.has(k);
-    const dow = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i];
+    const dow = t('calHeads')[i];
     h += `<div class="mdreg-day${sel?' mdreg-selected':''}${disabled?' mdreg-day-closed':''}"
       ${disabled?'':`onclick="mdregToggleDay('${k}')"`}>
       <span style="font-size:.65rem;opacity:.75">${dow}</span>
@@ -1740,6 +1891,25 @@ function renderMdregSlots(refDay){
   // Référence : premier jour sélectionné, sinon jour courant
   if(!refDay) refDay = MR.selectedDays.size>0 ? [...MR.selectedDays].sort()[0] : dk(S.selectedDate||S.currentDate);
 
+  if(MR.activity==='muscu'){
+    const el = document.getElementById('mdregMuscuSlots');
+    function slotBtnMuscu(slot){
+      const sel = MR.selectedSlots.has(slot);
+      const fullOnAll = MR.selectedDays.size>0
+        ? [...MR.selectedDays].every(d=> cap(slot,d,'muscu')<=getSlot(d,slot,'muscu').length)
+        : false;
+      const fullLabel = fullOnAll ? t('qrFullLabel') : '';
+      return `<button class="mdreg-slot-btn${sel&&!fullOnAll?' mdreg-selected':''}"
+        style="${fullOnAll?'opacity:.4;cursor:not-allowed;':''}"
+        ${fullOnAll?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
+        title="${fullOnAll?t('qrFullTitle'):''}">
+        ${slot}${fullLabel}
+      </button>`;
+    }
+    el.innerHTML = S.muscuSlots.map(slotBtnMuscu).join('');
+    return;
+  }
+
   const morningEl = document.getElementById('mdregMorningSlots');
   const afternoonEl = document.getElementById('mdregAfternoonSlots');
   const mSlots = morningSlots(refDay);
@@ -1757,11 +1927,11 @@ function renderMdregSlots(refDay){
       : false;
     const disabled = (lockedOnAny && !kx) || fullOnAll;
     const lockIcon = lockedOnAny && !kx ? ' 🔒' : '';
-    const fullLabel = fullOnAll ? ' (full)' : '';
+    const fullLabel = fullOnAll ? t('qrFullLabel') : '';
     return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
       style="${disabled?'opacity:.4;cursor:not-allowed;':''}"
       ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-      title="${disabled?(lockedOnAny?'Locked by priority — previous slot not full':'Full'):''}">
+      title="${disabled?(lockedOnAny?t('qrLockedTitle'):t('qrFullTitle')):''}">
       ${slot}${kx?' 🏄':''}${lockIcon}${fullLabel}
     </button>`;
   }
@@ -1780,7 +1950,7 @@ function mdregToggleSlot(slot){
 function renderMdregMembers(){
   const el = document.getElementById('mdregMembers');
   if(!MR.knownMembers.length){
-    el.innerHTML = '<p style="font-size:.8rem;color:var(--text3)">No previous participants found. Add people below.</p>';
+    el.innerHTML = `<p style="font-size:.8rem;color:var(--text3)">${t('qrNoMembers')}</p>`;
     return;
   }
   el.innerHTML = MR.knownMembers.map((m,i)=>{
@@ -1788,7 +1958,7 @@ function renderMdregMembers(){
     return `<label class="mdreg-member${sel?' mdreg-selected':''}" onclick="mdregToggleMember('${esc(m.name)}',${i})">
       <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();mdregToggleMember('${esc(m.name)}',${i})">
       <span style="flex:1">${esc(m.name)}</span>
-      <span style="font-size:.72rem;color:var(--text3)">${m.role==='Encadrant'?'Coach':'Athlete'}</span>
+      <span style="font-size:.72rem;color:var(--text3)">${roleDisplay(m.role)}</span>
     </label>`;
   }).join('');
 }
@@ -1807,10 +1977,10 @@ function mdregAddCustom(){
   row.className = 'group-row'; row.id = id;
   row.style.marginTop = '6px';
   row.innerHTML = `
-    <input class="field" type="text" id="n-${id}" placeholder="Full name" oninput="updateMdregSummary()">
+    <input class="field" type="text" id="n-${id}" placeholder="${t('namePH')}" oninput="updateMdregSummary()">
     <select class="field" id="r-${id}">
-      <option value="Athlète">Athlete</option>
-      <option value="Encadrant">Coach</option>
+      <option value="Athlète">${t('roleAth')}</option>
+      <option value="Encadrant">${t('roleCoach')}</option>
     </select>
     <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateMdregSummary()">✕</button>`;
   wrap.appendChild(row);
@@ -1828,23 +1998,25 @@ function updateMdregSummary(){
   });
 
   const el = document.getElementById('mdregSummary');
+  if(!el) return;
   if(!days.length && !slots.length && !members.length){
-    el.textContent = 'Select days, sessions and participants above.'; return;
+    el.textContent = t('qrSummaryDefault'); return;
   }
   const total = days.length * slots.length * members.length;
   el.innerHTML = `
-    <div style="margin-bottom:4px"><b>📅 Days (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
-    <div style="margin-bottom:4px"><b>🕐 Sessions (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
-    <div style="margin-bottom:4px"><b>👤 Participants (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
-    <div style="margin-top:6px;font-weight:700;color:var(--accent)">→ ${total} registration(s) to create</div>`;
+    <div style="margin-bottom:4px"><b>${t('qrDaysLbl')} (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>${t('qrSessionsLbl')} (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>${t('qrParticipantsLbl')} (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
+    <div style="margin-top:6px;font-weight:700;color:var(--accent)">${t('qrRegCountTpl').replace('{n}',total)}</div>`;
 }
 
 async function submitMultiReg(){
   if(!S.session) return;
+  const act = MR.activity;
   const days = [...MR.selectedDays].sort();
   const slots = [...MR.selectedSlots];
-  if(!days.length){ toast('Select at least one day.','error'); return; }
-  if(!slots.length){ toast('Select at least one session.','error'); return; }
+  if(!days.length){ toast(t('qrErrDay'),'error'); return; }
+  if(!slots.length){ toast(t('qrErrSlot'),'error'); return; }
 
   // Construire la liste des participants
   const participants = [];
@@ -1857,7 +2029,7 @@ async function submitMultiReg(){
     const role = r.querySelector('select')?.value||'Athlète';
     if(n) participants.push({ name: n, role });
   });
-  if(!participants.length){ toast('Select at least one participant.','error'); return; }
+  if(!participants.length){ toast(t('qrErrPart'),'error'); return; }
 
   const referentName = S.profile?.full_name || S.session.user.email;
   const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
@@ -1877,25 +2049,25 @@ async function submitMultiReg(){
       const dt = new Date(dateK+'T12:00:00');
       if(isClosed(dt)||outOfRange(dt)){ skipped++; continue; }
       // Vérifier si le créneau existe ce jour
-      const daySlots = allSlots(dateK);
+      const daySlots = act==='muscu' ? S.muscuSlots : allSlots(dateK);
       if(!daySlots.includes(slot)){ skipped++; continue; }
-      // Vérifier priorité (seulement pour les utilisateurs non-admin)
-      if(!S.isAdmin && isLocked(dateK, slot)){ skipped++; continue; }
+      // Vérifier priorité (kayak uniquement, seulement pour les utilisateurs non-admin)
+      if(act==='kayak' && !S.isAdmin && isLocked(dateK, slot)){ skipped++; continue; }
       // Vérifier places disponibles
-      const free = cap(slot,dateK) - getSlot(dateK,slot).length;
+      const free = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
       const toAdd = participants.slice(0, free);
       if(!toAdd.length){ skipped++; continue; }
       if(toAdd.length < participants.length) skipped += participants.length - toAdd.length;
 
-      const kx = isKayakCross(dateK, slot);
+      const kx = act==='kayak' ? isKayakCross(dateK, slot) : false;
       const payload = toAdd.map(p=>({
         date: dateK, creneau: slot, nom: p.name, role: p.role,
         user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
-        kayak_rental: false
+        kayak_rental: false, activity: act
       }));
       try {
         const inserted = await sbInsertMany(payload);
-        inserted.forEach(r => getSlot(dateK,slot).push({
+        inserted.forEach(r => getSlot(dateK,slot,act).push({
           name:r.nom, role:r.role, _id:r.id, user_id:r.user_id,
           group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental
         }));
@@ -1905,16 +2077,17 @@ async function submitMultiReg(){
   }
 
   resetMultiReg();
-  renderDayPanel(); renderCal();
+  if(act==='muscu'){ renderMuscuDayPanel(); } else { renderDayPanel(); renderCal(); }
   if(created > 0){
-    toast(`✅ ${created} registration(s) created${skipped?`, ${skipped} skipped (priority/full/closed)`:''}!`,'success');
+    const skipTxt = skipped ? t('qrSkippedTpl').replace('{n}',skipped) : '';
+    toast(t('qrCreatedTpl').replace('{n}',created).replace('{skip}',skipTxt),'success');
   } else {
-    toast(`No registration created. ${skipped} slot(s) skipped (priority rules, full, or closed).`,'error');
+    toast(t('qrNoneCreatedTpl').replace('{n}',skipped),'error');
   }
 }
-function openRegister(dateK, slot){
+function openRegister(dateK, slot, act='kayak'){
   // La carte d'inscription rapide en haut de page remplace l'inscription simple
-  openMultiReg(dateK, slot);
+  openMultiReg(dateK, slot, act);
   document.getElementById('quickRegPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function addParticipantRow(prefillName){
@@ -1963,17 +2136,17 @@ async function submitRegistration(){
   } catch(e){ toast("Erreur lors de l'inscription — réessayez.","error"); }
 }
 
-async function removeAthlete(dateK,slot,idx){
-  const a=getSlot(dateK,slot)[idx];
+async function removeAthlete(dateK,slot,idx,act='kayak'){
+  const a=getSlot(dateK,slot,act)[idx];
   const mine = S.session && a.user_id===S.session.user.id;
   if(!S.isAdmin && !mine){ toast("Tu ne peux annuler que tes propres inscriptions.","error"); return; }
   const name=a.name;
   try {
     if(a._id) await sbDelete(a._id);
-    getSlot(dateK,slot).splice(idx,1);
+    getSlot(dateK,slot,act).splice(idx,1);
     toast(`${name} ${t("toastRemoved")}`,"success");
-    checkAndNotifyWaitlist(dateK, slot); // prévenir la liste d'attente
-    renderDayPanel(); renderCal();
+    if(act==='kayak') checkAndNotifyWaitlist(dateK, slot); // prévenir la liste d'attente
+    if(act==='muscu'){ renderMuscuDayPanel(); } else { renderDayPanel(); renderCal(); }
   } catch(e){ toast("Erreur réseau — réessayez.","error"); }
 }
 
@@ -1985,7 +2158,14 @@ function openProfile(){
   Object.keys(S.data).forEach(dateK=>{
     Object.keys(S.data[dateK]).forEach(slot=>{
       S.data[dateK][slot].forEach((a,idx)=>{
-        if(a.user_id===S.session.user.id) mine.push({dateK,slot,idx,...a});
+        if(a.user_id===S.session.user.id) mine.push({dateK,slot,idx,act:'kayak',...a});
+      });
+    });
+  });
+  Object.keys(S.muscuData).forEach(dateK=>{
+    Object.keys(S.muscuData[dateK]).forEach(slot=>{
+      S.muscuData[dateK][slot].forEach((a,idx)=>{
+        if(a.user_id===S.session.user.id) mine.push({dateK,slot,idx,act:'muscu',...a});
       });
     });
   });
@@ -1998,9 +2178,9 @@ function openProfile(){
       <div class="profile-reg-item">
         <div class="profile-reg-meta">
           <b>${esc(a.name)} — ${esc(roleDisplay(a.role))}</b>
-          <span>${a.dateK} — ${a.slot}</span>
+          <span>${a.act==='muscu'?'🏋️':'🚣'} ${a.dateK} — ${a.slot}</span>
         </div>
-        <button class="ath-btn del" onclick="removeAthlete('${a.dateK}','${a.slot}',${a.idx}); openProfile();">✕ Annuler</button>
+        <button class="ath-btn del" onclick="removeAthlete('${a.dateK}','${a.slot}',${a.idx},'${a.act}'); openProfile();">✕ Annuler</button>
       </div>`).join('');
   }
   document.getElementById('profileModal').classList.add('show');
@@ -2013,6 +2193,7 @@ function movePrio(group,idx,dir){
   [arr[idx],arr[ni]]=[arr[ni],arr[idx]]; saveConfig(); render();
 }
 function updateCap(slot,val){ S.capacity[slot]=Math.max(1,parseInt(val)||15); saveConfig(); renderDayPanel(); }
+function updateMuscuCap(slot,val){ S.muscuCapacity[slot]=Math.max(1,parseInt(val)||8); saveConfig(); renderMuscuDayPanel(); }
 
 // Toggle jour de semaine
 function toggleDow(dow){
