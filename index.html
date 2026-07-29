@@ -181,6 +181,8 @@ select.field { min-width: 110px; cursor: pointer; }
 .ps-num-col { width: 22px; text-align: center !important; font-weight: 700; background: #f5f5f5; }
 .ps-name-cell { min-height: 14px; }
 .ps-extra-cell { width: 60px; }
+.ps-rental-cell { width: 78px; font-size: .68rem; line-height: 1.5; }
+.ps-check { white-space: nowrap; }
 .ps-rental { font-size: .7rem; }
 @media print {
   @page { size: landscape; margin: 10mm; }
@@ -988,6 +990,7 @@ const TR = {
     waJoinTitle:'💬 Rejoindre le groupe WhatsApp',
     waJoinSub:"Scannez ce code avec l'appareil photo de WhatsApp pour recevoir les informations sur le planning.",
     dossardPH:'N° dossard', nationalityPH:'Nationalité', rentalLbl:'🚣 Location kayak',
+    rentalNone:'Pas de location', rentalPyrhana:'Pyrhana', rentalPanameS:'Paname S', rentalPanameM:'Paname M',
     printDayBtn:'🖨️ Imprimer le planning du jour',
     printTitle:'Planning', printKayakSection:'🚣 Kayak — Slalom & Kayak Cross',
     printMuscuSection:'🏋️ Salle de musculation',
@@ -1088,6 +1091,7 @@ const TR = {
     waJoinTitle:'💬 Join the WhatsApp group',
     waJoinSub:'Scan this code with the WhatsApp camera to get schedule updates.',
     dossardPH:'Bib number', nationalityPH:'Nationality', rentalLbl:'🚣 Kayak rental',
+    rentalNone:'No rental', rentalPyrhana:'Pyrhana', rentalPanameS:'Paname S', rentalPanameM:'Paname M',
     printDayBtn:'🖨️ Print day schedule',
     printTitle:'Schedule', printKayakSection:'🚣 Kayak — Slalom & Kayak Cross',
     printMuscuSection:'🏋️ Weight room',
@@ -1346,7 +1350,7 @@ function rowsToData(rows, act='kayak'){
     if(rAct !== act) return;
     if(!out[r.date]) out[r.date]={};
     if(!out[r.date][r.creneau]) out[r.date][r.creneau]=[];
-    out[r.date][r.creneau].push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental, dossard:r.dossard, nationality:r.nationalite });
+    out[r.date][r.creneau].push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental, kayakModel:r.kayak_model, dossard:r.dossard, nationality:r.nationalite });
   });
   return out;
 }
@@ -1699,7 +1703,7 @@ function renderSlot(dateK,slot,act='kayak'){
         const canEdit = S.isAdmin || mine;
         h+=`<div class="ath-row">
           <span class="ath-num">${i+1}</span>
-          <span class="ath-name">${esc(a.name)}${a.dossard?` <span style="font-size:.68rem;color:var(--text3)">#${esc(a.dossard)}</span>`:''}${a.nationality?` <span style="font-size:.68rem;color:var(--text3)">(${esc(a.nationality)})</span>`:''}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}${a.rental?'<span style="font-size:.65rem;background:#fed7aa;color:#9a3412;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">🚣 Rental</span>':''}</span>
+          <span class="ath-name">${esc(a.name)}${a.dossard?` <span style="font-size:.68rem;color:var(--text3)">#${esc(a.dossard)}</span>`:''}${a.nationality?` <span style="font-size:.68rem;color:var(--text3)">(${esc(a.nationality)})</span>`:''}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}${a.rental?`<span style="font-size:.65rem;background:#fed7aa;color:#9a3412;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">🚣 ${esc(a.kayakModel||'')}</span>`:''}</span>
           <span class="ath-role-badge ${a.role==='Encadrant'?'role-encadrant':'role-athlete'}">${esc(roleDisplay(a.role))}</span>
           <div class="ath-actions">
             ${(S.isAdmin&&act==='kayak')?`<button class="ath-btn mv" onclick="openMove('${dateK}','${slot}',${i})">↔</button>`:''}
@@ -2072,7 +2076,12 @@ function renderMdregMembers(){
       </label>
       ${showDossard?`<input class="field mdreg-extra" id="dossard-${pid}" type="text" placeholder="${t('dossardPH')}" value="${esc(ex.dossard||'')}" oninput="mrSetExtra('${pid}','dossard',this.value)">`:''}
       ${showNat?`<input class="field mdreg-extra" id="nat-${pid}" type="text" placeholder="${t('nationalityPH')}" value="${esc(ex.nationality||'')}" oninput="mrSetExtra('${pid}','nationality',this.value)">`:''}
-      ${showRental?`<label class="mdreg-rental"><input type="checkbox" id="rent-${pid}" ${ex.rental?'checked':''} onchange="mrSetExtra('${pid}','rental',this.checked)"> ${t('rentalLbl')}</label>`:''}
+      ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
+        <option value="" ${!ex.rental?'selected':''}>${t('rentalNone')}</option>
+        <option value="Pyrhana" ${ex.rental==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
+        <option value="Paname S" ${ex.rental==='Paname S'?'selected':''}>${t('rentalPanameS')}</option>
+        <option value="Paname M" ${ex.rental==='Paname M'?'selected':''}>${t('rentalPanameM')}</option>
+      </select>`:''}
     </div>`;
   }).join('');
 }
@@ -2101,7 +2110,12 @@ function mdregAddCustom(){
     </select>
     ${showDossard?`<input class="field mdreg-extra" id="dossard-${id}" type="text" placeholder="${t('dossardPH')}">`:''}
     ${showNat?`<input class="field mdreg-extra" id="nat-${id}" type="text" placeholder="${t('nationalityPH')}">`:''}
-    ${showRental?`<label class="mdreg-rental"><input type="checkbox" id="rent-${id}"> ${t('rentalLbl')}</label>`:''}
+    ${showRental?`<select class="field mdreg-extra" id="rent-${id}">
+      <option value="">${t('rentalNone')}</option>
+      <option value="Pyrhana">${t('rentalPyrhana')}</option>
+      <option value="Paname S">${t('rentalPanameS')}</option>
+      <option value="Paname M">${t('rentalPanameM')}</option>
+    </select>`:''}
     <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateMdregSummary()">✕</button>`;
   wrap.appendChild(row);
 }
@@ -2144,7 +2158,7 @@ async function submitMultiReg(){
     const i = MR.knownMembers.findIndex(m=>m.name===name);
     const member = MR.knownMembers[i];
     const ex = MR.extras['k'+i]||{};
-    participants.push({ name, role: member?.role||'Athlète', dossard:(ex.dossard||'').trim(), nationality:(ex.nationality||'').trim(), rental:!!ex.rental });
+    participants.push({ name, role: member?.role||'Athlète', dossard:(ex.dossard||'').trim(), nationality:(ex.nationality||'').trim(), rental: ex.rental||'' });
   });
   [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
     const id = r.id;
@@ -2152,7 +2166,7 @@ async function submitMultiReg(){
     const role = document.getElementById('r-'+id)?.value||'Athlète';
     const dossard = (document.getElementById('dossard-'+id)?.value||'').trim();
     const nationality = (document.getElementById('nat-'+id)?.value||'').trim();
-    const rental = !!document.getElementById('rent-'+id)?.checked;
+    const rental = document.getElementById('rent-'+id)?.value || '';
     if(n) participants.push({ name: n, role, dossard, nationality, rental });
   });
   if(!participants.length){ toast(t('qrErrPart'),'error'); return; }
@@ -2190,6 +2204,7 @@ async function submitMultiReg(){
         date: dateK, creneau: slot, nom: p.name, role: p.role,
         user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
         kayak_rental: act==='kayak' ? !!p.rental : false,
+        kayak_model: act==='kayak' && p.rental ? p.rental : null,
         dossard: act==='kayak' ? (p.dossard||null) : null,
         nationalite: act==='muscu' ? (p.nationality||null) : null,
         activity: act
@@ -2199,7 +2214,7 @@ async function submitMultiReg(){
         inserted.forEach(r => getSlot(dateK,slot,act).push({
           name:r.nom, role:r.role, _id:r.id, user_id:r.user_id,
           group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental,
-          dossard:r.dossard, nationality:r.nationalite
+          kayakModel:r.kayak_model, dossard:r.dossard, nationality:r.nationalite
         }));
         created += inserted.length;
       } catch(e){ errors.push(`${dateK} ${slot}`); }
@@ -2329,28 +2344,33 @@ function printDaySchedule(dateK, act){
   const d = parseDate(dateK);
   const dayName = t('dowFull')[d.getDay()];
   const dateStr = `${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+  const models = ['Pyrhana','Paname S','Paname M'];
 
-  // Feuille d'émargement : colonnes = créneaux horaires, sous-colonnes = Nom Prénom + case (dossard/nationalité).
-  // padToCapacity=true (matin) → lignes numérotées de 1 à la capacité max, vides si non complet.
-  // padToCapacity=false (après-midi) → lignes numérotées de 1 au nombre max d'inscrits réel, sans case vide superflue.
-  function sheet(slots, extraLabel, extraKey, padToCapacity){
+  // Feuille d'émargement : colonnes = créneaux horaires, sous-colonnes = Nom Prénom + case (dossard/nationalité)
+  // + colonne "Location kayak" (Pyrhana / Paname S / Paname M à cocher) pour les créneaux Kayak Cross.
+  // Lignes numérotées de 1 à la capacité max du créneau (les inscrits d'abord, puis lignes vides jusqu'au max potentiel).
+  function sheet(slots, extraLabel, extraKey){
     if(!slots.length) return `<p class="print-empty">${t('printEmptySlot')}</p>`;
-    const maxRows = padToCapacity
-      ? Math.max(1, ...slots.map(s=>cap(s,dateK,act)))
-      : Math.max(1, ...slots.map(s=>getSlot(dateK,s,act).length));
+    const maxRows = Math.max(1, ...slots.map(s=>cap(s,dateK,act)));
+    const kxOf = s => act==='kayak' && isKayakCross(dateK,s);
     let h = `<table class="print-sheet"><thead>
-      <tr class="ps-slot-row"><th class="ps-num-col"></th>${slots.map(s=>{
-        const kx = act==='kayak' && isKayakCross(dateK,s);
-        return `<th colspan="2">${esc(s)}${kx?' 🏄':''}</th>`;
-      }).join('')}</tr>
-      <tr class="ps-sub-row"><th class="ps-num-col">N°</th>${slots.map(()=>`<th>${t('printColName')}</th><th>${extraLabel}</th>`).join('')}</tr>
+      <tr class="ps-slot-row"><th class="ps-num-col"></th>${slots.map(s=>
+        `<th colspan="${kxOf(s)?3:2}">${esc(s)}${kxOf(s)?' 🏄 Kayak Cross':''}</th>`
+      ).join('')}</tr>
+      <tr class="ps-sub-row"><th class="ps-num-col">N°</th>${slots.map(s=>
+        `<th>${t('printColName')}</th><th>${extraLabel}</th>${kxOf(s)?`<th>${t('rentalLbl')}</th>`:''}`
+      ).join('')}</tr>
     </thead><tbody>`;
     for(let i=0;i<maxRows;i++){
       h += `<tr><td class="ps-num-col">${i+1}</td>`;
       slots.forEach(s=>{
         const a = getSlot(dateK, s, act)[i];
         const extraVal = a ? (extraKey==='dossard' ? a.dossard : a.nationality) : '';
-        h += `<td class="ps-name-cell">${a?esc(a.name):''}${a&&a.rental?' <span class="ps-rental">🚣</span>':''}</td><td class="ps-extra-cell">${esc(extraVal||'')}</td>`;
+        h += `<td class="ps-name-cell">${a?esc(a.name):''}</td><td class="ps-extra-cell">${esc(extraVal||'')}</td>`;
+        if(kxOf(s)){
+          const checks = models.map(m=>`<span class="ps-check">${a&&a.kayakModel===m?'☑':'☐'} ${m}</span>`).join('<br>');
+          h += `<td class="ps-rental-cell">${checks}</td>`;
+        }
       });
       h += `</tr>`;
     }
@@ -2367,15 +2387,15 @@ function printDaySchedule(dateK, act){
   } else if(act==='muscu'){
     const extraLabel = t('printColNat'), extraKey = 'nationality';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    h += sheet(S.muscuSlots.slice(0,4), extraLabel, extraKey, true);
+    h += sheet(S.muscuSlots.slice(0,4), extraLabel, extraKey);
     h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += sheet(S.muscuSlots.slice(4), extraLabel, extraKey, false);
+    h += sheet(S.muscuSlots.slice(4), extraLabel, extraKey);
   } else {
     const extraLabel = t('printColDossard'), extraKey = 'dossard';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    h += sheet(morningSlots(dateK), extraLabel, extraKey, true);
+    h += sheet(morningSlots(dateK), extraLabel, extraKey);
     h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += sheet(afternoonSlots(dateK), extraLabel, extraKey, false);
+    h += sheet(afternoonSlots(dateK), extraLabel, extraKey);
   }
   document.getElementById('printArea').innerHTML = h;
   window.print();
@@ -3135,7 +3155,7 @@ function renderRecap(start, days){
           const uid = a.user_id || ('anon-'+a.name);
           if(!byUser[uid]) byUser[uid] = { label: a.referent || a.name, dates:{} };
           if(!byUser[uid].dates[k]) byUser[uid].dates[k]=[];
-          byUser[uid].dates[k].push({ name:a.name, act, slot, kx: act==='kayak'?isKayakCross(k,slot):false, rental: !!a.rental });
+          byUser[uid].dates[k].push({ name:a.name, act, slot, kx: act==='kayak'?isKayakCross(k,slot):false, rental: !!a.rental, kayakModel: a.kayakModel });
         });
       });
     });
@@ -3171,7 +3191,7 @@ function renderRecap(start, days){
       if(!entries || !entries.length){ h += `<td style="border:1px solid var(--border);padding:6px 8px"></td>`; return; }
       const lines = entries.map(e=>{
         if(e.act==='muscu') return `🏋️ ${esc(e.name)} — ${esc(e.slot)}`;
-        if(e.kx) return `🏄 ${esc(e.name)} — ${esc(e.slot)}<br><span style="font-size:.68rem;color:var(--text3)">🚣 ${t('printColRental')}: ${e.rental?t('printYes'):t('printNo')}</span>`;
+        if(e.kx) return `🏄 ${esc(e.name)} — ${esc(e.slot)}<br><span style="font-size:.68rem;color:var(--text3)">🚣 ${t('printColRental')}: ${e.rental?esc(e.kayakModel||t('printYes')):t('printNo')}</span>`;
         return `🚣 ${esc(e.name)} — ${esc(e.slot)}`;
       }).join('<br>');
       h += `<td style="border:1px solid var(--border);padding:6px 8px;vertical-align:top;line-height:1.4">${lines}</td>`;
