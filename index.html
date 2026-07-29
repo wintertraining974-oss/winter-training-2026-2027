@@ -2217,7 +2217,10 @@ async function submitMultiReg(){
           kayakModel:r.kayak_model, dossard:r.dossard, nationality:r.nationalite
         }));
         created += inserted.length;
-      } catch(e){ errors.push(`${dateK} ${slot}`); }
+      } catch(e){
+        console.error('Erreur insertion inscription', dateK, slot, e);
+        errors.push({ dateK, slot, message: e?.message || String(e) });
+      }
     }
   }
 
@@ -2226,6 +2229,8 @@ async function submitMultiReg(){
   if(created > 0){
     const skipTxt = skipped ? t('qrSkippedTpl').replace('{n}',skipped) : '';
     toast(t('qrCreatedTpl').replace('{n}',created).replace('{skip}',skipTxt),'success');
+  } else if(errors.length){
+    toast(`❌ Erreur serveur (${errors[0].dateK} ${errors[0].slot}) : ${errors[0].message}`,'error');
   } else {
     toast(t('qrNoneCreatedTpl').replace('{n}',skipped),'error');
   }
