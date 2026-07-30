@@ -718,6 +718,9 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="btn btn-sm btn-primary" onclick="refreshRecap()">🔄 Actualiser</button>
     </div>
     <div id="recapBody" style="overflow:auto"></div>
+    <h4 id="costTitle" style="margin-top:22px;padding-top:14px;border-top:1px solid var(--border)">💰 Estimation des coûts</h4>
+    <p id="costSub" style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Slalom 12€ · Kayak Cross 12€ (+10€ si location) · Musculation 7€.</p>
+    <div id="costBreakdownBody" style="overflow:auto"></div>
     <div class="modal-actions" style="margin-top:14px">
       <button class="btn" onclick="closeModal('recapModal')">Fermer</button>
     </div>
@@ -1001,6 +1004,11 @@ const TR = {
     rcModalTitle:'📊 Tableau récapitulatif par participant',
     rcModalSub:'Musculation, Slalom, Kayak Cross et location de kayak, jour par jour.',
     recapIdCol:'Compte (identifiant)',
+    costTitle:'💰 Estimation des coûts',
+    costSub:'Slalom 12€ · Kayak Cross 12€ (+10€ si location) · Musculation 7€.',
+    costDateCol:'Date', costNameCol:'Nom Prénom', costTypeCol:'Séance', costPriceCol:'Tarif',
+    costGrandTotal:'Total général',
+    typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Musculation', typeWithRental:'+ location',
   },
   en: {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mar 2027',
@@ -1102,6 +1110,11 @@ const TR = {
     rcModalTitle:'📊 Recap table by participant',
     rcModalSub:'Weight room, Slalom, Kayak Cross and kayak rental, day by day.',
     recapIdCol:'Account (ID)',
+    costTitle:'💰 Cost estimate',
+    costSub:'Slalom €12 · Kayak Cross €12 (+€10 if rental) · Weight room €7.',
+    costDateCol:'Date', costNameCol:'Full name', costTypeCol:'Session', costPriceCol:'Price',
+    costGrandTotal:'Grand total',
+    typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Weight room', typeWithRental:'+ rental',
   }
 };
 function t(k){ return TR[LANG][k] || k; }
@@ -1119,7 +1132,7 @@ function applyI18n(){
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
-    'recapBtn','rcModalTitle','rcModalSub'];
+    'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
@@ -1132,7 +1145,7 @@ function applyI18n(){
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
-    'recapBtnLbl','rcModalTitle','rcModalSub'];
+    'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
@@ -2057,8 +2070,6 @@ function mrHasKayakCrossSelected(){
 
 function renderMdregMembers(){
   const el = document.getElementById('mdregMembers');
-  const showDossard = MR.activity==='kayak';
-  const showNat = MR.activity==='muscu';
   const showRental = mrHasKayakCrossSelected();
   if(!MR.knownMembers.length){
     el.innerHTML = `<p style="font-size:.8rem;color:var(--text3)">${t('qrNoMembers')}</p>`;
@@ -2074,8 +2085,6 @@ function renderMdregMembers(){
         <span style="flex:1">${esc(m.name)}</span>
         <span style="font-size:.72rem;color:var(--text3)">${roleDisplay(m.role)}</span>
       </label>
-      ${showDossard?`<input class="field mdreg-extra" id="dossard-${pid}" type="text" placeholder="${t('dossardPH')}" value="${esc(ex.dossard||'')}" oninput="mrSetExtra('${pid}','dossard',this.value)">`:''}
-      ${showNat?`<input class="field mdreg-extra" id="nat-${pid}" type="text" placeholder="${t('nationalityPH')}" value="${esc(ex.nationality||'')}" oninput="mrSetExtra('${pid}','nationality',this.value)">`:''}
       ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
         <option value="" ${!ex.rental?'selected':''}>${t('rentalNone')}</option>
         <option value="Pyrhana" ${ex.rental==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
@@ -2099,8 +2108,6 @@ function mdregAddCustom(){
   const row = document.createElement('div');
   row.className = 'group-row mdreg-custom-row'; row.id = id;
   row.style.marginTop = '6px';
-  const showDossard = MR.activity==='kayak';
-  const showNat = MR.activity==='muscu';
   const showRental = mrHasKayakCrossSelected();
   row.innerHTML = `
     <input class="field" type="text" id="n-${id}" placeholder="${t('namePH')}" oninput="updateMdregSummary()">
@@ -2108,8 +2115,6 @@ function mdregAddCustom(){
       <option value="Athlète">${t('roleAth')}</option>
       <option value="Encadrant">${t('roleCoach')}</option>
     </select>
-    ${showDossard?`<input class="field mdreg-extra" id="dossard-${id}" type="text" placeholder="${t('dossardPH')}">`:''}
-    ${showNat?`<input class="field mdreg-extra" id="nat-${id}" type="text" placeholder="${t('nationalityPH')}">`:''}
     ${showRental?`<select class="field mdreg-extra" id="rent-${id}">
       <option value="">${t('rentalNone')}</option>
       <option value="Pyrhana">${t('rentalPyrhana')}</option>
@@ -2153,21 +2158,22 @@ async function submitMultiReg(){
   if(!slots.length){ toast(t('qrErrSlot'),'error'); return; }
 
   // Construire la liste des participants
+  // Dossard : jamais collecté en ligne (rempli au stylo sur la feuille imprimée au moment du retrait).
+  // Nationalité (musculation) : reprise automatiquement du profil du compte connecté, plus besoin de la ressaisir ici.
+  const profileNationality = (S.profile?.nationality || '').trim();
   const participants = [];
   MR.selectedMembers.forEach(name=>{
     const i = MR.knownMembers.findIndex(m=>m.name===name);
     const member = MR.knownMembers[i];
     const ex = MR.extras['k'+i]||{};
-    participants.push({ name, role: member?.role||'Athlète', dossard:(ex.dossard||'').trim(), nationality:(ex.nationality||'').trim(), rental: ex.rental||'' });
+    participants.push({ name, role: member?.role||'Athlète', dossard:'', nationality: profileNationality, rental: ex.rental||'' });
   });
   [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
     const id = r.id;
     const n = document.getElementById('n-'+id)?.value?.trim();
     const role = document.getElementById('r-'+id)?.value||'Athlète';
-    const dossard = (document.getElementById('dossard-'+id)?.value||'').trim();
-    const nationality = (document.getElementById('nat-'+id)?.value||'').trim();
     const rental = document.getElementById('rent-'+id)?.value || '';
-    if(n) participants.push({ name: n, role, dossard, nationality, rental });
+    if(n) participants.push({ name: n, role, dossard:'', nationality: profileNationality, rental });
   });
   if(!participants.length){ toast(t('qrErrPart'),'error'); return; }
 
@@ -3205,6 +3211,58 @@ function renderRecap(start, days){
   });
   h += `</tbody></table>`;
   document.getElementById('recapBody').innerHTML = h;
+
+  // ── Estimation des coûts : par groupe (compte) → par date → par participant ──
+  const PRICES = { slalom: 12, kx: 12, kxRental: 10, muscu: 7 };
+  function entryPrice(e){
+    if(e.act==='muscu') return PRICES.muscu;
+    if(e.kx) return PRICES.kx + (e.rental ? PRICES.kxRental : 0);
+    return PRICES.slalom;
+  }
+  function entryTypeLabel(e){
+    if(e.act==='muscu') return t('typeMuscu');
+    if(e.kx) return t('typeKX') + (e.rental ? ` (${t('typeWithRental')}${e.kayakModel?' — '+esc(e.kayakModel):''})` : '');
+    return t('typeSlalom');
+  }
+
+  let grandTotal = 0;
+  let ch = '';
+  uids.forEach(uid=>{
+    const label = byUser[uid].label;
+    let userTotal = 0;
+    let rows = '';
+    Object.keys(byUser[uid].dates).sort().forEach(k=>{
+      byUser[uid].dates[k].forEach(e=>{
+        const price = entryPrice(e);
+        userTotal += price;
+        rows += `<tr>
+          <td style="border:1px solid var(--border);padding:5px 8px">${esc(k)}</td>
+          <td style="border:1px solid var(--border);padding:5px 8px">${esc(e.name)}</td>
+          <td style="border:1px solid var(--border);padding:5px 8px">${entryTypeLabel(e)} — ${esc(e.slot)}</td>
+          <td style="border:1px solid var(--border);padding:5px 8px;text-align:right">${price.toFixed(2)} €</td>
+        </tr>`;
+      });
+    });
+    grandTotal += userTotal;
+    ch += `<div style="margin-bottom:16px">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:4px">${esc(label)} — <span style="color:var(--accent)">${userTotal.toFixed(2)} €</span></div>
+      <table style="border-collapse:collapse;width:100%;font-size:.76rem">
+        <thead><tr>
+          <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${t('costDateCol')}</th>
+          <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${t('costNameCol')}</th>
+          <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${t('costTypeCol')}</th>
+          <th style="border:1px solid var(--border);padding:5px 8px;text-align:right;background:#f5f5f5">${t('costPriceCol')}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  });
+  if(uids.length){
+    ch += `<div style="text-align:right;font-size:1rem;font-weight:800;border-top:2px solid #111;padding-top:8px">${t('costGrandTotal')} : ${grandTotal.toFixed(2)} €</div>`;
+  } else {
+    ch = `<p style="color:var(--text3);font-size:.85rem">${t('gpNoRegMsg')}</p>`;
+  }
+  document.getElementById('costBreakdownBody').innerHTML = ch;
 }
 
 
