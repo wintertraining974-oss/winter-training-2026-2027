@@ -219,6 +219,7 @@ select.field { min-width: 110px; cursor: pointer; }
 .approve-btn { background: #16a34a; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; margin-right: 4px; }
 .block-btn { background: #dc2626; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; }
 .unblock-btn { background: #d97706; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.delete-btn { background: #7f1d1d; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; }
 /* ── Kayak Cross ─────────────────────────────────────────────── */
 .kx-slot { background: linear-gradient(135deg,#fff7ed,#fef3c7) !important; border-left: 4px solid #f97316 !important; }
 .kx-badge { display:inline-block;background:#f97316;color:white;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.04em; }
@@ -2897,20 +2898,27 @@ function filterRequests(filter){
   if(filter==='blocked')  list = list.filter(p=>p.blocked);
   const el = document.getElementById('accessRequestsList');
   if(!list.length){ el.innerHTML=`<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aucun utilisateur dans cette catégorie.</p>`; return; }
-  el.innerHTML = list.map(p=>`
+  el.innerHTML = list.map(p=>{
+    const status = p.blocked
+      ? `<span style="font-size:.75rem;color:#dc2626;font-weight:700">🚫 Bloqué</span>`
+      : (p.approved
+          ? `<span style="font-size:.75rem;color:#16a34a;font-weight:700">✅ Accès actif</span>`
+          : `<span style="font-size:.75rem;color:#d97706;font-weight:700">🕓 En attente</span>`);
+    return `
     <div class="request-card">
       <b>${esc(p.full_name||p.email)}</b>
       <div class="rc-meta">📧 ${esc(p.email)} · 📞 ${esc(p.phone||'—')} · 🌍 ${esc(p.nationality||'—')}</div>
       <div class="rc-meta">📅 Stage : ${p.arrival_date||'?'} → ${p.departure_date||'?'}</div>
       <div class="rc-meta">🏠 ${esc(p.billing_address||'—')}</div>
-      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-        ${!p.approved&&!p.blocked ? `<button class="approve-btn" onclick="approveUser('${p.id}','${esc(p.full_name||'')}','${esc(p.email)}','${p.arrival_date||''}','${p.departure_date||''}')">✅ Valider l'accès</button>` : ''}
-        ${p.approved&&!p.blocked  ? `<span style="font-size:.75rem;color:#16a34a;font-weight:700">✅ Accès actif</span>` : ''}
+      <div style="margin:6px 0">${status}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="approve-btn" ${(p.approved&&!p.blocked)?'disabled style="opacity:.5;cursor:default"':''} onclick="approveUser('${p.id}','${esc(p.full_name||'')}','${esc(p.email)}','${p.arrival_date||''}','${p.departure_date||''}')">✅ Valider</button>
+        <button class="block-btn" ${p.blocked?'disabled style="opacity:.5;cursor:default"':''} onclick="blockUser('${p.id}')">🚫 Bloquer</button>
+        <button class="delete-btn" onclick="adminDeleteUser('${p.id}','${esc(p.full_name||p.email)}')">🗑 Supprimer</button>
         <button class="btn btn-sm" onclick="openAthleteManager('${p.id}','${esc(p.full_name||p.email)}')">🏅 Athlètes du groupe</button>
-        ${!p.blocked ? `<button class="block-btn" onclick="blockUser('${p.id}')">🚫 Bloquer</button>` : ''}
-        ${p.blocked  ? `<button class="unblock-btn" onclick="unblockUser('${p.id}')">🔓 Débloquer</button>` : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function approveUser(userId, name, email, arrival, departure){
@@ -2939,6 +2947,29 @@ async function unblockUser(userId){
   if(error){ toast('Erreur.','error'); return; }
   toast('Utilisateur débloqué.','success');
   await openAccessRequests();
+}
+
+async function adminDeleteUser(userId, name){
+  if(!S.isAdmin) return;
+  const confirmed = confirm(
+    `Supprimer définitivement le compte de "${name}" ?\n\n` +
+    `Cela supprimera son profil, ses athlètes enregistrés, ses inscriptions (kayak/musculation) et sa place en liste d'attente.\n` +
+    `Cette action est irréversible.`
+  );
+  if(!confirmed) return;
+  try {
+    await sb.from('inscriptions').delete().eq('user_id', userId);
+    await sb.from('waitlist').delete().eq('user_id', userId);
+    const { error } = await sb.from('profiles').delete().eq('id', userId);
+    if(error) throw error;
+    toast(`Compte de ${name} supprimé.`,'success');
+    await load();
+    render();
+    await openAccessRequests();
+  } catch(e){
+    console.error('adminDeleteUser error', e);
+    toast("Erreur lors de la suppression du compte.",'error');
+  }
 }
 
 async function refreshPendingBadge(){
