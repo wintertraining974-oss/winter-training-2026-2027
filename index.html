@@ -489,6 +489,22 @@ select.field { min-width: 110px; cursor: pointer; }
           <p style="font-size:.72rem;color:var(--text3);margin-top:5px">🔒 = locked by priority (previous slot not full yet) · 🏄 = Kayak Cross</p>
         </div>
 
+        <!-- Section Kayak Cross Rental (visible seulement si un créneau KX est sélectionné) -->
+        <div id="mdregKxRental" style="display:none" class="mdreg-section">
+          <div style="background:#fff7ed;border:1.5px solid #f97316;border-radius:10px;padding:12px 16px">
+            <b style="color:#f97316;display:block;margin-bottom:8px">🏄 Kayak Cross — Rental</b>
+            <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:6px">Do you need to rent a Kayak Cross?</label>
+            <div style="display:flex;gap:20px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                <input type="radio" name="kxRentalInline" id="kxRentalYes" value="yes"> Yes, I need a rental
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                <input type="radio" name="kxRentalInline" id="kxRentalNo" value="no" checked> No, I have my own
+              </label>
+            </div>
+          </div>
+        </div>
+
         <!-- Étape 3 : Participants -->
         <div class="mdreg-section">
           <h4>③ Select participants</h4>
@@ -1803,6 +1819,12 @@ function mdregToggleSlot(slot){
   if(MR.selectedSlots.has(slot)) MR.selectedSlots.delete(slot);
   else MR.selectedSlots.add(slot);
   renderMdregSlots();
+  // Afficher la section rental si au moins un créneau KX est sélectionné
+  const refDay = MR.selectedDays.size>0 ? [...MR.selectedDays].sort()[0] : dk(S.selectedDate||S.currentDate);
+  const hasKX = [...MR.selectedSlots].some(s=>isKayakCross(refDay,s));
+  const rentalEl = document.getElementById('mdregKxRental');
+  if(rentalEl) rentalEl.style.display = hasKX ? 'block' : 'none';
+  if(hasKX) document.getElementById('kxRentalNo').checked = true;
   updateMdregSummary();
 }
 
@@ -1919,10 +1941,11 @@ async function submitMultiReg(){
       if(toAdd.length < participants.length) skipped += participants.length - toAdd.length;
 
       const kx = isKayakCross(dateK, slot);
+      const rental = kx && document.getElementById('kxRentalYes')?.checked === true;
       const payload = toAdd.map(p=>({
         date: dateK, creneau: slot, nom: p.name, role: p.role,
         user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
-        kayak_rental: false
+        kayak_rental: rental
       }));
       try {
         const inserted = await sbInsertMany(payload);
