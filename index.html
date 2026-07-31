@@ -2954,7 +2954,7 @@ async function adminDeleteUser(userId, name){
   if(!S.isAdmin) return;
   const confirmed = confirm(
     `Supprimer définitivement le compte de "${name}" ?\n\n` +
-    `Cela supprimera son profil, ses athlètes enregistrés, ses inscriptions (kayak/musculation) et sa place en liste d'attente.\n` +
+    `Cela supprimera son profil, ses athlètes enregistrés, ses inscriptions (kayak/musculation), sa place en liste d'attente, et son accès de connexion (il/elle pourra se réinscrire librement).\n` +
     `Cette action est irréversible.`
   );
   if(!confirmed) return;
@@ -2963,7 +2963,30 @@ async function adminDeleteUser(userId, name){
     await sb.from('waitlist').delete().eq('user_id', userId);
     const { error } = await sb.from('profiles').delete().eq('id', userId);
     if(error) throw error;
-    toast(`Compte de ${name} supprimé.`,'success');
+
+    // Tentative de suppression complète du compte de connexion (email/mot
+    // de passe) via la fonction serveur dédiée. Si elle n'est pas encore
+    // déployée sur ce projet Supabase, les données restent supprimées
+    // mais il faudra retirer le compte manuellement (Authentication > Users).
+    let authDeleted = false;
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/delete-user-account`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${S.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+      authDeleted = resp.ok;
+    } catch(e){ /* fonction non déployée ou injoignable */ }
+
+    toast(
+      authDeleted
+        ? `Compte de ${name} entièrement supprimé. Il/elle peut se réinscrire librement.`
+        : `Données de ${name} supprimées. Pour qu'il/elle puisse se réinscrire immédiatement, retire aussi son compte dans Supabase → Authentication → Users.`,
+      'success'
+    );
     await load();
     render();
     await openAccessRequests();
