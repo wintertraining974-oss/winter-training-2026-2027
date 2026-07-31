@@ -324,11 +324,11 @@ select.field { min-width: 110px; cursor: pointer; }
         </div>
         <div>
           <label>Email *</label>
-          <input class="field" id="authEmail" type="email" placeholder="email@example.com" style="width:100%">
+          <input class="field" id="sfEmail" type="email" placeholder="email@example.com" style="width:100%">
         </div>
         <div>
           <label>Password *</label>
-          <input class="field" id="authPassword" type="password" placeholder="Minimum 6 characters" style="width:100%">
+          <input class="field" id="sfPassword" type="password" placeholder="Minimum 6 characters" style="width:100%" onkeydown="if(event.key==='Enter')submitAuth()">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div>
@@ -1230,8 +1230,9 @@ function switchAuthTab(mode){
 }
 
 async function submitAuth(){
-  const email = document.getElementById('authEmail').value.trim();
-  const password = document.getElementById('authPassword').value;
+  const isSignup = S.authMode==='signup';
+  const email = document.getElementById(isSignup?'sfEmail':'authEmail').value.trim();
+  const password = document.getElementById(isSignup?'sfPassword':'authPassword').value;
   const errEl = document.getElementById('authErr');
   errEl.textContent = '';
   if(!email || !password){ errEl.textContent = 'Email et mot de passe requis.'; return; }
