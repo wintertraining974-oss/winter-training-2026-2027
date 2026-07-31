@@ -1,101 +1,93 @@
-// supabase/functions/notify-registration/index.ts
+// supabase/functions/delete-user-account/index.ts
 //
-// Déclenchée par un Database Webhook Supabase sur la table "inscriptions"
-// (événements INSERT et DELETE). Envoie un email à l'admin via Resend.
+// Supprime complètement un compte : ses inscriptions, sa liste d'attente,
+// son profil, ET son identifiant de connexion (email/mot de passe) dans
+// Supabase Auth — pour qu'il puisse s'inscrire à nouveau s'il le souhaite.
 //
-// Secrets requis (Supabase → Project Settings → Edge Functions → Secrets) :
-//   RESEND_API_KEY   = ta clé API Resend
-//   ADMIN_EMAIL      = nelly.tornare@cinor.re
-//   FROM_EMAIL       = adresse d'envoi vérifiée sur Resend (ex: planning@tondomaine.com)
-//
-// SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont déjà fournis automatiquement
-// par Supabase à toutes les Edge Functions, pas besoin de les ajouter.
+// Seul un administrateur (profiles.is_admin = true) authentifié peut
+// appeler cette fonction.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "nelly.tornare@cinor.re";
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "onboarding@resend.dev";
-
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 Deno.serve(async (req) => {
-  try {
-    const payload = await req.json();
-    const { type, record, old_record } = payload;
-
-    let subject = "";
-    let bodyHtml = "";
-
-    if (type === "INSERT") {
-      const r = record;
-      const who = await getUserLabel(r.user_id);
-      subject = `✅ Nouvelle inscription — ${r.nom} (${r.date} ${r.creneau})`;
-      bodyHtml = `
-        <h2>Nouvelle inscription</h2>
-        <p><b>Participant :</b> ${escapeHtml(r.nom)} (${escapeHtml(r.role ?? "")})</p>
-        <p><b>Date :</b> ${escapeHtml(r.date)}</p>
-        <p><b>Créneau :</b> ${escapeHtml(r.creneau)}</p>
-        <p><b>Inscrit par :</b> ${escapeHtml(who)}</p>
-      `;
-    } else if (type === "DELETE") {
-      const r = old_record;
-      const who = await getUserLabel(r.user_id);
-      subject = `❌ Annulation — ${r.nom} (${r.date} ${r.creneau})`;
-      bodyHtml = `
-        <h2>Inscription annulée</h2>
-        <p><b>Participant :</b> ${escapeHtml(r.nom)} (${escapeHtml(r.role ?? "")})</p>
-        <p><b>Date :</b> ${escapeHtml(r.date)}</p>
-        <p><b>Créneau :</b> ${escapeHtml(r.creneau)}</p>
-        <p><b>Annulé par :</b> ${escapeHtml(who)}</p>
-      `;
-    } else {
-      return new Response(JSON.stringify({ skipped: true }), { status: 200 });
-    }
-
-    const resendRes = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: ADMIN_EMAIL,
-        subject,
-        html: bodyHtml,
-      }),
-    });
-
-    if (!resendRes.ok) {
-      const errTxt = await resendRes.text();
-      console.error("Resend error:", errTxt);
-      return new Response(JSON.stringify({ error: errTxt }), { status: 500 });
-    }
-
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
-  } catch (e) {
-    console.error(e);
-    return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
-});
 
-async function getUserLabel(userId: string | null): Promise<string> {
-  if (!userId) return "Admin / inconnu";
-  const { data } = await supabase
-    .from("profiles")
-    .select("full_name, email")
-    .eq("id", userId)
-    .maybeSingle();
-  if (!data) return userId;
-  return data.full_name ? `${data.full_name} (${data.email})` : data.email ?? userId;
-}
+  try {
+    const { userId } = await req.json()
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'userId manquant' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
-function escapeHtml(s: string): string {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)
-  );
-}
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Non authentifié' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+
+    // Client "appelant" : sert uniquement à vérifier qui fait la demande
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    })
+    const { data: { user: caller }, error: callerErr } = await callerClient.auth.getUser()
+    if (callerErr || !caller) {
+      return new Response(JSON.stringify({ error: 'Session invalide' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Client "admin" (clé service_role) : seul lui peut vérifier le rôle
+    // et effectuer les suppressions, y compris le compte de connexion.
+    const adminClient = createClient(supabaseUrl, serviceKey)
+
+    const { data: callerProfile } = await adminClient
+      .from('profiles').select('is_admin').eq('id', caller.id).maybeSingle()
+    if (!callerProfile?.is_admin) {
+      return new Response(JSON.stringify({ error: 'Réservé aux administrateurs' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // 1) Nettoyage des données (au cas où elles n'auraient pas déjà été
+    //    supprimées côté application)
+    await adminClient.from('inscriptions').delete().eq('user_id', userId)
+    await adminClient.from('waitlist').delete().eq('user_id', userId)
+    await adminClient.from('profiles').delete().eq('id', userId)
+
+    // 2) Suppression du compte de connexion (email/mot de passe)
+    const { error: delErr } = await adminClient.auth.admin.deleteUser(userId)
+    if (delErr) {
+      return new Response(JSON.stringify({ error: delErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+})
