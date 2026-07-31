@@ -251,7 +251,7 @@ select.field { min-width: 110px; cursor: pointer; }
 .mdreg-week-nav { display: flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 600; margin-bottom: 8px; }
 /* ── Auth screen (login/signup + aperçu planning) ────────────── */
 .auth-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
-.auth-wrap { display: flex; gap: 22px; align-items: flex-start; justify-content: center; max-width: 940px; width: 100%; flex-wrap: wrap; }
+.auth-wrap { display: flex; gap: 22px; align-items: flex-start; justify-content: center; max-width: 480px; width: 100%; flex-wrap: wrap; }
 .auth-box { background: var(--white); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); flex: 1 1 420px; max-width: 460px; }
 .auth-sub { font-size: .82rem; color: var(--text3); text-align: center; margin: 6px 0 18px; }
 .auth-tabs { display: flex; gap: 6px; margin-bottom: 16px; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; }
@@ -400,12 +400,6 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="btn btn-primary" style="width:100%" onclick="sendReset()">Envoyer le lien de réinitialisation</button>
       <div class="auth-err" id="forgotMsg" style="margin-top:6px"></div>
     </div>
-  </div>
-  <div class="auth-preview" id="authPreview">
-    <h3>📅 Upcoming sessions</h3>
-    <p class="ap-sub">A quick look at what's coming up. Create an account or log in to see who's registered and reserve your spot.</p>
-    <div id="authPreviewList"></div>
-    <span class="ap-cta">👉 Sign up on the left to book your place</span>
   </div>
   </div>
   <div class="wa-join-card">
@@ -718,9 +712,6 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="btn btn-sm btn-primary" onclick="refreshRecap()">🔄 Actualiser</button>
     </div>
     <div id="recapBody" style="overflow:auto"></div>
-    <h4 id="costTitle" style="margin-top:22px;padding-top:14px;border-top:1px solid var(--border)">💰 Estimation des coûts</h4>
-    <p id="costSub" style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Slalom 12€ · Kayak Cross 12€ (+10€ si location) · Musculation 7€.</p>
-    <div id="costBreakdownBody" style="overflow:auto"></div>
     <div class="modal-actions" style="margin-top:14px">
       <button class="btn" onclick="closeModal('recapModal')">Fermer</button>
     </div>
@@ -796,12 +787,35 @@ select.field { min-width: 110px; cursor: pointer; }
       <div class="auth-err" id="pwdChangeErr" style="min-height:1em"></div>
       <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Mettre à jour le mot de passe</button>
     </div>
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+    <div>
+      <h4 style="margin-bottom:6px;font-size:.9rem">🏅 Mes athlètes</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:8px">Enregistrez vos athlètes un par un pour garder une orthographe unique et fiable, réutilisable à chaque inscription.</p>
+      <button class="btn btn-sm" onclick="openAthleteManager(null,null)">🏅 Gérer mes athlètes</button>
+    </div>
     <div class="modal-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <button class="btn" style="color:var(--red);font-size:.78rem" onclick="requestDataDeletion()">🗑 Delete my account & data</button>
       <button class="btn" onclick="closeModal('profileModal')">Close</button>
     </div>
   </div>
 </div>
+
+<!-- Modal Gestion des athlètes (roster par groupe/compte) -->
+<div class="modal-bg" id="athleteModal">
+  <div class="modal-box" style="max-width:480px">
+    <h3 id="athModalTitle">🏅 Mes athlètes</h3>
+    <p style="font-size:.8rem;color:var(--text3);margin-bottom:10px">Ajoutez vos athlètes un par un. Ils seront proposés automatiquement lors des inscriptions, avec toujours la même orthographe, pour simplifier la facturation.</p>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <input class="field" id="athNewName" type="text" placeholder="Nom Prénom" style="flex:1" list="globalAthleteNames" onkeydown="if(event.key==='Enter'){addAthleteToRoster()}">
+      <button class="btn btn-primary btn-sm" onclick="addAthleteToRoster()">➕ Ajouter</button>
+    </div>
+    <div id="athRosterList" style="max-height:280px;overflow:auto"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal('athleteModal')">Fermer</button>
+    </div>
+  </div>
+</div>
+<datalist id="globalAthleteNames"></datalist>
 
 <!-- Modal inscription (individuelle ou groupe) -->
 <div class="modal-bg" id="registerModal">
@@ -1004,11 +1018,6 @@ const TR = {
     rcModalTitle:'📊 Tableau récapitulatif par participant',
     rcModalSub:'Musculation, Slalom, Kayak Cross et location de kayak, jour par jour.',
     recapIdCol:'Compte (identifiant)',
-    costTitle:'💰 Estimation des coûts',
-    costSub:'Slalom 12€ · Kayak Cross 12€ (+10€ si location) · Musculation 7€.',
-    costDateCol:'Date', costNameCol:'Nom Prénom', costTypeCol:'Séance', costPriceCol:'Tarif',
-    costGrandTotal:'Total général',
-    typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Musculation', typeWithRental:'+ location',
   },
   en: {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mar 2027',
@@ -1110,11 +1119,6 @@ const TR = {
     rcModalTitle:'📊 Recap table by participant',
     rcModalSub:'Weight room, Slalom, Kayak Cross and kayak rental, day by day.',
     recapIdCol:'Account (ID)',
-    costTitle:'💰 Cost estimate',
-    costSub:'Slalom €12 · Kayak Cross €12 (+€10 if rental) · Weight room €7.',
-    costDateCol:'Date', costNameCol:'Full name', costTypeCol:'Session', costPriceCol:'Price',
-    costGrandTotal:'Grand total',
-    typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Weight room', typeWithRental:'+ rental',
   }
 };
 function t(k){ return TR[LANG][k] || k; }
@@ -1132,7 +1136,7 @@ function applyI18n(){
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
-    'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub'];
+    'recapBtn','rcModalTitle','rcModalSub'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
@@ -1145,7 +1149,7 @@ function applyI18n(){
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
-    'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub'];
+    'recapBtnLbl','rcModalTitle','rcModalSub'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
@@ -1902,15 +1906,22 @@ function openMultiReg(preDate, preSlot, act){
   }
   if(preSlot) MR.selectedSlots.add(preSlot);
 
-  // Collecter les membres connus depuis les inscriptions passées (kayak + muscu)
+  // Collecter les membres connus : d'abord le roster enregistré du groupe
+  // (orthographe canonique), puis les inscriptions passées, sans doublons
+  // (comparaison normalisée : accents/espaces/ordre nom-prénom ignorés).
   const seen = new Set();
   MR.knownMembers = [];
+  (S.profile?.athletes||[]).forEach(n=>{
+    const k = normalizeName(n);
+    if(k && !seen.has(k)){ seen.add(k); MR.knownMembers.push({ name:n, role:'Athlète' }); }
+  });
   [S.data, S.muscuData].forEach(store=>{
     Object.keys(store).forEach(dateK=>{
       Object.keys(store[dateK]).forEach(slot=>{
         store[dateK][slot].forEach(a=>{
-          if(a.user_id===S.session.user.id && !seen.has(a.name)){
-            seen.add(a.name);
+          const k = normalizeName(a.name);
+          if(a.user_id===S.session.user.id && k && !seen.has(k)){
+            seen.add(k);
             MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
           }
         });
@@ -1918,8 +1929,11 @@ function openMultiReg(preDate, preSlot, act){
     });
   });
   const selfName = S.profile?.full_name||S.session.user.email;
-  if(!seen.has(selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
-  MR.selectedMembers.add(selfName);
+  const selfKey = normalizeName(selfName);
+  if(!seen.has(selfKey)){ seen.add(selfKey); MR.knownMembers.unshift({ name:selfName, role:'Athlète' }); }
+  const selfEntry = MR.knownMembers.find(m=>normalizeName(m.name)===selfKey);
+  MR.selectedMembers.add(selfEntry ? selfEntry.name : selfName);
+  renderGlobalAthleteDatalist();
 
   document.getElementById('mdregCustoms').innerHTML='';
   document.getElementById('qrTabKayak').classList.toggle('active', MR.activity==='kayak');
@@ -2070,6 +2084,8 @@ function mrHasKayakCrossSelected(){
 
 function renderMdregMembers(){
   const el = document.getElementById('mdregMembers');
+  const showDossard = MR.activity==='kayak';
+  const showNat = MR.activity==='muscu';
   const showRental = mrHasKayakCrossSelected();
   if(!MR.knownMembers.length){
     el.innerHTML = `<p style="font-size:.8rem;color:var(--text3)">${t('qrNoMembers')}</p>`;
@@ -2085,6 +2101,8 @@ function renderMdregMembers(){
         <span style="flex:1">${esc(m.name)}</span>
         <span style="font-size:.72rem;color:var(--text3)">${roleDisplay(m.role)}</span>
       </label>
+      ${showDossard?`<input class="field mdreg-extra" id="dossard-${pid}" type="text" placeholder="${t('dossardPH')}" value="${esc(ex.dossard||'')}" oninput="mrSetExtra('${pid}','dossard',this.value)">`:''}
+      ${showNat?`<input class="field mdreg-extra" id="nat-${pid}" type="text" placeholder="${t('nationalityPH')}" value="${esc(ex.nationality||'')}" oninput="mrSetExtra('${pid}','nationality',this.value)">`:''}
       ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
         <option value="" ${!ex.rental?'selected':''}>${t('rentalNone')}</option>
         <option value="Pyrhana" ${ex.rental==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
@@ -2108,13 +2126,17 @@ function mdregAddCustom(){
   const row = document.createElement('div');
   row.className = 'group-row mdreg-custom-row'; row.id = id;
   row.style.marginTop = '6px';
+  const showDossard = MR.activity==='kayak';
+  const showNat = MR.activity==='muscu';
   const showRental = mrHasKayakCrossSelected();
   row.innerHTML = `
-    <input class="field" type="text" id="n-${id}" placeholder="${t('namePH')}" oninput="updateMdregSummary()">
+    <input class="field" type="text" id="n-${id}" list="globalAthleteNames" placeholder="${t('namePH')}" oninput="updateMdregSummary()">
     <select class="field" id="r-${id}">
       <option value="Athlète">${t('roleAth')}</option>
       <option value="Encadrant">${t('roleCoach')}</option>
     </select>
+    ${showDossard?`<input class="field mdreg-extra" id="dossard-${id}" type="text" placeholder="${t('dossardPH')}">`:''}
+    ${showNat?`<input class="field mdreg-extra" id="nat-${id}" type="text" placeholder="${t('nationalityPH')}">`:''}
     ${showRental?`<select class="field mdreg-extra" id="rent-${id}">
       <option value="">${t('rentalNone')}</option>
       <option value="Pyrhana">${t('rentalPyrhana')}</option>
@@ -2158,22 +2180,21 @@ async function submitMultiReg(){
   if(!slots.length){ toast(t('qrErrSlot'),'error'); return; }
 
   // Construire la liste des participants
-  // Dossard : jamais collecté en ligne (rempli au stylo sur la feuille imprimée au moment du retrait).
-  // Nationalité (musculation) : reprise automatiquement du profil du compte connecté, plus besoin de la ressaisir ici.
-  const profileNationality = (S.profile?.nationality || '').trim();
   const participants = [];
   MR.selectedMembers.forEach(name=>{
     const i = MR.knownMembers.findIndex(m=>m.name===name);
     const member = MR.knownMembers[i];
     const ex = MR.extras['k'+i]||{};
-    participants.push({ name, role: member?.role||'Athlète', dossard:'', nationality: profileNationality, rental: ex.rental||'' });
+    participants.push({ name, role: member?.role||'Athlète', dossard:(ex.dossard||'').trim(), nationality:(ex.nationality||'').trim(), rental: ex.rental||'' });
   });
   [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
     const id = r.id;
     const n = document.getElementById('n-'+id)?.value?.trim();
     const role = document.getElementById('r-'+id)?.value||'Athlète';
+    const dossard = (document.getElementById('dossard-'+id)?.value||'').trim();
+    const nationality = (document.getElementById('nat-'+id)?.value||'').trim();
     const rental = document.getElementById('rent-'+id)?.value || '';
-    if(n) participants.push({ name: n, role, dossard:'', nationality: profileNationality, rental });
+    if(n) participants.push({ name: n, role, dossard, nationality, rental });
   });
   if(!participants.length){ toast(t('qrErrPart'),'error'); return; }
 
@@ -2342,6 +2363,111 @@ function openProfile(){
   document.getElementById('profileModal').classList.add('show');
 }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+// ── Normalisation des noms (accents, espaces, ordre nom/prénom) ───────
+// Sert à la fois à détecter les doublons d'orthographe et à fusionner
+// l'affichage dans le récapitulatif admin.
+function normalizeName(s){
+  return (s||'').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ')
+    .split(' ').filter(Boolean).sort().join(' ');
+}
+
+// Construit l'annuaire global des noms déjà connus (toutes inscriptions +
+// tous les rosters de groupes déjà chargés en mémoire), pour proposer une
+// orthographe unique à tous les utilisateurs.
+function globalKnownNames(){
+  const seen = new Map(); // clé normalisée -> nom d'affichage (premier vu)
+  [S.data, S.muscuData].forEach(store=>{
+    Object.values(store||{}).forEach(day=>{
+      Object.values(day).forEach(list=>{
+        list.forEach(a=>{
+          const k = normalizeName(a.name);
+          if(k && !seen.has(k)) seen.set(k, a.name);
+        });
+      });
+    });
+  });
+  (S.profile?.athletes||[]).forEach(n=>{
+    const k = normalizeName(n);
+    if(k && !seen.has(k)) seen.set(k, n);
+  });
+  return seen;
+}
+
+function renderGlobalAthleteDatalist(){
+  const dl = document.getElementById('globalAthleteNames');
+  if(!dl) return;
+  const names = new Set([...globalKnownNames().values()]);
+  dl.innerHTML = [...names].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${esc(n)}">`).join('');
+}
+
+// ── Gestion du roster d'athlètes (par groupe/compte), enregistré dans
+//    la colonne profiles.athletes (base de données Supabase) ──────────
+let _athTargetUserId = null;
+async function openAthleteManager(userId, displayName){
+  if(!S.session) return;
+  _athTargetUserId = userId || S.session.user.id;
+  const isSelf = _athTargetUserId === S.session.user.id;
+  document.getElementById('athModalTitle').textContent = isSelf ? '🏅 Mes athlètes' : `🏅 Athlètes de ${displayName||''}`;
+  const { data, error } = await sb.from('profiles').select('athletes').eq('id', _athTargetUserId).maybeSingle();
+  if(error){ toast('Erreur de chargement des athlètes.','error'); return; }
+  S._athRoster = Array.isArray(data?.athletes) ? data.athletes.slice() : [];
+  renderAthRoster();
+  document.getElementById('athNewName').value='';
+  document.getElementById('athleteModal').classList.add('show');
+}
+function renderAthRoster(){
+  const el = document.getElementById('athRosterList');
+  if(!S._athRoster.length){
+    el.innerHTML = `<p style="font-size:.8rem;color:var(--text3)">Aucun athlète enregistré pour le moment. Ajoutez-les un par un ci-dessus.</p>`;
+    return;
+  }
+  el.innerHTML = S._athRoster.map((n,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:.85rem">${esc(n)}</span>
+      <button class="ath-btn del" onclick="removeAthleteFromRoster(${i})">✕</button>
+    </div>`).join('');
+}
+async function addAthleteToRoster(){
+  const input = document.getElementById('athNewName');
+  const typed = input.value.trim();
+  if(!typed) return;
+  const key = normalizeName(typed);
+  if(S._athRoster.some(n=>normalizeName(n)===key)){
+    toast('Cet athlète est déjà dans la liste.','error');
+    return;
+  }
+  let finalName = typed;
+  const known = globalKnownNames();
+  if(known.has(key)){
+    const existing = known.get(key);
+    if(normalizeName(existing)===key && existing!==typed){
+      if(confirm(`Un athlète similaire existe déjà sous l'orthographe "${existing}". Utiliser cette orthographe pour garder une facturation cohérente ?`)){
+        finalName = existing;
+      }
+    }
+  }
+  S._athRoster.push(finalName);
+  await saveAthleteRoster();
+  input.value='';
+  renderAthRoster();
+}
+async function removeAthleteFromRoster(i){
+  S._athRoster.splice(i,1);
+  await saveAthleteRoster();
+  renderAthRoster();
+}
+async function saveAthleteRoster(){
+  const { error } = await sb.from('profiles').update({ athletes: S._athRoster }).eq('id', _athTargetUserId);
+  if(error){ toast('Erreur de sauvegarde des athlètes.','error'); return; }
+  showSyncDot(true);
+  if(_athTargetUserId === S.session?.user?.id){
+    if(S.profile) S.profile.athletes = S._athRoster.slice();
+    renderGlobalAthleteDatalist();
+  }
+}
 function togglePriority(){ S.priorityOn=!S.priorityOn; saveConfig(); render(); }
 function movePrio(group,idx,dir){
   const arr=group==='morning'?S.morningOrder:S.afternoonOrder;
@@ -2519,25 +2645,6 @@ async function sendReset(){
   if(error){ msg.textContent=error.message; return; }
   msg.style.color='#15803d';
   msg.textContent='Email envoyé ! Vérifie ta boîte (et tes spams).';
-}
-
-// ── Aperçu du planning sur l'écran d'accueil (sans connexion) ─────────
-function renderAuthPreview(){
-  const list = document.getElementById('authPreviewList');
-  if(!list) return;
-  const start=new Date(2026,10,2), end=new Date(2027,2,31);
-  let d=new Date(); if(d<start)d=new Date(start);
-  let cards=''; let count=0;
-  while(d<=end && count<6){
-    const dow=d.getDay();
-    if(dow!==0 && dow!==6){ // on exclut week-end par défaut pour l'aperçu public
-      const label=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
-      cards+=`<div class="ap-day"><span class="ap-day-label">${label}</span><span class="ap-day-slots">🌅 Morning · 🌇 Afternoon</span></div>`;
-      count++;
-    }
-    d=new Date(d); d.setDate(d.getDate()+1);
-  }
-  list.innerHTML = cards || '<p style="font-size:.8rem;color:var(--text3)">No upcoming sessions right now.</p>';
 }
 
 // ── Liste d'attente ──────────────────────────────────────────────────
@@ -2799,6 +2906,7 @@ function filterRequests(filter){
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
         ${!p.approved&&!p.blocked ? `<button class="approve-btn" onclick="approveUser('${p.id}','${esc(p.full_name||'')}','${esc(p.email)}','${p.arrival_date||''}','${p.departure_date||''}')">✅ Valider l'accès</button>` : ''}
         ${p.approved&&!p.blocked  ? `<span style="font-size:.75rem;color:#16a34a;font-weight:700">✅ Accès actif</span>` : ''}
+        <button class="btn btn-sm" onclick="openAthleteManager('${p.id}','${esc(p.full_name||p.email)}')">🏅 Athlètes du groupe</button>
         ${!p.blocked ? `<button class="block-btn" onclick="blockUser('${p.id}')">🚫 Bloquer</button>` : ''}
         ${p.blocked  ? `<button class="unblock-btn" onclick="unblockUser('${p.id}')">🔓 Débloquer</button>` : ''}
       </div>
@@ -3200,10 +3308,24 @@ function renderRecap(start, days){
       if(closed){ h += `<td style="border:1px solid var(--border);padding:6px 8px;background:#f9fafb"></td>`; return; }
       const entries = byUser[uid].dates[k];
       if(!entries || !entries.length){ h += `<td style="border:1px solid var(--border);padding:6px 8px"></td>`; return; }
-      const lines = entries.map(e=>{
-        if(e.act==='muscu') return `🏋️ ${esc(e.name)} — ${esc(e.slot)}`;
-        if(e.kx) return `🏄 ${esc(e.name)} — ${esc(e.slot)}<br><span style="font-size:.68rem;color:var(--text3)">🚣 ${t('printColRental')}: ${e.rental?esc(e.kayakModel||t('printYes')):t('printNo')}</span>`;
-        return `🚣 ${esc(e.name)} — ${esc(e.slot)}`;
+      // Regrouper par nom normalisé (accents/espaces/ordre nom-prénom ignorés)
+      // pour ne pas compter/afficher deux fois la même personne à cause d'une
+      // orthographe différente (ex : "Jean Dupont" vs "Dupont Jean").
+      const grouped = {};
+      const order = [];
+      entries.forEach(e=>{
+        const key = normalizeName(e.name);
+        if(!grouped[key]){ grouped[key] = { name: e.name, items: [] }; order.push(key); }
+        grouped[key].items.push(e);
+      });
+      const lines = order.map(key=>{
+        const g = grouped[key];
+        const nameLbl = esc(g.name);
+        return g.items.map(e=>{
+          if(e.act==='muscu') return `🏋️ ${nameLbl} — ${esc(e.slot)}`;
+          if(e.kx) return `🏄 ${nameLbl} — ${esc(e.slot)}<br><span style="font-size:.68rem;color:var(--text3)">🚣 ${t('printColRental')}: ${e.rental?esc(e.kayakModel||t('printYes')):t('printNo')}</span>`;
+          return `🚣 ${nameLbl} — ${esc(e.slot)}`;
+        }).join('<br>');
       }).join('<br>');
       h += `<td style="border:1px solid var(--border);padding:6px 8px;vertical-align:top;line-height:1.4">${lines}</td>`;
     });
@@ -3211,64 +3333,11 @@ function renderRecap(start, days){
   });
   h += `</tbody></table>`;
   document.getElementById('recapBody').innerHTML = h;
-
-  // ── Estimation des coûts : par groupe (compte) → par date → par participant ──
-  const PRICES = { slalom: 12, kx: 12, kxRental: 10, muscu: 7 };
-  function entryPrice(e){
-    if(e.act==='muscu') return PRICES.muscu;
-    if(e.kx) return PRICES.kx + (e.rental ? PRICES.kxRental : 0);
-    return PRICES.slalom;
-  }
-  function entryTypeLabel(e){
-    if(e.act==='muscu') return t('typeMuscu');
-    if(e.kx) return t('typeKX') + (e.rental ? ` (${t('typeWithRental')}${e.kayakModel?' — '+esc(e.kayakModel):''})` : '');
-    return t('typeSlalom');
-  }
-
-  let grandTotal = 0;
-  let ch = '';
-  uids.forEach(uid=>{
-    const label = byUser[uid].label;
-    let userTotal = 0;
-    let rows = '';
-    Object.keys(byUser[uid].dates).sort().forEach(k=>{
-      byUser[uid].dates[k].forEach(e=>{
-        const price = entryPrice(e);
-        userTotal += price;
-        rows += `<tr>
-          <td style="border:1px solid var(--border);padding:5px 8px">${esc(k)}</td>
-          <td style="border:1px solid var(--border);padding:5px 8px">${esc(e.name)}</td>
-          <td style="border:1px solid var(--border);padding:5px 8px">${entryTypeLabel(e)} — ${esc(e.slot)}</td>
-          <td style="border:1px solid var(--border);padding:5px 8px;text-align:right">${price.toFixed(2)} €</td>
-        </tr>`;
-      });
-    });
-    grandTotal += userTotal;
-    ch += `<div style="margin-bottom:16px">
-      <div style="font-weight:700;font-size:.85rem;margin-bottom:4px">${esc(label)} — <span style="color:var(--accent)">${userTotal.toFixed(2)} €</span></div>
-      <table style="border-collapse:collapse;width:100%;font-size:.76rem">
-        <thead><tr>
-          <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${t('costDateCol')}</th>
-          <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${t('costNameCol')}</th>
-          <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${t('costTypeCol')}</th>
-          <th style="border:1px solid var(--border);padding:5px 8px;text-align:right;background:#f5f5f5">${t('costPriceCol')}</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
-  });
-  if(uids.length){
-    ch += `<div style="text-align:right;font-size:1rem;font-weight:800;border-top:2px solid #111;padding-top:8px">${t('costGrandTotal')} : ${grandTotal.toFixed(2)} €</div>`;
-  } else {
-    ch = `<p style="color:var(--text3);font-size:.85rem">${t('gpNoRegMsg')}</p>`;
-  }
-  document.getElementById('costBreakdownBody').innerHTML = ch;
 }
 
 
 (async()=>{
   switchAuthTab('login');
-  renderAuthPreview();
   try{ applyI18n(); }catch(e){ console.warn('applyI18n init', e); }
 
   // ── Détecter les callbacks depuis les emails Supabase ──────────────
@@ -3336,7 +3405,6 @@ function renderRecap(start, days){
         const el=document.getElementById(id); if(el) el.style.display='none';
       });
       document.getElementById('authScreen').style.display='flex';
-      renderAuthPreview();
     }
   });
 
