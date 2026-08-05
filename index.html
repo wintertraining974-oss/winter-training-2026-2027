@@ -1115,6 +1115,11 @@ async function onAuthed(session){
   document.getElementById('whoRegisteredBtn').style.display='inline-block';
   await load();
   await loadConfig();
+  await loadAllKnownNames();
+  await loadAthletes();
+  if(!S.isAdmin){
+    document.getElementById('myTeamPanel').style.display = 'block';
+  }
   let d = todayClamped();
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
   S.selectedDate=d; S.currentDate=d;
@@ -1589,6 +1594,7 @@ function toggleSlot(dateK,slot){
 // ── Inscription (individuelle ou groupe avec référent) ──────────────────
 function openRegister(dateK,slot){
   if(!S.session){ toast('Log in to register.','error'); return; }
+  // Vérification période de stage
   if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
     if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
       toast(`Registration only available from ${S.profile.arrival_date} to ${S.profile.departure_date}.`,'error');
@@ -1596,26 +1602,61 @@ function openRegister(dateK,slot){
     }
   }
   S.regPending = { dateK, slot };
-  S.regCounter = 0;
   const kx = isKayakCross(dateK, slot);
-  document.getElementById('regModalTitle').textContent = kx ? `🏄 Register — KAYAK CROSS — ${slot}` : `Register — ${slot}`;
-  document.getElementById('regModalSub').textContent = `${dateK} · ${S.profile?.full_name||S.session.user.email}`;
-  // Afficher/masquer la section rental
+  document.getElementById('regModalTitle').textContent = kx ? `🏄 KAYAK CROSS — ${slot} — ${dateK}` : `Register — ${slot} — ${dateK}`;
+  document.getElementById('regModalSub').textContent = `Select athletes from your team or add manually.`;
   const kxBanner = document.getElementById('regKxBanner');
   kxBanner.style.display = kx ? 'block' : 'none';
   document.getElementById('kxRentalNo').checked = true;
-  document.getElementById('regParticipants').innerHTML='';
-  addParticipantRow(S.profile?.full_name||'');
+
+  // Construire la liste de sélection depuis S.athletes
+  const wrap = document.getElementById('regParticipants');
+  wrap.innerHTML = '';
+
+  if(S.athletes.length > 0){
+    // Section : choisir depuis l'équipe
+    const teamDiv = document.createElement('div');
+    teamDiv.style.cssText = 'margin-bottom:12px';
+    teamDiv.innerHTML = `<div style="font-size:.78rem;color:var(--text3);margin-bottom:6px;font-weight:600">📋 Select from My Team</div>` +
+      S.athletes.map(a=>`
+        <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:1.5px solid var(--border);margin-bottom:4px;cursor:pointer" 
+               onmouseover="this.style.borderColor='#0d9488'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#0d9488':'var(--border)'">
+          <input type="checkbox" name="reg_ath" value="${esc(a.full_name)}" data-role="${a.role}"
+            onchange="this.closest('label').style.borderColor=this.checked?'#0d9488':'var(--border)';
+                      this.closest('label').style.background=this.checked?'#f0fdfa':'white'">
+          <span style="flex:1;font-weight:600;font-size:.85rem">${esc(a.full_name)}</span>
+          <span style="font-size:.7rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
+        </label>`).join('');
+    wrap.appendChild(teamDiv);
+    // Séparateur
+    const sep = document.createElement('div');
+    sep.innerHTML = `<div style="font-size:.78rem;color:var(--text3);margin-bottom:6px;font-weight:600;border-top:1px solid var(--border);padding-top:10px">
+      ➕ Or add someone manually</div>`;
+    wrap.appendChild(sep);
+  } else {
+    const hint = document.createElement('p');
+    hint.style.cssText = 'font-size:.8rem;color:var(--text3);margin-bottom:8px';
+    hint.textContent = 'No athletes in your team yet. Add them in "My Team" above, or enter manually:';
+    wrap.appendChild(hint);
+  }
+
+  // Toujours afficher un champ manuel (pré-rempli avec le nom du référent)
+  S.regCounter = 0;
+  addParticipantRow(S.athletes.length===0 ? (S.profile?.full_name||'') : '');
   document.getElementById('registerModal').classList.add('show');
 }
+
 function addParticipantRow(prefillName){
   const id = 'p'+(S.regCounter++);
+  // Trouver le bon conteneur : soit la zone manuelle, soit regParticipants directement
   const wrap = document.getElementById('regParticipants');
   const row = document.createElement('div');
   row.className='group-row';
   row.id='row-'+id;
   row.innerHTML = `
-    <input class="field" type="text" id="n-${id}" placeholder="Full name" value="${esc(prefillName||'')}">
+    <input class="field" type="text" id="n-${id}" placeholder="Full name"
+      list="nameAutocompleteList" value="${esc(prefillName||'')}"
+      oninput="onNameAutocomplete(this,document.getElementById('r-${id}'))">
     <select class="field" id="r-${id}">
       <option value="Athlète">Athlete</option>
       <option value="Encadrant">Coach</option>
@@ -1623,35 +1664,78 @@ function addParticipantRow(prefillName){
     <button class="ath-btn del" onclick="document.getElementById('row-${id}').remove()">✕</button>`;
   wrap.appendChild(row);
 }
+
 async function submitRegistration(){
   if(!S.regPending||!S.session) return;
   const { dateK, slot } = S.regPending;
-  const rows = [...document.querySelectorAll('#regParticipants .group-row')];
-  const participants = rows.map(r=>{
-    const name = r.querySelector('input').value.trim();
-    const role = r.querySelector('select').value;
-    return name ? {name,role} : null;
-  }).filter(Boolean);
-  if(!participants.length){ toast('Please enter at least one name.','error'); return; }
+
+  // Récupérer les athlètes cochés depuis l'équipe
+  const participants = [];
+  document.querySelectorAll('#regParticipants input[name="reg_ath"]:checked').forEach(cb=>{
+    participants.push({ name: cb.value, role: cb.dataset.role||'Athlète' });
+  });
+  // + les lignes manuelles
+  document.querySelectorAll('#regParticipants .group-row').forEach(r=>{
+    const name = r.querySelector('input[list]')?.value?.trim() || r.querySelector('input[type=text]')?.value?.trim();
+    const role = r.querySelector('select')?.value||'Athlète';
+    if(name) participants.push({ name, role });
+  });
+
+  if(!participants.length){ toast('Select or add at least one participant.','error'); return; }
+  // Dédupliquer
+  const seen = new Set();
+  const unique = participants.filter(p=>{ if(seen.has(p.name.toLowerCase())) return false; seen.add(p.name.toLowerCase()); return true; });
+
   const free = cap(slot,dateK) - getSlot(dateK,slot).length;
-  if(participants.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
+  if(unique.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
   const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
   const referentName = S.profile?.full_name || S.session.user.email;
   const kx = isKayakCross(dateK, slot);
   const rental = kx && document.getElementById('kxRentalYes').checked;
-  const payload = participants.map(p => ({
-    date: dateK, creneau: slot, nom: p.name, role: p.role,
-    user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
-    kayak_rental: rental
+  const payload = unique.map(p=>({
+    date:dateK, creneau:slot, nom:p.name, role:p.role,
+    user_id:S.session.user.id, group_id:groupId, referent_name:referentName,
+    kayak_rental:rental
   }));
   try {
     const inserted = await sbInsertMany(payload);
-    inserted.forEach(r => getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental }));
-    toast(`${participants.length} inscription(s) ajoutée(s) sur ${slot} !`,"success");
+    inserted.forEach(r=>getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental }));
+    toast(`✅ ${unique.length} registration(s) added!`,'success');
     closeModal('registerModal');
-    sendUserConfirmation(participants, dateK, slot); // email de confirmation à l'utilisateur
+    sendUserConfirmation(unique, dateK, slot);
     renderDayPanel(); renderCal();
-  } catch(e){ toast("Erreur lors de l'inscription — réessayez.","error"); }
+  } catch(e){ toast("Registration error — please try again.",'error'); }
+}
+
+// ── Autocomplétion des noms ──────────────────────────────────────────
+let _allKnownNames = [];
+
+async function loadAllKnownNames(){
+  const { data } = await sb.from('athletes').select('full_name,role').eq('active',true).order('full_name');
+  const seen = new Set();
+  _allKnownNames = [];
+  (data||[]).forEach(r=>{
+    if(r.full_name && !seen.has(r.full_name)){
+      seen.add(r.full_name);
+      _allKnownNames.push({ name:r.full_name, role:r.role||'Athlète' });
+    }
+  });
+  updateNameAutocomplete();
+}
+
+function updateNameAutocomplete(){
+  const dl = document.getElementById('nameAutocompleteList');
+  if(!dl) return;
+  const names = new Set([
+    ...S.athletes.map(a=>a.full_name),
+    ..._allKnownNames.map(n=>n.name)
+  ]);
+  dl.innerHTML = [...names].map(n=>`<option value="${esc(n)}">`).join('');
+}
+
+function onNameAutocomplete(input, roleSelect){
+  const match = _allKnownNames.find(n=>n.name.toLowerCase()===input.value.toLowerCase());
+  if(match && roleSelect) roleSelect.value = match.role||'Athlète';
 }
 
 async function removeAthlete(dateK,slot,idx){
