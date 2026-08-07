@@ -206,6 +206,29 @@ select.field { min-width: 110px; cursor: pointer; }
 .athlete-role-athlete { background:#dbeafe;color:#1e40af; }
 .athlete-role-coach { background:#dcfce7;color:#166534; }
 .duplicate-badge { font-size:.65rem;background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 6px;font-weight:700;margin-left:4px; }
+/* ── Quick multi-day registration ───────────────────────────── */
+.mdreg-section { margin-bottom:14px; }
+.mdreg-section h4 { font-size:.78rem;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em; }
+.mdreg-days { display:grid;grid-template-columns:repeat(7,1fr);gap:3px; }
+.mdreg-day { padding:5px 2px;border-radius:6px;border:1.5px solid var(--border);text-align:center;cursor:pointer;font-size:.68rem;transition:all .15s;user-select:none; }
+.mdreg-day:hover:not(.mdreg-day-closed) { border-color:var(--accent);background:#eff6ff; }
+.mdreg-day.mdreg-selected { background:var(--accent);color:white;border-color:var(--accent); }
+.mdreg-day.mdreg-day-closed { opacity:.35;cursor:not-allowed; }
+.mdreg-day b { display:block;font-size:.82rem; }
+.mdreg-slots { display:flex;flex-wrap:wrap;gap:6px; }
+.mdreg-slot-btn { padding:5px 11px;border-radius:20px;border:1.5px solid var(--border);font-size:.75rem;cursor:pointer;background:white;transition:all .15s; }
+.mdreg-slot-btn:hover { border-color:var(--accent); }
+.mdreg-slot-btn.mdreg-selected { background:var(--accent);color:white;border-color:var(--accent); }
+.mdreg-slot-btn.kx-slot-btn { border-color:#f97316;color:#f97316; }
+.mdreg-slot-btn.kx-slot-btn.mdreg-selected { background:#f97316;color:white; }
+.mdreg-slot-btn:disabled { opacity:.4;cursor:not-allowed; }
+.mdreg-member { display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:5px;cursor:pointer;transition:all .15s;font-size:.85rem; }
+.mdreg-member:hover { border-color:var(--accent);background:#eff6ff; }
+.mdreg-member.mdreg-selected { border-color:var(--accent);background:#eff6ff; }
+.mdreg-member input[type=checkbox] { flex-shrink:0;accent-color:var(--accent);width:15px;height:15px; }
+.mdreg-summary { background:#f0f7ff;border-radius:8px;padding:10px 12px;font-size:.78rem;color:var(--text2);min-height:36px;border:1px solid #bfdbfe; }
+.mdreg-week-nav { display:flex;align-items:center;gap:8px;font-size:.8rem;font-weight:600;margin-bottom:8px; }
+.qreg-panel { background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden; }
 </style>
 </head>
 <body>
@@ -469,6 +492,66 @@ select.field { min-width: 110px; cursor: pointer; }
   </div>
 
   <div id="calContainer"></div>
+
+  <!-- Panneau Quick Registration multi-jours (inline, remplace la modale) -->
+  <div id="quickRegPanel" style="display:none;margin-top:20px">
+    <div class="qreg-panel">
+      <div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleQuickReg()">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.1rem">⚡</span>
+          <div>
+            <div style="font-weight:700;font-size:.95rem">Quick Registration — Select days &amp; sessions</div>
+            <div style="font-size:.72rem;opacity:.85">Select multiple days, sessions and athletes at once</div>
+          </div>
+        </div>
+        <span id="quickRegChevron" style="font-size:.85rem;transition:transform .2s">▼</span>
+      </div>
+      <div id="quickRegBody" style="padding:20px">
+
+        <!-- Étape 1 : Jours -->
+        <div class="mdreg-section">
+          <h4>① Select days</h4>
+          <div class="mdreg-week-nav">
+            <button class="btn btn-sm" onclick="mdregPrevWeek()">← Prev</button>
+            <span id="mdregWeekLabel" style="flex:1;text-align:center"></span>
+            <button class="btn btn-sm" onclick="mdregNextWeek()">Next →</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px" id="mdregDayHeaders"></div>
+          <div class="mdreg-days" id="mdregDaysGrid"></div>
+          <p style="font-size:.72rem;color:var(--text3);margin-top:4px">Click a day to select it. Greyed = closed or outside your training period.</p>
+        </div>
+
+        <!-- Étape 2 : Créneaux -->
+        <div class="mdreg-section">
+          <h4>② Select sessions</h4>
+          <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 Morning</div>
+          <div class="mdreg-slots" id="mdregMorningSlots"></div>
+          <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 Afternoon</div>
+          <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
+          <p style="font-size:.72rem;color:var(--text3);margin-top:4px">🔒 = locked by priority · 🏄 = Kayak Cross</p>
+        </div>
+
+        <!-- Étape 3 : Athlètes -->
+        <div class="mdreg-section">
+          <h4>③ Select athletes from your team</h4>
+          <div id="mdregMemberList"></div>
+          <button class="btn btn-sm" style="margin-top:6px" onclick="mdregAddManual()">+ Add someone not in team</button>
+          <div id="mdregManualRows"></div>
+          <!-- Rental KX si besoin -->
+          <div id="mdregKxRentalSection" style="display:none;margin-top:10px;padding:10px;background:#fff7ed;border:1.5px solid #f97316;border-radius:8px">
+            <b style="color:#f97316;font-size:.82rem">🏄 Kayak Cross rental — tick per athlete who needs a boat</b>
+            <div id="mdregKxRentalList" style="margin-top:8px"></div>
+          </div>
+        </div>
+
+        <!-- Résumé -->
+        <div class="mdreg-section">
+          <div class="mdreg-summary" id="mdregSummary" style="margin-bottom:12px">Select days, sessions and athletes above.</div>
+          <button class="btn btn-primary" style="width:100%;padding:10px;font-size:.9rem" onclick="submitQuickReg()">✅ Confirm all registrations</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="dayPanel" style="display:none"></div>
 
   <div class="admin-section" id="adminPanel" style="display:none">
@@ -654,27 +737,79 @@ select.field { min-width: 110px; cursor: pointer; }
 
 <!-- Modal Mon profil -->
 <div class="modal-bg" id="profileModal">
-  <div class="modal-box" style="max-width:520px">
-    <h3>👤 Mon profil</h3>
-    <p id="profileEmailLine" style="margin-bottom:10px"></p>
-    <div style="max-height:240px;overflow:auto" id="profileRegList"></div>
-    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
-    <div>
-      <h4 style="margin-bottom:10px;font-size:.9rem">🔒 Changer mon mot de passe</h4>
+  <div class="modal-box" style="max-width:540px;max-height:90vh;overflow-y:auto">
+    <h3>👤 My Profile</h3>
+    <p id="profileEmailLine" style="margin-bottom:12px;font-size:.82rem;color:var(--text3)"></p>
+
+    <!-- Onglets -->
+    <div class="auth-tabs" style="margin-bottom:16px">
+      <button class="auth-tab active" id="tabProfileInfo" onclick="switchProfileTab('info')">📋 My Info</button>
+      <button class="auth-tab" id="tabProfileSessions" onclick="switchProfileTab('sessions')">📅 My Sessions</button>
+      <button class="auth-tab" id="tabProfilePwd" onclick="switchProfileTab('pwd')">🔒 Password</button>
+    </div>
+
+    <!-- Onglet : Infos personnelles -->
+    <div id="profileTabInfo">
       <div class="modal-fields">
-        <div>
-          <label>Nouveau mot de passe</label>
-          <input class="field" id="newPassword" type="password" placeholder="Nouveau mot de passe (min. 6 car.)" style="width:100%">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label>First name</label>
+            <input class="field" id="pfFirstName" type="text" style="width:100%">
+          </div>
+          <div>
+            <label>Last name</label>
+            <input class="field" id="pfLastName" type="text" style="width:100%">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label>Arrival date</label>
+            <input class="field" id="pfArrival" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
+          </div>
+          <div>
+            <label>Departure date</label>
+            <input class="field" id="pfDeparture" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
+          </div>
         </div>
         <div>
-          <label>Confirmer</label>
-          <input class="field" id="confirmPassword" type="password" placeholder="Répète le mot de passe" style="width:100%">
+          <label>Phone number</label>
+          <input class="field" id="pfPhone" type="tel" style="width:100%" placeholder="+262 ...">
+        </div>
+        <div>
+          <label>Billing address</label>
+          <input class="field" id="pfAddress" type="text" style="width:100%">
+        </div>
+        <div>
+          <label>Nationality</label>
+          <input class="field" id="pfNationality" type="text" style="width:100%">
+        </div>
+      </div>
+      <div class="auth-err" id="pfInfoErr" style="min-height:1em"></div>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="saveProfileInfo()">💾 Save changes</button>
+    </div>
+
+    <!-- Onglet : Mes séances -->
+    <div id="profileTabSessions" style="display:none">
+      <div style="max-height:320px;overflow:auto" id="profileRegList"></div>
+    </div>
+
+    <!-- Onglet : Mot de passe -->
+    <div id="profileTabPwd" style="display:none">
+      <div class="modal-fields">
+        <div>
+          <label>New password</label>
+          <input class="field" id="newPassword" type="password" placeholder="Minimum 6 characters" style="width:100%">
+        </div>
+        <div>
+          <label>Confirm password</label>
+          <input class="field" id="confirmPassword" type="password" placeholder="Repeat password" style="width:100%">
         </div>
       </div>
       <div class="auth-err" id="pwdChangeErr" style="min-height:1em"></div>
-      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Mettre à jour le mot de passe</button>
+      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Update password</button>
     </div>
-    <div class="modal-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;gap:8px">
+
+    <div class="modal-actions" style="margin-top:16px;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <button class="btn" style="color:var(--red);font-size:.78rem" onclick="requestDataDeletion()">🗑 Delete my account & data</button>
       <button class="btn" onclick="closeModal('profileModal')">Close</button>
     </div>
@@ -1120,6 +1255,8 @@ async function onAuthed(session){
   await loadAthletes();
   if(!S.isAdmin){
     document.getElementById('myTeamPanel').style.display = 'block';
+    document.getElementById('quickRegPanel').style.display = 'block';
+    initQuickReg();
   }
   let d = todayClamped();
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
@@ -1723,7 +1860,265 @@ async function submitRegistration(){
   } catch(e){ toast("Registration error — please try again.",'error'); }
 }
 
-// ── Autocomplétion des noms ──────────────────────────────────────────
+// ── Profil : onglets et édition ──────────────────────────────────────
+function switchProfileTab(tab){
+  ['info','sessions','pwd'].forEach(t=>{
+    document.getElementById('tabProfile'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
+    document.getElementById('profileTab'+t.charAt(0).toUpperCase()+t.slice(1)).style.display = t===tab?'block':'none';
+  });
+}
+
+function openProfile(){
+  if(!S.session) return;
+  const p = S.profile;
+  document.getElementById('profileEmailLine').textContent = `${S.session.user.email}${S.isAdmin?' — Admin':''}`;
+  // Remplir les champs d'info
+  document.getElementById('pfFirstName').value  = p?.first_name||'';
+  document.getElementById('pfLastName').value   = p?.last_name||'';
+  document.getElementById('pfArrival').value    = p?.arrival_date||'';
+  document.getElementById('pfDeparture').value  = p?.departure_date||'';
+  document.getElementById('pfPhone').value      = p?.phone||'';
+  document.getElementById('pfAddress').value    = p?.billing_address||'';
+  document.getElementById('pfNationality').value= p?.nationality||'';
+  document.getElementById('pfInfoErr').textContent='';
+  // Remplir la liste des séances
+  const mine=[];
+  Object.keys(S.data).sort().forEach(dateK=>{
+    Object.keys(S.data[dateK]).forEach(slot=>{
+      S.data[dateK][slot].forEach((a,idx)=>{
+        if(a.user_id===S.session.user.id) mine.push({dateK,slot,idx,...a});
+      });
+    });
+  });
+  const list=document.getElementById('profileRegList');
+  if(!mine.length){
+    list.innerHTML=`<p style="color:var(--text3);font-size:.85rem">No registrations yet.</p>`;
+  } else {
+    list.innerHTML=mine.map(a=>`
+      <div class="profile-reg-item">
+        <div class="profile-reg-meta">
+          <b>${esc(a.name)} — ${esc(roleDisplay(a.role))}</b>
+          <span>${a.dateK} — ${a.slot}${a.rental?' 🚣 Rental':''}</span>
+        </div>
+        <button class="ath-btn del" onclick="removeAthlete('${a.dateK}','${a.slot}',${a.idx});openProfile()">✕</button>
+      </div>`).join('');
+  }
+  switchProfileTab('info');
+  document.getElementById('profileModal').classList.add('show');
+}
+
+async function saveProfileInfo(){
+  const firstName  = document.getElementById('pfFirstName').value.trim();
+  const lastName   = document.getElementById('pfLastName').value.trim();
+  const arrival    = document.getElementById('pfArrival').value;
+  const departure  = document.getElementById('pfDeparture').value;
+  const phone      = document.getElementById('pfPhone').value.trim();
+  const address    = document.getElementById('pfAddress').value.trim();
+  const nationality= document.getElementById('pfNationality').value.trim();
+  const err = document.getElementById('pfInfoErr');
+  err.style.color='var(--red)'; err.textContent='';
+  if(arrival && departure && arrival>departure){ err.textContent='Arrival must be before departure.'; return; }
+  const { error } = await sb.from('profiles').update({
+    first_name:firstName, last_name:lastName,
+    full_name: firstName+' '+lastName,
+    arrival_date:arrival||null, departure_date:departure||null,
+    phone, billing_address:address, nationality
+  }).eq('id', S.session.user.id);
+  if(error){ err.textContent='Error: '+error.message; return; }
+  S.profile = { ...S.profile, first_name:firstName, last_name:lastName, full_name:firstName+' '+lastName, arrival_date:arrival, departure_date:departure, phone, billing_address:address, nationality };
+  document.getElementById('userPill').textContent = firstName+' '+lastName;
+  err.style.color='#16a34a';
+  err.textContent='✅ Profile updated!';
+  setTimeout(()=>{ err.textContent=''; }, 3000);
+}
+
+// ── Quick Registration multi-jours ──────────────────────────────────
+let QR = {
+  weekStart:null, selectedDays:new Set(), selectedSlots:new Set(), selectedMembers:new Set(), manualCounter:0
+};
+let _qrOpen = true;
+
+function toggleQuickReg(){
+  _qrOpen=!_qrOpen;
+  document.getElementById('quickRegBody').style.display=_qrOpen?'block':'none';
+  document.getElementById('quickRegChevron').style.transform=_qrOpen?'rotate(0deg)':'rotate(-90deg)';
+}
+
+function initQuickReg(){
+  QR.selectedDays.clear(); QR.selectedSlots.clear(); QR.selectedMembers.clear(); QR.manualCounter=0;
+  QR.weekStart = new Date(S.selectedDate||S.currentDate);
+  const d=QR.weekStart.getDay();
+  QR.weekStart.setDate(QR.weekStart.getDate()-(d===0?6:d-1));
+  // Pré-sélectionner soi-même
+  const selfName=S.profile?.full_name||S.session?.user?.email;
+  if(selfName) QR.selectedMembers.add(selfName);
+  document.getElementById('mdregManualRows').innerHTML='';
+  renderQrWeek(); renderQrSlots(); renderQrMembers(); updateQrSummary();
+}
+
+function mdregPrevWeek(){ QR.weekStart=new Date(QR.weekStart); QR.weekStart.setDate(QR.weekStart.getDate()-7); QR.selectedDays.clear(); renderQrWeek(); renderQrSlots(); updateQrSummary(); }
+function mdregNextWeek(){ QR.weekStart=new Date(QR.weekStart); QR.weekStart.setDate(QR.weekStart.getDate()+7); QR.selectedDays.clear(); renderQrWeek(); renderQrSlots(); updateQrSummary(); }
+
+function renderQrWeek(){
+  const ws=QR.weekStart;
+  const we=new Date(ws); we.setDate(ws.getDate()+6);
+  const months=t('months');
+  document.getElementById('mdregWeekLabel').textContent=`${ws.getDate()} ${months[ws.getMonth()]} — ${we.getDate()} ${months[we.getMonth()]} ${we.getFullYear()}`;
+  // En-têtes
+  const hdrs=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  document.getElementById('mdregDayHeaders').innerHTML=hdrs.map(h=>`<div style="text-align:center;font-size:.62rem;color:var(--text3)">${h}</div>`).join('');
+  // Jours
+  let html='';
+  for(let i=0;i<7;i++){
+    const dt=new Date(ws); dt.setDate(ws.getDate()+i);
+    const k=dk(dt);
+    const closed=isClosed(dt)||outOfRange(dt);
+    let outOfStage=false;
+    if(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date) outOfStage=k<S.profile.arrival_date||k>S.profile.departure_date;
+    const disabled=closed||outOfStage;
+    const sel=QR.selectedDays.has(k);
+    html+=`<div class="mdreg-day${sel?' mdreg-selected':''}${disabled?' mdreg-day-closed':''}"
+      ${disabled?'':`onclick="qrToggleDay('${k}')"`}>
+      <b>${dt.getDate()}</b>
+    </div>`;
+  }
+  document.getElementById('mdregDaysGrid').innerHTML=html;
+}
+
+function qrToggleDay(k){
+  if(QR.selectedDays.has(k)) QR.selectedDays.delete(k); else QR.selectedDays.add(k);
+  renderQrWeek(); renderQrSlots(); updateQrSummary();
+}
+
+function renderQrSlots(){
+  const refDay=QR.selectedDays.size>0?[...QR.selectedDays].sort()[0]:dk(S.selectedDate||S.currentDate);
+  const mSlots=morningSlots(refDay), aSlots=afternoonSlots(refDay);
+  function btn(slot){
+    const kx=isKayakCross(refDay,slot), sel=QR.selectedSlots.has(slot);
+    const lockedOnAny=QR.selectedDays.size>0?[...QR.selectedDays].some(d=>!S.isAdmin&&isLocked(d,slot)):(!S.isAdmin&&isLocked(refDay,slot));
+    const disabled=lockedOnAny&&!kx;
+    return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
+      ${disabled?'disabled':'onclick="qrToggleSlot(\''+slot+'\')"'}
+      title="${disabled?'Locked by priority':''}">${slot}${kx?' 🏄':''}${disabled?' 🔒':''}</button>`;
+  }
+  document.getElementById('mdregMorningSlots').innerHTML=mSlots.map(btn).join('');
+  document.getElementById('mdregAfternoonSlots').innerHTML=aSlots.map(btn).join('');
+}
+
+function qrToggleSlot(slot){
+  if(QR.selectedSlots.has(slot)) QR.selectedSlots.delete(slot); else QR.selectedSlots.add(slot);
+  renderQrSlots(); renderQrKxRental(); updateQrSummary();
+}
+
+function renderQrMembers(){
+  const el=document.getElementById('mdregMemberList');
+  if(!S.athletes.length){
+    el.innerHTML=`<p style="font-size:.8rem;color:var(--text3)">Add athletes in "My Team" above first.</p>`;
+    return;
+  }
+  el.innerHTML=S.athletes.map(a=>{
+    const sel=QR.selectedMembers.has(a.full_name);
+    return `<label class="mdreg-member${sel?' mdreg-selected':''}" onclick="qrToggleMember('${esc(a.full_name)}')">
+      <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();qrToggleMember('${esc(a.full_name)}')">
+      <span style="flex:1">${esc(a.full_name)}</span>
+      <span style="font-size:.72rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
+    </label>`;
+  }).join('');
+}
+
+function qrToggleMember(name){
+  if(QR.selectedMembers.has(name)) QR.selectedMembers.delete(name); else QR.selectedMembers.add(name);
+  renderQrMembers(); renderQrKxRental(); updateQrSummary();
+}
+
+function mdregAddManual(){
+  const id='qm'+(QR.manualCounter++);
+  const wrap=document.getElementById('mdregManualRows');
+  const row=document.createElement('div');
+  row.className='group-row'; row.id=id; row.style.marginTop='6px';
+  row.innerHTML=`
+    <input class="field" type="text" id="n-${id}" placeholder="Full name" list="nameAutocompleteList"
+      oninput="onNameAutocomplete(this,document.getElementById('r-${id}'));updateQrSummary()">
+    <select class="field" id="r-${id}">
+      <option value="Athlète">Athlete</option>
+      <option value="Encadrant">Coach</option>
+    </select>
+    <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateQrSummary()">✕</button>`;
+  wrap.appendChild(row);
+}
+
+function renderQrKxRental(){
+  const refDay=QR.selectedDays.size>0?[...QR.selectedDays].sort()[0]:dk(S.selectedDate||S.currentDate);
+  const hasKX=[...QR.selectedSlots].some(s=>isKayakCross(refDay,s));
+  const sec=document.getElementById('mdregKxRentalSection');
+  if(!sec) return;
+  sec.style.display=hasKX?'block':'none';
+  if(!hasKX) return;
+  const members=[...QR.selectedMembers];
+  document.querySelectorAll('#mdregManualRows .group-row').forEach(r=>{ const n=r.querySelector('input[list]')?.value?.trim(); if(n) members.push(n); });
+  document.getElementById('mdregKxRentalList').innerHTML=members.map(name=>`
+    <label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:.82rem;cursor:pointer">
+      <input type="checkbox" name="qr_kx_rental" data-name="${esc(name)}"> ${esc(name)} needs a rental kayak
+    </label>`).join('');
+}
+
+function getQrParticipants(){
+  const list=[];
+  QR.selectedMembers.forEach(name=>{ const a=S.athletes.find(x=>x.full_name===name); list.push({name,role:a?.role||'Athlète'}); });
+  document.querySelectorAll('#mdregManualRows .group-row').forEach(r=>{ const n=r.querySelector('input[list]')?.value?.trim(); const role=r.querySelector('select')?.value||'Athlète'; if(n) list.push({name:n,role}); });
+  return list;
+}
+
+function updateQrSummary(){
+  renderQrKxRental();
+  const days=[...QR.selectedDays].sort(), slots=[...QR.selectedSlots], participants=getQrParticipants();
+  const el=document.getElementById('mdregSummary');
+  if(!days.length&&!slots.length&&!participants.length){ el.textContent='Select days, sessions and athletes above.'; return; }
+  const total=days.length*slots.length*participants.length;
+  el.innerHTML=`
+    <div style="margin-bottom:4px"><b>📅 Days (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>🕐 Sessions (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>👤 Athletes (${participants.length}):</b> ${participants.map(p=>p.name).join(', ')||'—'}</div>
+    <div style="margin-top:6px;font-weight:700;color:var(--accent)">→ ${total} registration(s) to create</div>`;
+}
+
+async function submitQuickReg(){
+  if(!S.session) return;
+  const days=[...QR.selectedDays].sort(), slots=[...QR.selectedSlots], participants=getQrParticipants();
+  if(!days.length){ toast('Select at least one day.','error'); return; }
+  if(!slots.length){ toast('Select at least one session.','error'); return; }
+  if(!participants.length){ toast('Select at least one athlete.','error'); return; }
+  const refDay=days[0];
+  const rentalNames=new Set([...document.querySelectorAll('input[name="qr_kx_rental"]:checked')].map(cb=>cb.dataset.name));
+  const referentName=S.profile?.full_name||S.session.user.email;
+  const groupId=crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random());
+  let created=0, skipped=0;
+  for(const dateK of days){
+    for(const slot of slots){
+      if(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date&&(dateK<S.profile.arrival_date||dateK>S.profile.departure_date)){ skipped+=participants.length; continue; }
+      const dt=new Date(dateK+'T12:00:00');
+      if(isClosed(dt)||outOfRange(dt)){ skipped+=participants.length; continue; }
+      if(!allSlots(dateK).includes(slot)){ skipped+=participants.length; continue; }
+      if(!S.isAdmin&&isLocked(dateK,slot)&&!isKayakCross(dateK,slot)){ skipped+=participants.length; continue; }
+      const free=cap(slot,dateK)-getSlot(dateK,slot).length;
+      const toAdd=participants.slice(0,free);
+      skipped+=participants.length-toAdd.length;
+      if(!toAdd.length) continue;
+      const kx=isKayakCross(dateK,slot);
+      const payload=toAdd.map(p=>({ date:dateK,creneau:slot,nom:p.name,role:p.role, user_id:S.session.user.id,group_id:groupId,referent_name:referentName, kayak_rental:kx&&rentalNames.has(p.name) }));
+      try {
+        const inserted=await sbInsertMany(payload);
+        inserted.forEach(r=>getSlot(dateK,slot).push({name:r.nom,role:r.role,_id:r.id,user_id:r.user_id,group_id:r.group_id,referent:r.referent_name,rental:r.kayak_rental}));
+        created+=inserted.length;
+      } catch(e){ skipped+=toAdd.length; }
+    }
+  }
+  QR.selectedDays.clear(); QR.selectedSlots.clear();
+  renderQrWeek(); renderQrSlots(); updateQrSummary();
+  renderDayPanel(); renderCal();
+  if(created>0) toast(`✅ ${created} registration(s) created${skipped?`, ${skipped} skipped`:''}!`,'success');
+  else toast(`No registration created — check priority rules, availability and your training period.`,'error');
+}
 let _allKnownNames = [];
 
 async function loadAllKnownNames(){
