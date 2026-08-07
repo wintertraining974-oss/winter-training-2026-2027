@@ -725,6 +725,7 @@ select.field { min-width: 110px; cursor: pointer; }
   </div>
 </div>
 
+<datalist id="nameAutocompleteList"></datalist>
 <div class="toast" id="toast"></div>
 
 <!-- Modal Politique de confidentialité / Privacy Policy -->
@@ -1609,29 +1610,38 @@ function openRegister(dateK,slot){
   kxBanner.style.display = kx ? 'block' : 'none';
   document.getElementById('kxRentalNo').checked = true;
 
+  // Masquer le banner KX global (remplacé par checkbox par personne)
+  if(kxBanner) kxBanner.style.display = 'none';
+
   // Construire la liste de sélection depuis S.athletes
   const wrap = document.getElementById('regParticipants');
   wrap.innerHTML = '';
 
   if(S.athletes.length > 0){
-    // Section : choisir depuis l'équipe
     const teamDiv = document.createElement('div');
     teamDiv.style.cssText = 'margin-bottom:12px';
-    teamDiv.innerHTML = `<div style="font-size:.78rem;color:var(--text3);margin-bottom:6px;font-weight:600">📋 Select from My Team</div>` +
+    teamDiv.innerHTML = `<div style="font-size:.78rem;color:var(--text3);margin-bottom:6px;font-weight:600">
+      📋 Select from My Team${kx?' — tick 🚣 if the athlete needs a rental kayak':''}
+    </div>` +
       S.athletes.map(a=>`
-        <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:1.5px solid var(--border);margin-bottom:4px;cursor:pointer" 
-               onmouseover="this.style.borderColor='#0d9488'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#0d9488':'var(--border)'">
-          <input type="checkbox" name="reg_ath" value="${esc(a.full_name)}" data-role="${a.role}"
-            onchange="this.closest('label').style.borderColor=this.checked?'#0d9488':'var(--border)';
-                      this.closest('label').style.background=this.checked?'#f0fdfa':'white'">
-          <span style="flex:1;font-weight:600;font-size:.85rem">${esc(a.full_name)}</span>
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1.5px solid var(--border);margin-bottom:4px;background:white" id="ath-row-${esc(a.id)}">
+          <input type="checkbox" name="reg_ath" value="${esc(a.full_name)}" data-role="${a.role}" id="chk-${esc(a.id)}"
+            onchange="
+              const card=this.closest('div');
+              card.style.borderColor=this.checked?'#0d9488':'var(--border)';
+              card.style.background=this.checked?'#f0fdfa':'white';
+              ${kx?`document.getElementById('rent-${esc(a.id)}').style.display=this.checked?'flex':'none';`:''}
+            ">
+          <label for="chk-${esc(a.id)}" style="flex:1;font-weight:600;font-size:.85rem;cursor:pointer">${esc(a.full_name)}</label>
           <span style="font-size:.7rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
-        </label>`).join('');
+          ${kx?`<label id="rent-${esc(a.id)}" style="display:none;align-items:center;gap:4px;font-size:.75rem;color:#f97316;cursor:pointer;white-space:nowrap;padding:3px 8px;border-radius:10px;border:1.5px solid #f97316">
+            <input type="checkbox" name="kx_rental" data-athlete="${esc(a.full_name)}"> 🚣 Rental
+          </label>`:''}
+        </div>`).join('');
     wrap.appendChild(teamDiv);
-    // Séparateur
     const sep = document.createElement('div');
     sep.innerHTML = `<div style="font-size:.78rem;color:var(--text3);margin-bottom:6px;font-weight:600;border-top:1px solid var(--border);padding-top:10px">
-      ➕ Or add someone manually</div>`;
+      ➕ Or add someone not in your team</div>`;
     wrap.appendChild(sep);
   } else {
     const hint = document.createElement('p');
@@ -1648,19 +1658,23 @@ function openRegister(dateK,slot){
 
 function addParticipantRow(prefillName){
   const id = 'p'+(S.regCounter++);
-  // Trouver le bon conteneur : soit la zone manuelle, soit regParticipants directement
   const wrap = document.getElementById('regParticipants');
+  const kx = S.regPending ? isKayakCross(S.regPending.dateK, S.regPending.slot) : false;
   const row = document.createElement('div');
   row.className='group-row';
   row.id='row-'+id;
+  row.style.flexWrap='wrap';
   row.innerHTML = `
     <input class="field" type="text" id="n-${id}" placeholder="Full name"
-      list="nameAutocompleteList" value="${esc(prefillName||'')}"
+      list="nameAutocompleteList" value="${esc(prefillName||'')}" style="flex:2;min-width:130px"
       oninput="onNameAutocomplete(this,document.getElementById('r-${id}'))">
-    <select class="field" id="r-${id}">
+    <select class="field" id="r-${id}" style="width:100px">
       <option value="Athlète">Athlete</option>
       <option value="Encadrant">Coach</option>
     </select>
+    ${kx?`<label style="display:flex;align-items:center;gap:4px;font-size:.75rem;color:#f97316;white-space:nowrap;padding:3px 8px;border-radius:10px;border:1.5px solid #f97316;cursor:pointer">
+      <input type="checkbox" name="kx_rental" data-manual="true"> 🚣 Rental
+    </label>`:''}
     <button class="ath-btn del" onclick="document.getElementById('row-${id}').remove()">✕</button>`;
   wrap.appendChild(row);
 }
@@ -1669,16 +1683,19 @@ async function submitRegistration(){
   if(!S.regPending||!S.session) return;
   const { dateK, slot } = S.regPending;
 
-  // Récupérer les athlètes cochés depuis l'équipe
+  // Récupérer les athlètes cochés depuis l'équipe + leur rental individuel
   const participants = [];
   document.querySelectorAll('#regParticipants input[name="reg_ath"]:checked').forEach(cb=>{
-    participants.push({ name: cb.value, role: cb.dataset.role||'Athlète' });
+    // Chercher la case rental associée à cet athlète
+    const rentalCb = document.querySelector(`input[name="kx_rental"][data-athlete="${cb.value}"]`);
+    participants.push({ name: cb.value, role: cb.dataset.role||'Athlète', rental: rentalCb?.checked||false });
   });
-  // + les lignes manuelles
+  // + les lignes manuelles avec leur rental individuel
   document.querySelectorAll('#regParticipants .group-row').forEach(r=>{
     const name = r.querySelector('input[list]')?.value?.trim() || r.querySelector('input[type=text]')?.value?.trim();
     const role = r.querySelector('select')?.value||'Athlète';
-    if(name) participants.push({ name, role });
+    const rentalCb = r.querySelector('input[name="kx_rental"][data-manual]');
+    if(name) participants.push({ name, role, rental: rentalCb?.checked||false });
   });
 
   if(!participants.length){ toast('Select or add at least one participant.','error'); return; }
@@ -1691,11 +1708,10 @@ async function submitRegistration(){
   const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
   const referentName = S.profile?.full_name || S.session.user.email;
   const kx = isKayakCross(dateK, slot);
-  const rental = kx && document.getElementById('kxRentalYes').checked;
   const payload = unique.map(p=>({
     date:dateK, creneau:slot, nom:p.name, role:p.role,
     user_id:S.session.user.id, group_id:groupId, referent_name:referentName,
-    kayak_rental:rental
+    kayak_rental: kx ? (p.rental||false) : false
   }));
   try {
     const inserted = await sbInsertMany(payload);
