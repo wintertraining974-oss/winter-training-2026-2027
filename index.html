@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -229,6 +230,14 @@ select.field { min-width: 110px; cursor: pointer; }
 .mdreg-summary { background:#f0f7ff;border-radius:8px;padding:10px 12px;font-size:.78rem;color:var(--text2);min-height:36px;border:1px solid #bfdbfe; }
 .mdreg-week-nav { display:flex;align-items:center;gap:8px;font-size:.8rem;font-weight:600;margin-bottom:8px; }
 .qreg-panel { background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden; }
+/* ── Print styles ────────────────────────────────────────────── */
+@media print {
+  header, #myTeamPanel, #quickRegPanel, .admin-section, #adminPanel, .nav-btn, .cal-controls, .view-toggle, .btn-lang, #profileBtn, #logoutBtn, #adminPill, .ath-btn, .slot-header, .add-form, .full-msg { display:none !important; }
+  .slot-card { break-inside:avoid; box-shadow:none; border:1px solid #ccc; }
+  .slot-body { display:block !important; }
+  body { background:white; }
+  #dayPanel { display:block !important; }
+}
 </style>
 </head>
 <body>
@@ -1342,8 +1351,7 @@ async function silentReload() {
   const strip = d => JSON.stringify(d, (k,v) => k==='_id'?undefined:v);
   if (strip(newData) !== strip(S.data)) {
     S.data = newData;
-    renderCal();
-    renderDayPanel();
+    refreshAll();
     showSyncDot(true);
   } else {
     showSyncDot(false);
@@ -1418,7 +1426,7 @@ async function toggleKayakCross(dateK, slot){
   if(!S.kayakCross[dateK][slot]) delete S.kayakCross[dateK][slot];
   if(!Object.keys(S.kayakCross[dateK]).length) delete S.kayakCross[dateK];
   await saveConfig();
-  renderDayPanel(); renderCal();
+  refreshAll();
   toast(isKayakCross(dateK,slot)?'🏄 Kayak Cross activé !':'Slalom rétabli','success');
 }
 function toggleCustomCode(sel){
@@ -1473,6 +1481,24 @@ function roleDisplay(r){ return r==='Encadrant'?t('roleCoach'):t('roleAth'); }
 // RENDER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function render(){ renderCal(); renderDayPanel(); renderAdmin(); applyI18n(); }
+
+// Synchronisation globale : appelée après toute mutation de données
+function refreshAll(){
+  renderCal();
+  renderDayPanel();
+  renderAdmin();
+  // Mettre à jour les membres dans Quick Registration si le panneau est visible
+  if(document.getElementById('quickRegPanel')?.style.display!=='none'){
+    renderQrMembers();
+    renderQrSlots();
+    updateQrSummary();
+  }
+  // Mettre à jour la liste d'athlètes si visible
+  if(document.getElementById('myTeamPanel')?.style.display!=='none'){
+    renderAthleteList();
+  }
+  updateNameAutocomplete();
+}
 
 function renderCal(){
   document.getElementById('vbMonth').className='view-btn'+(S.view==='month'?' active':'');
@@ -1575,6 +1601,7 @@ function renderDayPanel(){
       <div class="dp-actions">
         <button class="btn btn-sm" onclick="copyText()">${t('copyBtn')}</button>
         <button class="btn btn-sm btn-wa" onclick="sendWA()">${t('waBtn')}</button>
+        <button class="btn btn-sm" onclick="printDay()" title="Print this day's registrations">🖨️ Print</button>
       </div>
     </div>`;
   if(closed){
@@ -1856,7 +1883,7 @@ async function submitRegistration(){
     toast(`✅ ${unique.length} registration(s) added!`,'success');
     closeModal('registerModal');
     sendUserConfirmation(unique, dateK, slot);
-    renderDayPanel(); renderCal();
+    refreshAll();
   } catch(e){ toast("Registration error — please try again.",'error'); }
 }
 
@@ -2115,10 +2142,50 @@ async function submitQuickReg(){
   }
   QR.selectedDays.clear(); QR.selectedSlots.clear();
   renderQrWeek(); renderQrSlots(); updateQrSummary();
-  renderDayPanel(); renderCal();
+  refreshAll();
   if(created>0) toast(`✅ ${created} registration(s) created${skipped?`, ${skipped} skipped`:''}!`,'success');
   else toast(`No registration created — check priority rules, availability and your training period.`,'error');
 }
+// ── Impression du jour ───────────────────────────────────────────────
+function printDay(){
+  const d=S.selectedDate, k=dk(d);
+  const dayName=t('dowFull')[d.getDay()];
+  const dateStr=`${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+  const slots=[...morningSlots(k),...afternoonSlots(k)];
+  let html=`<html><head><title>Planning ${dateStr}</title>
+  <style>
+    body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#111}
+    h1{font-size:1.1rem;margin-bottom:4px}
+    .sub{font-size:.8rem;color:#666;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    th{background:#1d4ed8;color:white;padding:7px 10px;text-align:left;font-size:.82rem}
+    td{padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:.82rem}
+    tr:nth-child(even){background:#f8fafc}
+    .slot-title{font-weight:700;font-size:.9rem;margin:14px 0 4px;padding:6px 10px;background:#f0f7ff;border-left:4px solid #1d4ed8;border-radius:4px}
+    .kx{background:#fff7ed!important;border-left-color:#f97316!important}
+    .empty{color:#999;font-style:italic;font-size:.8rem;padding:6px 10px}
+    .footer{font-size:.72rem;color:#999;margin-top:24px;border-top:1px solid #eee;padding-top:8px}
+  </style></head><body>
+  <h1>🚣 Planning Kayak WT — ${dateStr}</h1>
+  <div class="sub">Printed on ${new Date().toLocaleDateString('en-GB')} at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>`;
+  slots.forEach(slot=>{
+    const aths=getSlot(k,slot), c=cap(slot,k), kx=isKayakCross(k,slot);
+    html+=`<div class="slot-title${kx?' kx':''}">${kx?'🏄 KAYAK CROSS — ':''}${slot} — ${aths.length}/${c} registered</div>`;
+    if(!aths.length){ html+=`<div class="empty">No registrations</div>`; }
+    else {
+      html+=`<table><tr><th>#</th><th>Name</th><th>Role</th>${kx?'<th>Rental</th>':''}${S.isAdmin?'<th>Registered by</th>':''}</tr>`;
+      aths.forEach((a,i)=>{ html+=`<tr><td>${i+1}</td><td><b>${esc(a.name)}</b></td><td>${esc(roleDisplay(a.role))}</td>${kx?`<td>${a.rental?'🚣 Yes':'No'}</td>`:''}${S.isAdmin?`<td>${esc(a.referent||'—')}</td>`:''}</tr>`; });
+      html+=`</table>`;
+    }
+  });
+  html+=`<div class="footer">Kayak Winter Training 2026-2027 — SEVI / CINOR</div></body></html>`;
+  const win=window.open('','_blank');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>win.print(),500);
+}
+
 let _allKnownNames = [];
 
 async function loadAllKnownNames(){
@@ -2159,7 +2226,7 @@ async function removeAthlete(dateK,slot,idx){
     getSlot(dateK,slot).splice(idx,1);
     toast(`${name} ${t("toastRemoved")}`,"success");
     checkAndNotifyWaitlist(dateK, slot); // prévenir la liste d'attente
-    renderDayPanel(); renderCal();
+    refreshAll();
   } catch(e){ toast("Erreur réseau — réessayez.","error"); }
 }
 
@@ -2993,8 +3060,7 @@ async function addAthleteToDB(){
   S.athletes.push(data);
   S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
   nameEl.value = ''; roleEl.value = 'Athlète';
-  renderAthleteList();
-  updateNameAutocomplete();
+  refreshAll(); // sync My Team + Quick Registration + autocomplete
   msgEl.style.color = '#16a34a';
   msgEl.textContent = `✅ ${name} added to your team!`;
   setTimeout(()=>{ msgEl.textContent=''; }, 3000);
@@ -3027,8 +3093,7 @@ async function saveAthleteEdit(id){
   const idx = S.athletes.findIndex(a=>a.id===id);
   if(idx>=0){ S.athletes[idx].full_name=newName; S.athletes[idx].role=newRole; }
   S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
-  renderAthleteList();
-  updateNameAutocomplete();
+  refreshAll();
   toast(`✅ ${newName} updated!`,'success');
 }
 
@@ -3038,8 +3103,7 @@ async function deleteAthlete(id, name){
   const { error } = await sb.from('athletes').update({ active: false }).eq('id', id);
   if(error){ toast('Error: '+error.message,'error'); return; }
   S.athletes = S.athletes.filter(a=>a.id!==id);
-  renderAthleteList();
-  updateNameAutocomplete();
+  refreshAll();
   toast(`${name} removed from your team.`,'success');
 }
 
@@ -3061,8 +3125,16 @@ let _adminAthleteFilter = 'all';
 
 async function openAdminAthletes(){
   if(!S.isAdmin) return;
-  const { data } = await sb.from('athletes').select('*, profiles(full_name,email)').eq('active',true).order('full_name');
-  _allAthletes = data || [];
+  // Récupérer les athlètes actifs
+  const { data: athletes } = await sb.from('athletes').select('*').eq('active',true).order('full_name');
+  // Récupérer les profils des owners séparément
+  const userIds = [...new Set((athletes||[]).map(a=>a.user_id).filter(Boolean))];
+  let profileMap = {};
+  if(userIds.length){
+    const { data: profiles } = await sb.from('profiles').select('id,full_name,email').in('id',userIds);
+    (profiles||[]).forEach(p=>{ profileMap[p.id]=p; });
+  }
+  _allAthletes = (athletes||[]).map(a=>({...a, owner: profileMap[a.user_id]||null}));
   filterAdminAthletes('all');
   document.getElementById('adminAthletesModal').classList.add('show');
 }
@@ -3083,7 +3155,7 @@ function filterAdminAthletes(filter){
   if(!list.length){ el.innerHTML=`<p style="color:var(--text3);font-size:.85rem;padding:8px 0">No results.</p>`; return; }
   el.innerHTML = list.map(a=>{
     const isDup = nameCount[a.full_name.toLowerCase()]>1;
-    const owner = a.profiles?.full_name || a.profiles?.email || '?';
+    const owner = a.owner?.full_name || a.owner?.email || 'Unknown';
     // Compter les séances dans S.data
     let sessions = 0;
     Object.keys(S.data).forEach(dateK=>{ Object.keys(S.data[dateK]).forEach(slot=>{ S.data[dateK][slot].forEach(r=>{ if(r.name===a.full_name) sessions++; }); }); });
