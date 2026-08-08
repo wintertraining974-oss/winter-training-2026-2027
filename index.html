@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -561,7 +560,34 @@ select.field { min-width: 110px; cursor: pointer; }
       </div>
     </div>
   </div>
+  <!-- Onglets Kayak / Fitness -->
+  <div id="activityTabs" style="display:none;margin-top:16px">
+    <div style="display:flex;border-bottom:2px solid var(--border)">
+      <button id="tabKayak" onclick="switchActivity('kayak')"
+        style="padding:10px 20px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.85rem;color:var(--accent);border-bottom:3px solid var(--accent);margin-bottom:-2px">
+        🚣 Kayak
+      </button>
+      <button id="tabMuscu" onclick="switchActivity('musculation')"
+        style="padding:10px 20px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.85rem;color:var(--text3);border-bottom:3px solid transparent;margin-bottom:-2px">
+        🏋️ Fitness
+      </button>
+    </div>
+  </div>
+
   <div id="dayPanel" style="display:none"></div>
+
+  <!-- Panneau Fitness -->
+  <div id="muscuPanelWrap" style="display:none;margin-top:0">
+    <div class="day-panel">
+      <div class="dp-header">
+        <div><div class="dp-title" id="muscuDayTitle">🏋️ Fitness</div></div>
+        <div class="dp-actions">
+          <button class="btn btn-sm" onclick="printMuscu()">🖨️ Print</button>
+        </div>
+      </div>
+      <div id="muscuPanel"></div>
+    </div>
+  </div>
 
   <div class="admin-section" id="adminPanel" style="display:none">
     <h3>⚡ <span id="aTitle">Panneau Administrateur / Admin Panel</span></h3>
@@ -672,6 +698,62 @@ select.field { min-width: 110px; cursor: pointer; }
       <h4 id="aGlobalPlanTitle">🗓 Vue planning global</h4>
       <p id="aGlobalPlanDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
       <button class="btn btn-sm btn-primary" id="aGlobalPlanBtn" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
+    </div>
+
+    <!-- Horaires d'ouverture Kayak -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4>🚣 Horaires d'ouverture Kayak</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Filtrage des créneaux affichés par défaut selon les jours.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;flex-wrap:wrap">
+        ${['weekday','saturday','sunday'].map(type=>`
+        <div>
+          <b style="font-size:.78rem;display:block;margin-bottom:6px">${type==='weekday'?'Mon–Fri':type==='saturday'?'Saturday':'Sunday'}</b>
+          <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+            <label style="font-size:.72rem;width:36px">Open</label>
+            <input type="time" class="field cap-input" id="kayak-${type}-open" value="${S.kayakHours[type].open||''}" style="flex:1" onchange="updateHours('kayak','${type}','open',this.value)">
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <label style="font-size:.72rem;width:36px">Close</label>
+            <input type="time" class="field cap-input" id="kayak-${type}-close" value="${S.kayakHours[type].close||''}" style="flex:1" onchange="updateHours('kayak','${type}','close',this.value)">
+          </div>
+          <label style="font-size:.72rem;display:flex;align-items:center;gap:4px;margin-top:4px;cursor:pointer">
+            <input type="checkbox" id="kayak-${type}-closed" ${!S.kayakHours[type].open?'checked':''} onchange="updateHours('kayak','${type}','closed',this.checked)"> Closed
+          </label>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Horaires Fitness / Musculation -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4>🏋️ Fitness — Horaires &amp; Configuration</h4>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <div>
+          <label style="font-size:.78rem;display:block;margin-bottom:4px">Slot duration (min)</label>
+          <input type="number" class="field cap-input" id="muscuDuration" min="30" max="180" step="15" value="${S.muscuSlotDuration||90}" style="width:80px" onchange="updateMuscuConfig('duration',this.value)">
+        </div>
+        <div>
+          <label style="font-size:.78rem;display:block;margin-bottom:4px">Capacity / slot</label>
+          <input type="number" class="field cap-input" id="muscuCap" min="1" max="100" value="${S.muscuCapacity||20}" style="width:70px" onchange="updateMuscuConfig('capacity',this.value)">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        ${['weekday','saturday','sunday'].map(type=>`
+        <div>
+          <b style="font-size:.78rem;display:block;margin-bottom:6px">${type==='weekday'?'Mon–Fri':type==='saturday'?'Saturday':'Sunday'}</b>
+          <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+            <label style="font-size:.72rem;width:36px">Open</label>
+            <input type="time" class="field cap-input" id="muscu-${type}-open" value="${S.muscuHours[type].open||''}" style="flex:1" onchange="updateHours('muscu','${type}','open',this.value)">
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <label style="font-size:.72rem;width:36px">Close</label>
+            <input type="time" class="field cap-input" id="muscu-${type}-close" value="${S.muscuHours[type].close||''}" style="flex:1" onchange="updateHours('muscu','${type}','close',this.value)">
+          </div>
+          <label style="font-size:.72rem;display:flex;align-items:center;gap:4px;margin-top:4px;cursor:pointer">
+            <input type="checkbox" id="muscu-${type}-closed" ${!S.muscuHours[type].open?'checked':''} onchange="updateHours('muscu','${type}','closed',this.checked)"> Closed
+          </label>
+        </div>`).join('')}
+      </div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:8px" id="muscuSlotsPreview"></p>
     </div>
   </div>
 </div>
@@ -870,6 +952,20 @@ select.field { min-width: 110px; cursor: pointer; }
 </div>
 
 <datalist id="nameAutocompleteList"></datalist>
+
+<!-- Modal inscription fitness / musculation -->
+<div class="modal-bg" id="muscuRegModal">
+  <div class="modal-box" style="max-width:420px">
+    <h3 id="muscuRegSlotTitle">🏋️ Fitness Registration</h3>
+    <p style="font-size:.82rem;color:var(--text3);margin-bottom:10px">Select athletes from your team to register:</p>
+    <div style="max-height:280px;overflow:auto" id="muscuRegAthletes"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal('muscuRegModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitMuscuReg()">✅ Register selected</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Modal Politique de confidentialité / Privacy Policy -->
@@ -1125,7 +1221,23 @@ let S = {
   data:{}, expanded:{}, movePending:null,
   session:null, profile:null, authMode:'login', regPending:null, regCounter:0,
   waitlist:{},
-  athletes:[],  // liste des athlètes de l'utilisateur courant
+  athletes:[],
+  // ── Musculation ──────────────────────────────────────────────
+  activeTab:'kayak',     // 'kayak' | 'musculation'
+  muscuData:{},          // même structure que data
+  muscuCapacity: 20,     // capacité par créneau musculation
+  muscuSlotDuration: 90, // durée en minutes (1h30)
+  muscuHours:{           // horaires d'ouverture par type de jour
+    weekday:{ open:'07:30', close:'18:00' },
+    saturday:{ open:'08:00', close:'16:00' },
+    sunday:{ open:'08:00', close:'16:00' }
+  },
+  // ── Horaires kayak (pour admin) ──────────────────────────────
+  kayakHours:{
+    weekday:{ open:'07:00', close:'18:00' },
+    saturday:{ open:'07:00', close:'18:00' },
+    sunday:{ open:null, close:null }   // null = fermé
+  },
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1260,6 +1372,7 @@ async function onAuthed(session){
   document.getElementById('whoRegisteredBtn').style.display='inline-block';
   await load();
   await loadConfig();
+  await loadMuscuData();
   await loadAllKnownNames();
   await loadAthletes();
   if(!S.isAdmin){
@@ -1318,6 +1431,10 @@ async function saveConfig() {
     customSlots:    S.customSlots,
     kayakCross:     S.kayakCross,
     dateCapacity:   S.dateCapacity,
+    muscuHours:     S.muscuHours,
+    kayakHours:     S.kayakHours,
+    muscuCapacity:  S.muscuCapacity,
+    muscuSlotDuration: S.muscuSlotDuration,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -1338,7 +1455,10 @@ async function loadConfig() {
   if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
   if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
   if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
-}
+  if (cfg.muscuHours     !== undefined) S.muscuHours     = cfg.muscuHours;
+  if (cfg.kayakHours     !== undefined) S.kayakHours     = cfg.kayakHours;
+  if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
+  if (cfg.muscuSlotDuration !== undefined) S.muscuSlotDuration = cfg.muscuSlotDuration;
 
 // ── Polling temps réel ────────────────────────────────────────────────
 
@@ -1347,10 +1467,21 @@ async function silentReload() {
   if (document.querySelector('.modal-bg.show')) return;
   const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
   if(error) return;
-  const newData = rowsToData(rows||[]);
+  // Séparer kayak et musculation
+  const kayakRows = (rows||[]).filter(r=>!r.activity||r.activity==='kayak');
+  const muscuRows = (rows||[]).filter(r=>r.activity==='musculation');
+  const newData = rowsToData(kayakRows);
+  // Reconstruire muscuData
+  const newMuscuData = {};
+  muscuRows.forEach(r=>{
+    if(!newMuscuData[r.date]) newMuscuData[r.date]={};
+    if(!newMuscuData[r.date][r.creneau]) newMuscuData[r.date][r.creneau]=[];
+    newMuscuData[r.date][r.creneau].push({name:r.nom,role:r.role,_id:r.id,user_id:r.user_id,referent:r.referent_name});
+  });
   const strip = d => JSON.stringify(d, (k,v) => k==='_id'?undefined:v);
-  if (strip(newData) !== strip(S.data)) {
-    S.data = newData;
+  const changed = strip(newData)!==strip(S.data) || strip(newMuscuData)!==strip(S.muscuData);
+  if (changed) {
+    S.data = newData; S.muscuData = newMuscuData;
     refreshAll();
     showSyncDot(true);
   } else {
@@ -1433,6 +1564,190 @@ function toggleCustomCode(sel){
   const c = document.getElementById('sfPhoneCustomCode');
   if(sel.value==='+other'){ c.style.display='block'; } else { c.style.display='none'; }
 }
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MUSCULATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function getMuscuHours(dateK){
+  const d = new Date(dateK+'T12:00:00'), dow = d.getDay();
+  if(dow===6) return S.muscuHours.saturday;
+  if(dow===0) return S.muscuHours.sunday;
+  return S.muscuHours.weekday;
+}
+
+function getKayakHours(dateK){
+  const d = new Date(dateK+'T12:00:00'), dow = d.getDay();
+  if(dow===6) return S.kayakHours.saturday;
+  if(dow===0) return S.kayakHours.sunday;
+  return S.kayakHours.weekday;
+}
+
+function generateMuscuSlots(dateK){
+  const h = getMuscuHours(dateK);
+  if(!h || !h.open || !h.close) return [];
+  const [oh,om] = h.open.split(':').map(Number);
+  const [ch,cm] = h.close.split(':').map(Number);
+  const closeM = ch*60+cm, dur = S.muscuSlotDuration||90;
+  const slots = [];
+  let cur = oh*60+om;
+  while(cur+dur <= closeM){
+    const sh=Math.floor(cur/60), sm=cur%60;
+    const eh=Math.floor((cur+dur)/60), em=(cur+dur)%60;
+    slots.push(`${sh}h${sm?sm.toString().padStart(2,'0'):''}−${eh}h${em?em.toString().padStart(2,'0'):''}`);
+    cur+=dur;
+  }
+  return slots;
+}
+
+function getMuscuSlot(dateK,slot){
+  if(!S.muscuData[dateK]) S.muscuData[dateK]={};
+  if(!S.muscuData[dateK][slot]) S.muscuData[dateK][slot]=[];
+  return S.muscuData[dateK][slot];
+}
+
+function muscuSlotStatus(dateK,slot){
+  const n=getMuscuSlot(dateK,slot).length, c=S.muscuCapacity||20;
+  if(n>=c) return 'full'; if(n/c>=0.6) return 'mid'; return 'open';
+}
+
+async function loadMuscuData(){
+  const { data: rows, error } = await sb.from('inscriptions')
+    .select('*').eq('activity','musculation').order('created_at',{ascending:true});
+  if(error){ console.error('loadMuscuData:',error); return; }
+  S.muscuData={};
+  (rows||[]).forEach(r=>{
+    if(!S.muscuData[r.date]) S.muscuData[r.date]={};
+    if(!S.muscuData[r.date][r.creneau]) S.muscuData[r.date][r.creneau]=[];
+    S.muscuData[r.date][r.creneau].push({name:r.nom,role:r.role,_id:r.id,user_id:r.user_id,group_id:r.group_id,referent:r.referent_name});
+  });
+}
+
+async function addMuscuRegistration(dateK,slot){
+  if(!S.session){ toast('Log in to register.','error'); return; }
+  if(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date){
+    if(dateK<S.profile.arrival_date||dateK>S.profile.departure_date){ toast('Outside your training period.','error'); return; }
+  }
+  const current = getMuscuSlot(dateK,slot);
+  const capacity = S.muscuCapacity||20;
+  const free = capacity - current.length;
+  if(free<=0){ toast('Slot full.','error'); return; }
+
+  // Si l'équipe a des athlètes → modale de sélection
+  if(S.athletes.length > 0){
+    S.muscuPending = { dateK, slot };
+    const alreadyIn = new Set(current.map(a=>a.name));
+    const available = S.athletes.filter(a=>!alreadyIn.has(a.full_name));
+    if(!available.length && !S.isAdmin){ toast('All team athletes are already registered.','error'); return; }
+    document.getElementById('muscuRegSlotTitle').textContent = `🏋️ Fitness — ${slot} — ${dateK}`;
+    document.getElementById('muscuRegAthletes').innerHTML = available.length
+      ? available.map(a=>`
+          <label class="mdreg-member" onclick="this.classList.toggle('mdreg-selected');this.querySelector('input').checked=!this.querySelector('input').checked">
+            <input type="checkbox" value="${esc(a.full_name)}" data-role="${a.role}">
+            <span style="flex:1">${esc(a.full_name)}</span>
+            <span style="font-size:.72rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
+          </label>`).join('')
+      : `<p style="color:var(--text3);font-size:.82rem">All your athletes are already registered on this slot.</p>`;
+    document.getElementById('muscuRegModal').classList.add('show');
+    return;
+  }
+
+  // Sinon, inscrire directement l'utilisateur lui-même
+  if(current.find(a=>a.user_id===S.session.user.id)){ toast('You are already registered.','error'); return; }
+  const name = S.profile?.full_name||S.session.user.email;
+  await _insertMuscuReg(dateK, slot, name, 'Athlète');
+}
+
+async function submitMuscuReg(){
+  if(!S.muscuPending||!S.session) return;
+  const { dateK, slot } = S.muscuPending;
+  const checked = [...document.querySelectorAll('#muscuRegAthletes input:checked')];
+  if(!checked.length){ toast('Select at least one athlete.','error'); return; }
+  const capacity = S.muscuCapacity||20;
+  const current = getMuscuSlot(dateK,slot);
+  const free = capacity - current.length;
+  const toAdd = checked.slice(0, free);
+  for(const cb of toAdd){
+    await _insertMuscuReg(dateK, slot, cb.value, cb.dataset.role||'Athlète');
+  }
+  closeModal('muscuRegModal');
+  renderMuscuPanel();
+  toast(`✅ ${toAdd.length} registration(s) added for ${slot}!`,'success');
+}
+
+async function _insertMuscuReg(dateK, slot, name, role){
+  const { data, error } = await sb.from('inscriptions').insert({
+    date:dateK, creneau:slot, nom:name, role:role||'Athlète',
+    user_id:S.session.user.id, referent_name:S.profile?.full_name||name, activity:'musculation'
+  }).select().maybeSingle();
+  if(error){ toast('Error: '+error.message,'error'); return; }
+  getMuscuSlot(dateK,slot).push({name,role:role||'Athlète',_id:data.id,user_id:S.session.user.id,referent:S.profile?.full_name||name});
+}
+
+async function removeMuscuRegistration(dateK,slot,idx){
+  const a = getMuscuSlot(dateK,slot)[idx];
+  if(!S.isAdmin&&a.user_id!==S.session?.user.id){ toast("You can only cancel your own registrations.",'error'); return; }
+  if(a._id){ const {error}=await sb.from('inscriptions').delete().eq('id',a._id); if(error){ toast('Error: '+error.message,'error'); return; } }
+  getMuscuSlot(dateK,slot).splice(idx,1);
+  renderMuscuPanel();
+  toast(`${a.name} removed from ${slot}.`,'success');
+}
+
+function renderMuscuPanel(){
+  const el = document.getElementById('muscuPanel');
+  if(!el||!S.selectedDate) return;
+  const dateK=dk(S.selectedDate), slots=generateMuscuSlots(dateK);
+  const h=getMuscuHours(dateK);
+  if(!slots.length||!h.open){
+    el.innerHTML=`<div style="padding:20px;text-align:center;color:var(--text3);font-size:.85rem">🏋️ Fitness center closed this day.</div>`;
+    return;
+  }
+  let html=`<div style="padding:16px">
+    <div style="font-size:.72rem;color:var(--text3);margin-bottom:12px">🏋️ Fitness — ${h.open} to ${h.close} — ${S.muscuCapacity||20} spots/slot</div>`;
+  slots.forEach(slot=>{
+    const aths=getMuscuSlot(dateK,slot), c=S.muscuCapacity||20, st=muscuSlotStatus(dateK,slot);
+    const pct=Math.min(1,aths.length/c);
+    const bColor=st==='full'?'var(--red)':st==='mid'?'var(--orange)':'var(--green)';
+    const exp=S.expanded[`muscu-${dateK}-${slot}`];
+    const myReg=aths.findIndex(a=>a.user_id===S.session?.user.id);
+    html+=`<div class="slot-card s-${st}" style="margin-bottom:8px">
+      <div class="slot-header" onclick="S.expanded['muscu-${dateK}-${slot}']=!S.expanded['muscu-${dateK}-${slot}'];renderMuscuPanel()">
+        <div class="slot-time">🏋️ ${slot}</div>
+        <div class="slot-count-text">${aths.length} / ${c} registered</div>
+        <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${bColor}"></div></div>
+        <span class="slot-badge sb-${st}">${st==='full'?'Full':st==='mid'?'Almost full':'Open'}</span>
+        <span class="slot-chevron${exp?' open':''}">▼</span>
+      </div>`;
+    if(exp){
+      html+=`<div class="slot-body">`;
+      if(aths.length){
+        html+=`<div class="ath-list">`;
+        aths.forEach((a,i)=>{
+          const mine=a.user_id===S.session?.user.id;
+          const canDel=S.isAdmin||mine;
+          html+=`<div class="ath-row">
+            <span class="ath-num">${i+1}</span>
+            <span class="ath-name">${esc(a.name)}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}</span>
+            ${canDel?`<button class="ath-btn del" onclick="removeMuscuRegistration('${dateK}','${slot}',${i})">✕</button>`:''}
+          </div>`;
+        });
+        html+=`</div>`;
+      }
+      if(st!=='full'){
+        const alreadyIn=myReg>=0;
+        html+=`<div class="add-form">
+          ${alreadyIn
+            ? `<span style="font-size:.8rem;color:var(--accent);font-weight:600">✅ You are registered for this slot</span>`
+            : `<button class="btn btn-sm btn-primary" onclick="addMuscuRegistration('${dateK}','${slot}')">+ Register</button>`}
+        </div>`;
+      }
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  el.innerHTML=html;
+}
+
 function isPriorityActive(dateK){
   if(!S.priorityOn) return false;
   // Si aucun jour n'est explicitement configuré → priorité sur tous les jours (comportement par défaut)
@@ -1487,16 +1802,11 @@ function refreshAll(){
   renderCal();
   renderDayPanel();
   renderAdmin();
-  // Mettre à jour les membres dans Quick Registration si le panneau est visible
   if(document.getElementById('quickRegPanel')?.style.display!=='none'){
-    renderQrMembers();
-    renderQrSlots();
-    updateQrSummary();
+    renderQrMembers(); renderQrSlots(); updateQrSummary();
   }
-  // Mettre à jour la liste d'athlètes si visible
-  if(document.getElementById('myTeamPanel')?.style.display!=='none'){
-    renderAthleteList();
-  }
+  if(document.getElementById('myTeamPanel')?.style.display!=='none') renderAthleteList();
+  if(S.activeTab==='musculation') renderMuscuPanel();
   updateNameAutocomplete();
 }
 
@@ -2146,7 +2456,69 @@ async function submitQuickReg(){
   if(created>0) toast(`✅ ${created} registration(s) created${skipped?`, ${skipped} skipped`:''}!`,'success');
   else toast(`No registration created — check priority rules, availability and your training period.`,'error');
 }
-// ── Impression du jour ───────────────────────────────────────────────
+// ── Switch activité Kayak / Fitness ──────────────────────────────────
+function switchActivity(act){
+  S.activeTab = act;
+  document.getElementById('tabKayak').style.color = act==='kayak'?'var(--accent)':'var(--text3)';
+  document.getElementById('tabKayak').style.borderBottomColor = act==='kayak'?'var(--accent)':'transparent';
+  document.getElementById('tabMuscu').style.color = act==='musculation'?'var(--accent)':'var(--text3)';
+  document.getElementById('tabMuscu').style.borderBottomColor = act==='musculation'?'var(--accent)':'transparent';
+  document.getElementById('dayPanel').style.display = act==='kayak'?'block':'none';
+  document.getElementById('muscuPanelWrap').style.display = act==='musculation'?'block':'none';
+  if(act==='musculation') renderMuscuPanel();
+}
+
+// ── Admin : modifier les horaires Kayak / Fitness ──────────────────
+async function updateHours(activity, dayType, field, value){
+  if(activity==='kayak'){
+    if(field==='closed'){ if(value){ S.kayakHours[dayType].open=null; S.kayakHours[dayType].close=null; } else { S.kayakHours[dayType].open='07:00'; S.kayakHours[dayType].close='18:00'; } }
+    else S.kayakHours[dayType][field] = value||null;
+  } else {
+    if(field==='closed'){ if(value){ S.muscuHours[dayType].open=null; S.muscuHours[dayType].close=null; } else { S.muscuHours[dayType].open=dayType==='weekday'?'07:30':'08:00'; S.muscuHours[dayType].close=dayType==='weekday'?'18:00':'16:00'; } }
+    else S.muscuHours[dayType][field] = value||null;
+    updateMuscuSlotsPreview();
+  }
+  await saveConfig();
+  if(S.activeTab==='musculation') renderMuscuPanel();
+}
+
+async function updateMuscuConfig(field, value){
+  if(field==='duration') S.muscuSlotDuration = Math.max(30,parseInt(value)||90);
+  if(field==='capacity') S.muscuCapacity = Math.max(1,parseInt(value)||20);
+  await saveConfig();
+  updateMuscuSlotsPreview();
+  if(S.activeTab==='musculation') renderMuscuPanel();
+}
+
+function updateMuscuSlotsPreview(){
+  const el=document.getElementById('muscuSlotsPreview');
+  if(!el||!S.selectedDate) return;
+  const slots=generateMuscuSlots(dk(S.selectedDate));
+  el.textContent = slots.length ? `Preview (selected day): ${slots.join(', ')}` : 'No slots for this day.';
+}
+
+// ── Impression Fitness ────────────────────────────────────────────────
+function printMuscu(){
+  const d=S.selectedDate, k=dk(d);
+  const dayName=t('dowFull')[d.getDay()];
+  const dateStr=`${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+  const slots=generateMuscuSlots(k);
+  let html=`<html><head><title>Fitness ${dateStr}</title>
+  <style>body{font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px}h1{font-size:1.1rem}table{width:100%;border-collapse:collapse;margin-bottom:14px}th{background:#0d9488;color:white;padding:6px 10px;text-align:left;font-size:.82rem}td{padding:5px 10px;border-bottom:1px solid #eee;font-size:.82rem}tr:nth-child(even){background:#f8fafc}.slot-title{font-weight:700;margin:12px 0 4px;padding:6px 10px;background:#f0fdfa;border-left:4px solid #0d9488;border-radius:4px}.empty{color:#999;font-style:italic;font-size:.8rem}</style>
+  </head><body>
+  <h1>🏋️ Fitness — ${dateStr}</h1>
+  <p style="font-size:.8rem;color:#666">Printed ${new Date().toLocaleDateString('en-GB')} · Capacity: ${S.muscuCapacity||20}/slot</p>`;
+  slots.forEach(slot=>{
+    const aths=getMuscuSlot(k,slot);
+    html+=`<div class="slot-title">${slot} — ${aths.length}/${S.muscuCapacity||20}</div>`;
+    if(!aths.length){ html+=`<div class="empty">No registrations</div>`; }
+    else { html+=`<table><tr><th>#</th><th>Name</th></tr>${aths.map((a,i)=>`<tr><td>${i+1}</td><td>${esc(a.name)}</td></tr>`).join('')}</table>`; }
+  });
+  html+=`<p style="font-size:.7rem;color:#999;margin-top:20px;border-top:1px solid #eee;padding-top:8px">Kayak Winter Training — SEVI / CINOR</p></body></html>`;
+  const win=window.open('','_blank'); win.document.write(html); win.document.close(); setTimeout(()=>win.print(),500);
+}
+
+// ── Mise à jour refreshAll pour inclure musculation ───────────────────
 function printDay(){
   const d=S.selectedDate, k=dk(d);
   const dayName=t('dowFull')[d.getDay()];
