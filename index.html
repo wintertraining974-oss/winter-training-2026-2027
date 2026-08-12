@@ -194,49 +194,6 @@ select.field { min-width: 110px; cursor: pointer; }
 .phone-wrap { display: flex; gap: 6px; }
 .phone-wrap select { width: 110px; flex-shrink: 0; }
 .phone-wrap input { flex: 1; }
-/* ── Gestion athlètes ───────────────────────────────────────── */
-.athlete-panel { background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden; }
-.athlete-panel-header { background:linear-gradient(135deg,#0f766e,#0d9488);color:white;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer; }
-.athlete-panel-title { font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:8px; }
-.athlete-panel-body { padding:20px; }
-.athlete-row { display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:6px;transition:all .15s; }
-.athlete-row:hover { border-color:#0d9488;background:#f0fdfa; }
-.athlete-name { flex:1;font-weight:600;font-size:.85rem; }
-.athlete-role-tag { font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:700; }
-.athlete-role-athlete { background:#dbeafe;color:#1e40af; }
-.athlete-role-coach { background:#dcfce7;color:#166534; }
-.duplicate-badge { font-size:.65rem;background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 6px;font-weight:700;margin-left:4px; }
-/* ── Quick multi-day registration ───────────────────────────── */
-.mdreg-section { margin-bottom:14px; }
-.mdreg-section h4 { font-size:.78rem;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em; }
-.mdreg-days { display:grid;grid-template-columns:repeat(7,1fr);gap:3px; }
-.mdreg-day { padding:5px 2px;border-radius:6px;border:1.5px solid var(--border);text-align:center;cursor:pointer;font-size:.68rem;transition:all .15s;user-select:none; }
-.mdreg-day:hover:not(.mdreg-day-closed) { border-color:var(--accent);background:#eff6ff; }
-.mdreg-day.mdreg-selected { background:var(--accent);color:white;border-color:var(--accent); }
-.mdreg-day.mdreg-day-closed { opacity:.35;cursor:not-allowed; }
-.mdreg-day b { display:block;font-size:.82rem; }
-.mdreg-slots { display:flex;flex-wrap:wrap;gap:6px; }
-.mdreg-slot-btn { padding:5px 11px;border-radius:20px;border:1.5px solid var(--border);font-size:.75rem;cursor:pointer;background:white;transition:all .15s; }
-.mdreg-slot-btn:hover { border-color:var(--accent); }
-.mdreg-slot-btn.mdreg-selected { background:var(--accent);color:white;border-color:var(--accent); }
-.mdreg-slot-btn.kx-slot-btn { border-color:#f97316;color:#f97316; }
-.mdreg-slot-btn.kx-slot-btn.mdreg-selected { background:#f97316;color:white; }
-.mdreg-slot-btn:disabled { opacity:.4;cursor:not-allowed; }
-.mdreg-member { display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:5px;cursor:pointer;transition:all .15s;font-size:.85rem; }
-.mdreg-member:hover { border-color:var(--accent);background:#eff6ff; }
-.mdreg-member.mdreg-selected { border-color:var(--accent);background:#eff6ff; }
-.mdreg-member input[type=checkbox] { flex-shrink:0;accent-color:var(--accent);width:15px;height:15px; }
-.mdreg-summary { background:#f0f7ff;border-radius:8px;padding:10px 12px;font-size:.78rem;color:var(--text2);min-height:36px;border:1px solid #bfdbfe; }
-.mdreg-week-nav { display:flex;align-items:center;gap:8px;font-size:.8rem;font-weight:600;margin-bottom:8px; }
-.qreg-panel { background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden; }
-/* ── Print styles ────────────────────────────────────────────── */
-@media print {
-  header, #myTeamPanel, #quickRegPanel, .admin-section, #adminPanel, .nav-btn, .cal-controls, .view-toggle, .btn-lang, #profileBtn, #logoutBtn, #adminPill, .ath-btn, .slot-header, .add-form, .full-msg { display:none !important; }
-  .slot-card { break-inside:avoid; box-shadow:none; border:1px solid #ccc; }
-  .slot-body { display:block !important; }
-  body { background:white; }
-  #dayPanel { display:block !important; }
-}
 </style>
 </head>
 <body>
@@ -468,124 +425,35 @@ select.field { min-width: 110px; cursor: pointer; }
     <button class="btn btn-sm" id="whoRegisteredBtn" style="display:none" onclick="openGlobalPlanning()">👥 Qui est déjà inscrit ?</button>
   </div>
 
-  <!-- Panneau gestion équipe (My Team) -->
-  <div id="myTeamPanel" style="display:none">
-    <div class="athlete-panel">
-      <div class="athlete-panel-header" onclick="toggleMyTeam()">
-        <div class="athlete-panel-title">
-          <span>🏊 My Team — Manage athletes</span>
-          <span id="myTeamCount" style="background:rgba(255,255,255,.25);border-radius:10px;padding:1px 8px;font-size:.78rem"></span>
-        </div>
-        <span id="myTeamChevron" style="font-size:.85rem;transition:transform .2s">▼</span>
-      </div>
-      <div id="myTeamBody" style="padding:20px">
-        <p style="font-size:.8rem;color:var(--text3);margin-bottom:12px">
-          Add all athletes in your group here before registering for sessions. This list is saved and shared across all bookings.
-        </p>
-        <div id="athleteList"></div>
-        <!-- Formulaire d'ajout -->
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-          <input class="field" id="newAthleteName" type="text" placeholder="Athlete full name"
-            list="nameAutocompleteList" style="flex:2;min-width:160px"
-            onkeydown="if(event.key==='Enter')addAthleteToDB()">
-          <select class="field" id="newAthleteRole" style="width:110px">
-            <option value="Athlète">Athlete</option>
-            <option value="Encadrant">Coach</option>
-          </select>
-          <button class="btn btn-primary btn-sm" onclick="addAthleteToDB()">+ Add</button>
-        </div>
-        <div id="athleteAddMsg" style="font-size:.75rem;min-height:1em;margin-top:4px"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="calContainer"></div>
-
-  <!-- Panneau Quick Registration multi-jours (inline, remplace la modale) -->
-  <div id="quickRegPanel" style="display:none;margin-top:20px">
-    <div class="qreg-panel">
-      <div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:white;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleQuickReg()">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:1.1rem">⚡</span>
-          <div>
-            <div style="font-weight:700;font-size:.95rem">Quick Registration — Select days &amp; sessions</div>
-            <div style="font-size:.72rem;opacity:.85">Select multiple days, sessions and athletes at once</div>
-          </div>
-        </div>
-        <span id="quickRegChevron" style="font-size:.85rem;transition:transform .2s">▼</span>
-      </div>
-      <div id="quickRegBody" style="padding:20px">
-
-        <!-- Étape 1 : Jours -->
-        <div class="mdreg-section">
-          <h4>① Select days</h4>
-          <div class="mdreg-week-nav">
-            <button class="btn btn-sm" onclick="mdregPrevWeek()">← Prev</button>
-            <span id="mdregWeekLabel" style="flex:1;text-align:center"></span>
-            <button class="btn btn-sm" onclick="mdregNextWeek()">Next →</button>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px" id="mdregDayHeaders"></div>
-          <div class="mdreg-days" id="mdregDaysGrid"></div>
-          <p style="font-size:.72rem;color:var(--text3);margin-top:4px">Click a day to select it. Greyed = closed or outside your training period.</p>
-        </div>
-
-        <!-- Étape 2 : Créneaux -->
-        <div class="mdreg-section">
-          <h4>② Select sessions</h4>
-          <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 Morning</div>
-          <div class="mdreg-slots" id="mdregMorningSlots"></div>
-          <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 Afternoon</div>
-          <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
-          <p style="font-size:.72rem;color:var(--text3);margin-top:4px">🔒 = locked by priority · 🏄 = Kayak Cross</p>
-        </div>
-
-        <!-- Étape 3 : Athlètes -->
-        <div class="mdreg-section">
-          <h4>③ Select athletes from your team</h4>
-          <div id="mdregMemberList"></div>
-          <button class="btn btn-sm" style="margin-top:6px" onclick="mdregAddManual()">+ Add someone not in team</button>
-          <div id="mdregManualRows"></div>
-          <!-- Rental KX si besoin -->
-          <div id="mdregKxRentalSection" style="display:none;margin-top:10px;padding:10px;background:#fff7ed;border:1.5px solid #f97316;border-radius:8px">
-            <b style="color:#f97316;font-size:.82rem">🏄 Kayak Cross rental — tick per athlete who needs a boat</b>
-            <div id="mdregKxRentalList" style="margin-top:8px"></div>
-          </div>
-        </div>
-
-        <!-- Résumé -->
-        <div class="mdreg-section">
-          <div class="mdreg-summary" id="mdregSummary" style="margin-bottom:12px">Select days, sessions and athletes above.</div>
-          <button class="btn btn-primary" style="width:100%;padding:10px;font-size:.9rem" onclick="submitQuickReg()">✅ Confirm all registrations</button>
-        </div>
-      </div>
-    </div>
-  </div>
   <!-- Onglets Kayak / Fitness -->
-  <div id="activityTabs" style="display:none;margin-top:16px">
+  <div id="activityTabs" style="display:none;margin-bottom:16px">
     <div style="display:flex;border-bottom:2px solid var(--border)">
       <button id="tabKayak" onclick="switchActivity('kayak')"
-        style="padding:10px 20px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.85rem;color:var(--accent);border-bottom:3px solid var(--accent);margin-bottom:-2px">
+        style="padding:10px 24px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.88rem;color:var(--accent);border-bottom:3px solid var(--accent);margin-bottom:-2px">
         🚣 Kayak
       </button>
       <button id="tabMuscu" onclick="switchActivity('musculation')"
-        style="padding:10px 20px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.85rem;color:var(--text3);border-bottom:3px solid transparent;margin-bottom:-2px">
+        style="padding:10px 24px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.88rem;color:var(--text3);border-bottom:3px solid transparent;margin-bottom:-2px">
         🏋️ Fitness
       </button>
     </div>
   </div>
 
+  <div id="calContainer"></div>
   <div id="dayPanel" style="display:none"></div>
 
-  <!-- Panneau Fitness -->
-  <div id="muscuPanelWrap" style="display:none;margin-top:0">
+  <!-- Panneau Fitness/Musculation -->
+  <div id="muscuPanelWrap" style="display:none;margin-top:4px">
     <div class="day-panel">
       <div class="dp-header">
-        <div><div class="dp-title" id="muscuDayTitle">🏋️ Fitness</div></div>
+        <div>
+          <div class="dp-title" id="muscuDayTitle">🏋️ Fitness</div>
+        </div>
         <div class="dp-actions">
           <button class="btn btn-sm" onclick="printMuscu()">🖨️ Print</button>
         </div>
       </div>
-      <div id="muscuPanel"></div>
+      <div id="muscuSlots"></div>
     </div>
   </div>
 
@@ -622,12 +490,35 @@ select.field { min-width: 110px; cursor: pointer; }
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
       <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
-      <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap athlètes</button>
-      <button class="export-btn" style="background:#0d9488" onclick="openAdminAthletes()">🏊 Gérer athlètes</button>
+      <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
       <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
     </div>
 
-    <!-- Horaires personnalisés par jour -->
+    <!-- Horaires d'ouverture Kayak -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4>🚣 Kayak — Opening hours (informational filter)</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Used to indicate closed days on the calendar.</p>
+      <div id="kayakHoursGrid"></div>
+    </div>
+
+    <!-- Horaires Fitness / Musculation -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4>🏋️ Fitness — Hours &amp; Capacity</h4>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <div>
+          <label style="font-size:.78rem;display:block;margin-bottom:4px">Slot duration (min)</label>
+          <input type="number" class="field cap-input" id="muscuDuration" min="30" max="180" step="15"
+            style="width:80px" onchange="updateMuscuConfig('duration',this.value)">
+        </div>
+        <div>
+          <label style="font-size:.78rem;display:block;margin-bottom:4px">Capacity / slot</label>
+          <input type="number" class="field cap-input" id="muscuCap" min="1" max="200"
+            style="width:70px" onchange="updateMuscuConfig('capacity',this.value)">
+        </div>
+      </div>
+      <div id="muscuHoursGrid"></div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:8px" id="muscuSlotsPreview"></p>
+    </div>
     <div class="admin-card" style="margin-top:16px">
       <h4>🕐 Horaires personnalisés par date</h4>
       <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
@@ -698,62 +589,6 @@ select.field { min-width: 110px; cursor: pointer; }
       <h4 id="aGlobalPlanTitle">🗓 Vue planning global</h4>
       <p id="aGlobalPlanDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
       <button class="btn btn-sm btn-primary" id="aGlobalPlanBtn" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
-    </div>
-
-    <!-- Horaires d'ouverture Kayak -->
-    <div class="admin-card" style="margin-top:16px">
-      <h4>🚣 Horaires d'ouverture Kayak</h4>
-      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Filtrage des créneaux affichés par défaut selon les jours.</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;flex-wrap:wrap">
-        ${['weekday','saturday','sunday'].map(type=>`
-        <div>
-          <b style="font-size:.78rem;display:block;margin-bottom:6px">${type==='weekday'?'Mon–Fri':type==='saturday'?'Saturday':'Sunday'}</b>
-          <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-            <label style="font-size:.72rem;width:36px">Open</label>
-            <input type="time" class="field cap-input" id="kayak-${type}-open" value="${S.kayakHours[type].open||''}" style="flex:1" onchange="updateHours('kayak','${type}','open',this.value)">
-          </div>
-          <div style="display:flex;gap:4px;align-items:center">
-            <label style="font-size:.72rem;width:36px">Close</label>
-            <input type="time" class="field cap-input" id="kayak-${type}-close" value="${S.kayakHours[type].close||''}" style="flex:1" onchange="updateHours('kayak','${type}','close',this.value)">
-          </div>
-          <label style="font-size:.72rem;display:flex;align-items:center;gap:4px;margin-top:4px;cursor:pointer">
-            <input type="checkbox" id="kayak-${type}-closed" ${!S.kayakHours[type].open?'checked':''} onchange="updateHours('kayak','${type}','closed',this.checked)"> Closed
-          </label>
-        </div>`).join('')}
-      </div>
-    </div>
-
-    <!-- Horaires Fitness / Musculation -->
-    <div class="admin-card" style="margin-top:16px">
-      <h4>🏋️ Fitness — Horaires &amp; Configuration</h4>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-        <div>
-          <label style="font-size:.78rem;display:block;margin-bottom:4px">Slot duration (min)</label>
-          <input type="number" class="field cap-input" id="muscuDuration" min="30" max="180" step="15" value="${S.muscuSlotDuration||90}" style="width:80px" onchange="updateMuscuConfig('duration',this.value)">
-        </div>
-        <div>
-          <label style="font-size:.78rem;display:block;margin-bottom:4px">Capacity / slot</label>
-          <input type="number" class="field cap-input" id="muscuCap" min="1" max="100" value="${S.muscuCapacity||20}" style="width:70px" onchange="updateMuscuConfig('capacity',this.value)">
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-        ${['weekday','saturday','sunday'].map(type=>`
-        <div>
-          <b style="font-size:.78rem;display:block;margin-bottom:6px">${type==='weekday'?'Mon–Fri':type==='saturday'?'Saturday':'Sunday'}</b>
-          <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-            <label style="font-size:.72rem;width:36px">Open</label>
-            <input type="time" class="field cap-input" id="muscu-${type}-open" value="${S.muscuHours[type].open||''}" style="flex:1" onchange="updateHours('muscu','${type}','open',this.value)">
-          </div>
-          <div style="display:flex;gap:4px;align-items:center">
-            <label style="font-size:.72rem;width:36px">Close</label>
-            <input type="time" class="field cap-input" id="muscu-${type}-close" value="${S.muscuHours[type].close||''}" style="flex:1" onchange="updateHours('muscu','${type}','close',this.value)">
-          </div>
-          <label style="font-size:.72rem;display:flex;align-items:center;gap:4px;margin-top:4px;cursor:pointer">
-            <input type="checkbox" id="muscu-${type}-closed" ${!S.muscuHours[type].open?'checked':''} onchange="updateHours('muscu','${type}','closed',this.checked)"> Closed
-          </label>
-        </div>`).join('')}
-      </div>
-      <p style="font-size:.72rem;color:var(--text3);margin-top:8px" id="muscuSlotsPreview"></p>
     </div>
   </div>
 </div>
@@ -828,79 +663,27 @@ select.field { min-width: 110px; cursor: pointer; }
 
 <!-- Modal Mon profil -->
 <div class="modal-bg" id="profileModal">
-  <div class="modal-box" style="max-width:540px;max-height:90vh;overflow-y:auto">
-    <h3>👤 My Profile</h3>
-    <p id="profileEmailLine" style="margin-bottom:12px;font-size:.82rem;color:var(--text3)"></p>
-
-    <!-- Onglets -->
-    <div class="auth-tabs" style="margin-bottom:16px">
-      <button class="auth-tab active" id="tabProfileInfo" onclick="switchProfileTab('info')">📋 My Info</button>
-      <button class="auth-tab" id="tabProfileSessions" onclick="switchProfileTab('sessions')">📅 My Sessions</button>
-      <button class="auth-tab" id="tabProfilePwd" onclick="switchProfileTab('pwd')">🔒 Password</button>
-    </div>
-
-    <!-- Onglet : Infos personnelles -->
-    <div id="profileTabInfo">
-      <div class="modal-fields">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div>
-            <label>First name</label>
-            <input class="field" id="pfFirstName" type="text" style="width:100%">
-          </div>
-          <div>
-            <label>Last name</label>
-            <input class="field" id="pfLastName" type="text" style="width:100%">
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div>
-            <label>Arrival date</label>
-            <input class="field" id="pfArrival" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
-          </div>
-          <div>
-            <label>Departure date</label>
-            <input class="field" id="pfDeparture" type="date" min="2026-07-06" max="2027-03-31" style="width:100%">
-          </div>
-        </div>
-        <div>
-          <label>Phone number</label>
-          <input class="field" id="pfPhone" type="tel" style="width:100%" placeholder="+262 ...">
-        </div>
-        <div>
-          <label>Billing address</label>
-          <input class="field" id="pfAddress" type="text" style="width:100%">
-        </div>
-        <div>
-          <label>Nationality</label>
-          <input class="field" id="pfNationality" type="text" style="width:100%">
-        </div>
-      </div>
-      <div class="auth-err" id="pfInfoErr" style="min-height:1em"></div>
-      <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="saveProfileInfo()">💾 Save changes</button>
-    </div>
-
-    <!-- Onglet : Mes séances -->
-    <div id="profileTabSessions" style="display:none">
-      <div style="max-height:320px;overflow:auto" id="profileRegList"></div>
-    </div>
-
-    <!-- Onglet : Mot de passe -->
-    <div id="profileTabPwd" style="display:none">
+  <div class="modal-box" style="max-width:520px">
+    <h3>👤 Mon profil</h3>
+    <p id="profileEmailLine" style="margin-bottom:10px"></p>
+    <div style="max-height:240px;overflow:auto" id="profileRegList"></div>
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+    <div>
+      <h4 style="margin-bottom:10px;font-size:.9rem">🔒 Changer mon mot de passe</h4>
       <div class="modal-fields">
         <div>
-          <label>New password</label>
-          <input class="field" id="newPassword" type="password" placeholder="Minimum 6 characters" style="width:100%">
+          <label>Nouveau mot de passe</label>
+          <input class="field" id="newPassword" type="password" placeholder="Nouveau mot de passe (min. 6 car.)" style="width:100%">
         </div>
         <div>
-          <label>Confirm password</label>
-          <input class="field" id="confirmPassword" type="password" placeholder="Repeat password" style="width:100%">
+          <label>Confirmer</label>
+          <input class="field" id="confirmPassword" type="password" placeholder="Répète le mot de passe" style="width:100%">
         </div>
       </div>
       <div class="auth-err" id="pwdChangeErr" style="min-height:1em"></div>
-      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Update password</button>
+      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="changePassword()">Mettre à jour le mot de passe</button>
     </div>
-
-    <div class="modal-actions" style="margin-top:16px;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div class="modal-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <button class="btn" style="color:var(--red);font-size:.78rem" onclick="requestDataDeletion()">🗑 Delete my account & data</button>
       <button class="btn" onclick="closeModal('profileModal')">Close</button>
     </div>
@@ -936,36 +719,20 @@ select.field { min-width: 110px; cursor: pointer; }
   </div>
 </div>
 
-<!-- Modal gestion des athlètes (admin) -->
-<div class="modal-bg" id="adminAthletesModal">
-  <div class="modal-box" style="max-width:640px;max-height:90vh;overflow-y:auto">
-    <h3>🏊 All Athletes — Admin View</h3>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <button class="btn btn-sm" id="filterAllAth" onclick="filterAdminAthletes('all')" style="background:var(--accent);color:white">All</button>
-      <button class="btn btn-sm" id="filterDupAth" onclick="filterAdminAthletes('duplicates')">⚠️ Possible duplicates</button>
-    </div>
-    <div style="max-height:420px;overflow:auto" id="adminAthletesList"></div>
+<!-- Modal inscription Fitness -->
+<div class="modal-bg" id="muscuRegModal">
+  <div class="modal-box" style="max-width:440px">
+    <h3 id="muscuModalTitle">🏋️ Fitness — Register</h3>
+    <p style="font-size:.8rem;color:var(--text3);margin-bottom:10px">Select athletes from your team to register.</p>
+    <div style="max-height:320px;overflow:auto" id="muscuAthleteList"></div>
     <div class="modal-actions" style="margin-top:14px">
-      <button class="btn" onclick="closeModal('adminAthletesModal')">Close</button>
+      <button class="btn" onclick="closeModal('muscuRegModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitMuscuReg()">Register</button>
     </div>
   </div>
 </div>
 
 <datalist id="nameAutocompleteList"></datalist>
-
-<!-- Modal inscription fitness / musculation -->
-<div class="modal-bg" id="muscuRegModal">
-  <div class="modal-box" style="max-width:420px">
-    <h3 id="muscuRegSlotTitle">🏋️ Fitness Registration</h3>
-    <p style="font-size:.82rem;color:var(--text3);margin-bottom:10px">Select athletes from your team to register:</p>
-    <div style="max-height:280px;overflow:auto" id="muscuRegAthletes"></div>
-    <div class="modal-actions" style="margin-top:14px">
-      <button class="btn" onclick="closeModal('muscuRegModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitMuscuReg()">✅ Register selected</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <!-- Modal Politique de confidentialité / Privacy Policy -->
@@ -1221,23 +988,18 @@ let S = {
   data:{}, expanded:{}, movePending:null,
   session:null, profile:null, authMode:'login', regPending:null, regCounter:0,
   waitlist:{},
-  athletes:[],
-  // ── Musculation ──────────────────────────────────────────────
-  activeTab:'kayak',     // 'kayak' | 'musculation'
-  muscuData:{},          // même structure que data
-  muscuCapacity: 20,     // capacité par créneau musculation
-  muscuSlotDuration: 90, // durée en minutes (1h30)
-  muscuHours:{           // horaires d'ouverture par type de jour
-    weekday:{ open:'07:30', close:'18:00' },
-    saturday:{ open:'08:00', close:'16:00' },
-    sunday:{ open:'08:00', close:'16:00' }
+  // ── Musculation ────────────────────────────────────────────────────
+  activeTab: 'kayak',
+  muscuData: {},
+  muscuCapacity: 20,
+  muscuSlotDuration: 90,
+  muscuHours: {
+    weekday:  { open:'07:30', close:'18:00' },
+    saturday: { open:'08:00', close:'16:00' },
+    sunday:   { open:'08:00', close:'16:00' }
   },
-  // ── Horaires kayak (pour admin) ──────────────────────────────
-  kayakHours:{
-    weekday:{ open:'07:00', close:'18:00' },
-    saturday:{ open:'07:00', close:'18:00' },
-    sunday:{ open:null, close:null }   // null = fermé
-  },
+  // ── Athlètes ───────────────────────────────────────────────────────
+  athletes: [],
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1372,14 +1134,10 @@ async function onAuthed(session){
   document.getElementById('whoRegisteredBtn').style.display='inline-block';
   await load();
   await loadConfig();
-  await loadMuscuData();
-  await loadAllKnownNames();
   await loadAthletes();
-  if(!S.isAdmin){
-    document.getElementById('myTeamPanel').style.display = 'block';
-    document.getElementById('quickRegPanel').style.display = 'block';
-    initQuickReg();
-  }
+  await loadAllKnownNames();
+  // Afficher les onglets activité
+  document.getElementById('activityTabs').style.display='block';
   let d = todayClamped();
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
   S.selectedDate=d; S.currentDate=d;
@@ -1413,7 +1171,21 @@ function rowsToData(rows){
 async function load() {
   const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
   if(error){ console.error('Supabase load error', error); return; }
-  S.data = rowsToData(rows||[]);
+  // Séparer kayak et musculation
+  const kayakRows   = (rows||[]).filter(r=>!r.activity||r.activity==='kayak');
+  const muscuRows   = (rows||[]).filter(r=>r.activity==='musculation');
+  S.data      = rowsToData(kayakRows);
+  S.muscuData = rowsToDataMuscu(muscuRows);
+}
+
+function rowsToDataMuscu(rows){
+  const out = {};
+  rows.forEach(r=>{
+    if(!out[r.date]) out[r.date]={};
+    if(!out[r.date][r.creneau]) out[r.date][r.creneau]=[];
+    out[r.date][r.creneau].push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id });
+  });
+  return out;
 }
 
 // ── Config admin (closedDow, customClosed, capacity, ordre créneaux) ──
@@ -1429,12 +1201,11 @@ async function saveConfig() {
     priorityOn:     S.priorityOn,
     priorityDays:   S.priorityDays,
     customSlots:    S.customSlots,
-    kayakCross:     S.kayakCross,
+    kayakCross:       S.kayakCross,
+    muscuHours:       S.muscuHours,
+    muscuCapacity:    S.muscuCapacity,
+    muscuSlotDuration:S.muscuSlotDuration,
     dateCapacity:   S.dateCapacity,
-    muscuHours:     S.muscuHours,
-    kayakHours:     S.kayakHours,
-    muscuCapacity:  S.muscuCapacity,
-    muscuSlotDuration: S.muscuSlotDuration,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -1453,12 +1224,12 @@ async function loadConfig() {
   if (cfg.priorityOn     !== undefined) S.priorityOn     = cfg.priorityOn;
   if (cfg.priorityDays   !== undefined) S.priorityDays   = cfg.priorityDays;
   if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
-  if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
-  if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
-  if (cfg.muscuHours     !== undefined) S.muscuHours     = cfg.muscuHours;
-  if (cfg.kayakHours     !== undefined) S.kayakHours     = cfg.kayakHours;
-  if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
+  if (cfg.kayakCross        !== undefined) S.kayakCross        = cfg.kayakCross;
+  if (cfg.muscuHours        !== undefined) S.muscuHours        = cfg.muscuHours;
+  if (cfg.muscuCapacity     !== undefined) S.muscuCapacity     = cfg.muscuCapacity;
   if (cfg.muscuSlotDuration !== undefined) S.muscuSlotDuration = cfg.muscuSlotDuration;
+  if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
+}
 
 // ── Polling temps réel ────────────────────────────────────────────────
 
@@ -1467,26 +1238,17 @@ async function silentReload() {
   if (document.querySelector('.modal-bg.show')) return;
   const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
   if(error) return;
-  // Séparer kayak et musculation
   const kayakRows = (rows||[]).filter(r=>!r.activity||r.activity==='kayak');
   const muscuRows = (rows||[]).filter(r=>r.activity==='musculation');
   const newData = rowsToData(kayakRows);
-  // Reconstruire muscuData
-  const newMuscuData = {};
-  muscuRows.forEach(r=>{
-    if(!newMuscuData[r.date]) newMuscuData[r.date]={};
-    if(!newMuscuData[r.date][r.creneau]) newMuscuData[r.date][r.creneau]=[];
-    newMuscuData[r.date][r.creneau].push({name:r.nom,role:r.role,_id:r.id,user_id:r.user_id,referent:r.referent_name});
-  });
+  const newMuscu = rowsToDataMuscu(muscuRows);
   const strip = d => JSON.stringify(d, (k,v) => k==='_id'?undefined:v);
-  const changed = strip(newData)!==strip(S.data) || strip(newMuscuData)!==strip(S.muscuData);
-  if (changed) {
-    S.data = newData; S.muscuData = newMuscuData;
+  const changed = strip(newData)!==strip(S.data) || strip(newMuscu)!==strip(S.muscuData);
+  if(changed){
+    S.data = newData; S.muscuData = newMuscu;
     refreshAll();
     showSyncDot(true);
-  } else {
-    showSyncDot(false);
-  }
+  } else { showSyncDot(false); }
 }
 
 function showSyncDot(updated) {
@@ -1557,197 +1319,13 @@ async function toggleKayakCross(dateK, slot){
   if(!S.kayakCross[dateK][slot]) delete S.kayakCross[dateK][slot];
   if(!Object.keys(S.kayakCross[dateK]).length) delete S.kayakCross[dateK];
   await saveConfig();
-  refreshAll();
+  renderDayPanel(); renderCal();
   toast(isKayakCross(dateK,slot)?'🏄 Kayak Cross activé !':'Slalom rétabli','success');
 }
 function toggleCustomCode(sel){
   const c = document.getElementById('sfPhoneCustomCode');
   if(sel.value==='+other'){ c.style.display='block'; } else { c.style.display='none'; }
 }
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MUSCULATION
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-function getMuscuHours(dateK){
-  const d = new Date(dateK+'T12:00:00'), dow = d.getDay();
-  if(dow===6) return S.muscuHours.saturday;
-  if(dow===0) return S.muscuHours.sunday;
-  return S.muscuHours.weekday;
-}
-
-function getKayakHours(dateK){
-  const d = new Date(dateK+'T12:00:00'), dow = d.getDay();
-  if(dow===6) return S.kayakHours.saturday;
-  if(dow===0) return S.kayakHours.sunday;
-  return S.kayakHours.weekday;
-}
-
-function generateMuscuSlots(dateK){
-  const h = getMuscuHours(dateK);
-  if(!h || !h.open || !h.close) return [];
-  const [oh,om] = h.open.split(':').map(Number);
-  const [ch,cm] = h.close.split(':').map(Number);
-  const closeM = ch*60+cm, dur = S.muscuSlotDuration||90;
-  const slots = [];
-  let cur = oh*60+om;
-  while(cur+dur <= closeM){
-    const sh=Math.floor(cur/60), sm=cur%60;
-    const eh=Math.floor((cur+dur)/60), em=(cur+dur)%60;
-    slots.push(`${sh}h${sm?sm.toString().padStart(2,'0'):''}−${eh}h${em?em.toString().padStart(2,'0'):''}`);
-    cur+=dur;
-  }
-  return slots;
-}
-
-function getMuscuSlot(dateK,slot){
-  if(!S.muscuData[dateK]) S.muscuData[dateK]={};
-  if(!S.muscuData[dateK][slot]) S.muscuData[dateK][slot]=[];
-  return S.muscuData[dateK][slot];
-}
-
-function muscuSlotStatus(dateK,slot){
-  const n=getMuscuSlot(dateK,slot).length, c=S.muscuCapacity||20;
-  if(n>=c) return 'full'; if(n/c>=0.6) return 'mid'; return 'open';
-}
-
-async function loadMuscuData(){
-  const { data: rows, error } = await sb.from('inscriptions')
-    .select('*').eq('activity','musculation').order('created_at',{ascending:true});
-  if(error){ console.error('loadMuscuData:',error); return; }
-  S.muscuData={};
-  (rows||[]).forEach(r=>{
-    if(!S.muscuData[r.date]) S.muscuData[r.date]={};
-    if(!S.muscuData[r.date][r.creneau]) S.muscuData[r.date][r.creneau]=[];
-    S.muscuData[r.date][r.creneau].push({name:r.nom,role:r.role,_id:r.id,user_id:r.user_id,group_id:r.group_id,referent:r.referent_name});
-  });
-}
-
-async function addMuscuRegistration(dateK,slot){
-  if(!S.session){ toast('Log in to register.','error'); return; }
-  if(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date){
-    if(dateK<S.profile.arrival_date||dateK>S.profile.departure_date){ toast('Outside your training period.','error'); return; }
-  }
-  const current = getMuscuSlot(dateK,slot);
-  const capacity = S.muscuCapacity||20;
-  const free = capacity - current.length;
-  if(free<=0){ toast('Slot full.','error'); return; }
-
-  // Si l'équipe a des athlètes → modale de sélection
-  if(S.athletes.length > 0){
-    S.muscuPending = { dateK, slot };
-    const alreadyIn = new Set(current.map(a=>a.name));
-    const available = S.athletes.filter(a=>!alreadyIn.has(a.full_name));
-    if(!available.length && !S.isAdmin){ toast('All team athletes are already registered.','error'); return; }
-    document.getElementById('muscuRegSlotTitle').textContent = `🏋️ Fitness — ${slot} — ${dateK}`;
-    document.getElementById('muscuRegAthletes').innerHTML = available.length
-      ? available.map(a=>`
-          <label class="mdreg-member" onclick="this.classList.toggle('mdreg-selected');this.querySelector('input').checked=!this.querySelector('input').checked">
-            <input type="checkbox" value="${esc(a.full_name)}" data-role="${a.role}">
-            <span style="flex:1">${esc(a.full_name)}</span>
-            <span style="font-size:.72rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
-          </label>`).join('')
-      : `<p style="color:var(--text3);font-size:.82rem">All your athletes are already registered on this slot.</p>`;
-    document.getElementById('muscuRegModal').classList.add('show');
-    return;
-  }
-
-  // Sinon, inscrire directement l'utilisateur lui-même
-  if(current.find(a=>a.user_id===S.session.user.id)){ toast('You are already registered.','error'); return; }
-  const name = S.profile?.full_name||S.session.user.email;
-  await _insertMuscuReg(dateK, slot, name, 'Athlète');
-}
-
-async function submitMuscuReg(){
-  if(!S.muscuPending||!S.session) return;
-  const { dateK, slot } = S.muscuPending;
-  const checked = [...document.querySelectorAll('#muscuRegAthletes input:checked')];
-  if(!checked.length){ toast('Select at least one athlete.','error'); return; }
-  const capacity = S.muscuCapacity||20;
-  const current = getMuscuSlot(dateK,slot);
-  const free = capacity - current.length;
-  const toAdd = checked.slice(0, free);
-  for(const cb of toAdd){
-    await _insertMuscuReg(dateK, slot, cb.value, cb.dataset.role||'Athlète');
-  }
-  closeModal('muscuRegModal');
-  renderMuscuPanel();
-  toast(`✅ ${toAdd.length} registration(s) added for ${slot}!`,'success');
-}
-
-async function _insertMuscuReg(dateK, slot, name, role){
-  const { data, error } = await sb.from('inscriptions').insert({
-    date:dateK, creneau:slot, nom:name, role:role||'Athlète',
-    user_id:S.session.user.id, referent_name:S.profile?.full_name||name, activity:'musculation'
-  }).select().maybeSingle();
-  if(error){ toast('Error: '+error.message,'error'); return; }
-  getMuscuSlot(dateK,slot).push({name,role:role||'Athlète',_id:data.id,user_id:S.session.user.id,referent:S.profile?.full_name||name});
-}
-
-async function removeMuscuRegistration(dateK,slot,idx){
-  const a = getMuscuSlot(dateK,slot)[idx];
-  if(!S.isAdmin&&a.user_id!==S.session?.user.id){ toast("You can only cancel your own registrations.",'error'); return; }
-  if(a._id){ const {error}=await sb.from('inscriptions').delete().eq('id',a._id); if(error){ toast('Error: '+error.message,'error'); return; } }
-  getMuscuSlot(dateK,slot).splice(idx,1);
-  renderMuscuPanel();
-  toast(`${a.name} removed from ${slot}.`,'success');
-}
-
-function renderMuscuPanel(){
-  const el = document.getElementById('muscuPanel');
-  if(!el||!S.selectedDate) return;
-  const dateK=dk(S.selectedDate), slots=generateMuscuSlots(dateK);
-  const h=getMuscuHours(dateK);
-  if(!slots.length||!h.open){
-    el.innerHTML=`<div style="padding:20px;text-align:center;color:var(--text3);font-size:.85rem">🏋️ Fitness center closed this day.</div>`;
-    return;
-  }
-  let html=`<div style="padding:16px">
-    <div style="font-size:.72rem;color:var(--text3);margin-bottom:12px">🏋️ Fitness — ${h.open} to ${h.close} — ${S.muscuCapacity||20} spots/slot</div>`;
-  slots.forEach(slot=>{
-    const aths=getMuscuSlot(dateK,slot), c=S.muscuCapacity||20, st=muscuSlotStatus(dateK,slot);
-    const pct=Math.min(1,aths.length/c);
-    const bColor=st==='full'?'var(--red)':st==='mid'?'var(--orange)':'var(--green)';
-    const exp=S.expanded[`muscu-${dateK}-${slot}`];
-    const myReg=aths.findIndex(a=>a.user_id===S.session?.user.id);
-    html+=`<div class="slot-card s-${st}" style="margin-bottom:8px">
-      <div class="slot-header" onclick="S.expanded['muscu-${dateK}-${slot}']=!S.expanded['muscu-${dateK}-${slot}'];renderMuscuPanel()">
-        <div class="slot-time">🏋️ ${slot}</div>
-        <div class="slot-count-text">${aths.length} / ${c} registered</div>
-        <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${bColor}"></div></div>
-        <span class="slot-badge sb-${st}">${st==='full'?'Full':st==='mid'?'Almost full':'Open'}</span>
-        <span class="slot-chevron${exp?' open':''}">▼</span>
-      </div>`;
-    if(exp){
-      html+=`<div class="slot-body">`;
-      if(aths.length){
-        html+=`<div class="ath-list">`;
-        aths.forEach((a,i)=>{
-          const mine=a.user_id===S.session?.user.id;
-          const canDel=S.isAdmin||mine;
-          html+=`<div class="ath-row">
-            <span class="ath-num">${i+1}</span>
-            <span class="ath-name">${esc(a.name)}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}</span>
-            ${canDel?`<button class="ath-btn del" onclick="removeMuscuRegistration('${dateK}','${slot}',${i})">✕</button>`:''}
-          </div>`;
-        });
-        html+=`</div>`;
-      }
-      if(st!=='full'){
-        const alreadyIn=myReg>=0;
-        html+=`<div class="add-form">
-          ${alreadyIn
-            ? `<span style="font-size:.8rem;color:var(--accent);font-weight:600">✅ You are registered for this slot</span>`
-            : `<button class="btn btn-sm btn-primary" onclick="addMuscuRegistration('${dateK}','${slot}')">+ Register</button>`}
-        </div>`;
-      }
-      html+=`</div>`;
-    }
-    html+=`</div>`;
-  });
-  html+=`</div>`;
-  el.innerHTML=html;
-}
-
 function isPriorityActive(dateK){
   if(!S.priorityOn) return false;
   // Si aucun jour n'est explicitement configuré → priorité sur tous les jours (comportement par défaut)
@@ -1797,17 +1375,265 @@ function roleDisplay(r){ return r==='Encadrant'?t('roleCoach'):t('roleAth'); }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function render(){ renderCal(); renderDayPanel(); renderAdmin(); applyI18n(); }
 
-// Synchronisation globale : appelée après toute mutation de données
+// Synchronisation globale
 function refreshAll(){
-  renderCal();
-  renderDayPanel();
-  renderAdmin();
-  if(document.getElementById('quickRegPanel')?.style.display!=='none'){
-    renderQrMembers(); renderQrSlots(); updateQrSummary();
-  }
-  if(document.getElementById('myTeamPanel')?.style.display!=='none') renderAthleteList();
+  renderCal(); renderDayPanel(); renderAdmin();
   if(S.activeTab==='musculation') renderMuscuPanel();
-  updateNameAutocomplete();
+}
+
+// ── Onglets Kayak / Fitness ──────────────────────────────────────────
+function switchActivity(act){
+  S.activeTab = act;
+  const isKayak = act==='kayak';
+  document.getElementById('tabKayak').style.cssText  = `padding:10px 24px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.88rem;color:${isKayak?'var(--accent)':'var(--text3)'};border-bottom:3px solid ${isKayak?'var(--accent)':'transparent'};margin-bottom:-2px`;
+  document.getElementById('tabMuscu').style.cssText  = `padding:10px 24px;border:none;background:none;cursor:pointer;font-weight:700;font-size:.88rem;color:${!isKayak?'var(--accent)':'var(--text3)'};border-bottom:3px solid ${!isKayak?'var(--accent)':'transparent'};margin-bottom:-2px`;
+  document.getElementById('dayPanel').style.display      = isKayak ? 'block':'none';
+  document.getElementById('muscuPanelWrap').style.display= isKayak ? 'none':'block';
+  if(!isKayak) renderMuscuPanel();
+}
+
+// ── Génération créneaux musculation ─────────────────────────────────
+function getMuscuHours(dateK){
+  const dt = new Date(dateK+'T12:00:00');
+  const dow = dt.getDay();
+  if(dow===6) return S.muscuHours.saturday;
+  if(dow===0) return S.muscuHours.sunday;
+  return S.muscuHours.weekday;
+}
+
+function generateMuscuSlots(dateK){
+  const h = getMuscuHours(dateK);
+  if(!h.open||!h.close) return [];
+  const slots = [];
+  const dur = S.muscuSlotDuration||90;
+  const [oh,om] = h.open.split(':').map(Number);
+  const [ch,cm] = h.close.split(':').map(Number);
+  let cur = oh*60+om;
+  const end = ch*60+cm;
+  while(cur+dur<=end){
+    const sh=String(Math.floor(cur/60)).padStart(2,'0');
+    const sm=String(cur%60).padStart(2,'0');
+    const eh=String(Math.floor((cur+dur)/60)).padStart(2,'0');
+    const em=String((cur+dur)%60).padStart(2,'0');
+    slots.push(`${sh}:${sm}-${eh}:${em}`);
+    cur+=dur;
+  }
+  return slots;
+}
+
+function getMuscuSlot(dateK,slot){
+  if(!S.muscuData[dateK]) S.muscuData[dateK]={};
+  if(!S.muscuData[dateK][slot]) S.muscuData[dateK][slot]=[];
+  return S.muscuData[dateK][slot];
+}
+
+// ── Rendu panneau Fitness ────────────────────────────────────────────
+function renderMuscuPanel(){
+  const el=document.getElementById('muscuSlots');
+  if(!el||!S.selectedDate) return;
+  const dateK=dk(S.selectedDate), slots=generateMuscuSlots(dateK);
+  const h=getMuscuHours(dateK);
+  // Titre jour
+  const dowFull=t('dowFull'), months=t('months'), d=S.selectedDate;
+  document.getElementById('muscuDayTitle').textContent=
+    `🏋️ Fitness — ${dowFull[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+  if(!slots.length||!h.open){
+    el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">🏋️ Fitness center closed this day.</div>';
+    return;
+  }
+  const cap=S.muscuCapacity||20;
+  let html='<div style="padding:12px">';
+  html+=`<div style="font-size:.75rem;color:var(--text3);margin-bottom:10px">Hours: ${h.open} – ${h.close} · ${cap} spots/slot · Slot: ${S.muscuSlotDuration||90} min</div>`;
+  slots.forEach(slot=>{
+    const aths=getMuscuSlot(dateK,slot), pct=Math.min(1,aths.length/cap);
+    const st=aths.length>=cap?'full':pct>=0.6?'mid':'open';
+    const bColor=st==='full'?'var(--red)':st==='mid'?'var(--orange)':'var(--green)';
+    const exp=!!S.expanded['m-'+dateK+'-'+slot];
+    const myIdx=aths.findIndex(a=>a.user_id===S.session?.user.id);
+    html+=`<div class="slot-card s-${st}" style="margin-bottom:8px">
+      <div class="slot-header" onclick="S.expanded['m-${dateK}-${slot}']=!S.expanded['m-${dateK}-${slot}'];renderMuscuPanel()">
+        <div class="slot-time">🏋️ ${slot}</div>
+        <div class="slot-count-text">${aths.length}/${cap} registered</div>
+        <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${bColor}"></div></div>
+        <span class="slot-badge sb-${st}">${st==='full'?'Full':st==='mid'?'Almost full':'Open'}</span>
+        <span class="slot-chevron${exp?' open':''}">▼</span>
+      </div>`;
+    if(exp){
+      html+='<div class="slot-body">';
+      if(aths.length){
+        html+='<div class="ath-list">';
+        aths.forEach((a,i)=>{
+          const mine=a.user_id===S.session?.user.id;
+          const canDel=S.isAdmin||mine;
+          html+=`<div class="ath-row">
+            <span class="ath-num">${i+1}</span>
+            <span class="ath-name">${esc(a.name)}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}</span>
+            ${canDel?`<button class="ath-btn del" onclick="removeMuscuReg('${dateK}','${slot}',${i})">✕</button>`:''}
+          </div>`;
+        });
+        html+='</div>';
+      }
+      if(st!=='full'){
+        html+='<div class="add-form">';
+        if(myIdx>=0){
+          html+='<span style="font-size:.8rem;color:var(--accent);font-weight:600">✅ You are registered</span>';
+        } else {
+          html+=`<button class="btn btn-sm btn-primary" onclick="openMuscuReg('${dateK}','${slot}')">+ Register</button>`;
+        }
+        html+='</div>';
+      }
+      html+='</div>';
+    }
+    html+='</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ── Inscription Fitness ──────────────────────────────────────────────
+function openMuscuReg(dateK,slot){
+  if(!S.session){ toast('Log in to register.','error'); return; }
+  if(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date){
+    if(dateK<S.profile.arrival_date||dateK>S.profile.departure_date){ toast('Outside your training period.','error'); return; }
+  }
+  const current=getMuscuSlot(dateK,slot), cap=S.muscuCapacity||20;
+  if(current.length>=cap){ toast('Slot full.','error'); return; }
+  const alreadyIn=new Set(current.map(a=>a.name));
+  S.muscuPending={dateK,slot};
+  // Si équipe disponible → modale sélection
+  if(S.athletes.length>0){
+    const available=S.athletes.filter(a=>!alreadyIn.has(a.full_name));
+    document.getElementById('muscuModalTitle').textContent=`🏋️ Fitness — ${slot} — ${dateK}`;
+    document.getElementById('muscuAthleteList').innerHTML=available.length
+      ? available.map(a=>`
+          <label class="mdreg-member" onclick="this.classList.toggle('mdreg-selected');this.querySelector('input').checked=!this.querySelector('input').checked">
+            <input type="checkbox" value="${esc(a.full_name)}" data-role="${a.role}">
+            <span style="flex:1">${esc(a.full_name)}</span>
+            <span style="font-size:.72rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
+          </label>`).join('')
+      : '<p style="color:var(--text3);font-size:.82rem">All your athletes are already registered on this slot.</p>';
+    document.getElementById('muscuRegModal').classList.add('show');
+  } else {
+    // Inscrire directement
+    if(alreadyIn.has(S.profile?.full_name||'')){ toast('Already registered.','error'); return; }
+    insertMuscuReg(dateK,slot,S.profile?.full_name||S.session.user.email,'Athlète');
+  }
+}
+
+async function submitMuscuReg(){
+  if(!S.muscuPending||!S.session) return;
+  const {dateK,slot}=S.muscuPending;
+  const checked=[...document.querySelectorAll('#muscuAthleteList input:checked')];
+  if(!checked.length){ toast('Select at least one athlete.','error'); return; }
+  const cap=S.muscuCapacity||20, free=cap-getMuscuSlot(dateK,slot).length;
+  let added=0;
+  for(const cb of checked.slice(0,free)){
+    await insertMuscuReg(dateK,slot,cb.value,cb.dataset.role||'Athlète');
+    added++;
+  }
+  closeModal('muscuRegModal');
+  refreshAll();
+  toast(`✅ ${added} registration(s) added!`,'success');
+}
+
+async function insertMuscuReg(dateK,slot,name,role){
+  const {data,error}=await sb.from('inscriptions').insert({
+    date:dateK,creneau:slot,nom:name,role:role||'Athlète',
+    user_id:S.session.user.id,referent_name:S.profile?.full_name||name,activity:'musculation'
+  }).select().maybeSingle();
+  if(error){ toast('Error: '+error.message,'error'); return; }
+  getMuscuSlot(dateK,slot).push({name,role:role||'Athlète',_id:data.id,user_id:S.session.user.id});
+  refreshAll();
+  toast('Registered!','success');
+}
+
+async function removeMuscuReg(dateK,slot,idx){
+  const a=getMuscuSlot(dateK,slot)[idx];
+  if(!S.isAdmin&&a.user_id!==S.session?.user.id){ toast('You can only cancel your own registrations.','error'); return; }
+  if(a._id){ const {error}=await sb.from('inscriptions').delete().eq('id',a._id); if(error){ toast('Error','error'); return; } }
+  getMuscuSlot(dateK,slot).splice(idx,1);
+  refreshAll();
+  toast(`${a.name} removed.`,'success');
+}
+
+// ── Config admin Fitness ─────────────────────────────────────────────
+async function updateMuscuConfig(field,value){
+  if(field==='duration') S.muscuSlotDuration=Math.max(30,parseInt(value)||90);
+  if(field==='capacity') S.muscuCapacity=Math.max(1,parseInt(value)||20);
+  await saveConfig();
+  renderMuscuAdminGrid();
+  if(S.activeTab==='musculation') renderMuscuPanel();
+}
+
+async function updateMuscuHours(dayType,field,value){
+  if(field==='closed'){
+    if(value){ S.muscuHours[dayType].open=null; S.muscuHours[dayType].close=null; }
+    else { S.muscuHours[dayType].open=dayType==='weekday'?'07:30':'08:00'; S.muscuHours[dayType].close=dayType==='weekday'?'18:00':'16:00'; }
+  } else { S.muscuHours[dayType][field]=value||null; }
+  await saveConfig();
+  renderMuscuAdminGrid();
+  if(S.activeTab==='musculation') renderMuscuPanel();
+}
+
+function renderMuscuAdminGrid(){
+  const el=document.getElementById('muscuHoursGrid');
+  if(!el) return;
+  document.getElementById('muscuDuration').value=S.muscuSlotDuration||90;
+  document.getElementById('muscuCap').value=S.muscuCapacity||20;
+  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+    ['weekday','saturday','sunday'].map(type=>{
+      const h=S.muscuHours[type];
+      return `<div>
+        <b style="font-size:.78rem;display:block;margin-bottom:6px">${type==='weekday'?'Mon–Fri':type==='saturday'?'Saturday':'Sunday'}</b>
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+          <label style="font-size:.72rem;width:40px">Open</label>
+          <input type="time" class="field cap-input" value="${h.open||''}" style="flex:1"
+            onchange="updateMuscuHours('${type}','open',this.value)">
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+          <label style="font-size:.72rem;width:40px">Close</label>
+          <input type="time" class="field cap-input" value="${h.close||''}" style="flex:1"
+            onchange="updateMuscuHours('${type}','close',this.value)">
+        </div>
+        <label style="font-size:.72rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" ${!h.open?'checked':''}
+            onchange="updateMuscuHours('${type}','closed',this.checked)"> Closed
+        </label>
+      </div>`;
+    }).join('')+'</div>';
+  // Preview créneaux
+  const prev=document.getElementById('muscuSlotsPreview');
+  if(prev&&S.selectedDate){
+    const slots=generateMuscuSlots(dk(S.selectedDate));
+    prev.textContent=slots.length?'Preview (selected day): '+slots.join(', '):'No slots for selected day.';
+  }
+}
+
+// ── Impression Fitness ───────────────────────────────────────────────
+function printMuscu(){
+  const d=S.selectedDate,k=dk(d);
+  const dayName=t('dowFull')[d.getDay()];
+  const dateStr=`${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+  const slots=generateMuscuSlots(k);
+  let html=`<html><head><title>Fitness ${dateStr}</title><style>
+  body{font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px}
+  h1{font-size:1.1rem}table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#0d9488;color:white;padding:6px 10px;text-align:left;font-size:.82rem}
+  td{padding:5px 10px;border-bottom:1px solid #eee;font-size:.82rem}
+  tr:nth-child(even){background:#f8fafc}
+  .st{font-weight:700;margin:12px 0 4px;padding:6px 10px;background:#f0fdfa;border-left:4px solid #0d9488;border-radius:4px}
+  .empty{color:#999;font-style:italic;font-size:.8rem;padding:4px 10px}
+  </style></head><body>
+  <h1>🏋️ Fitness — ${dateStr}</h1>
+  <p style="font-size:.8rem;color:#666">Printed ${new Date().toLocaleDateString('en-GB')} · Capacity: ${S.muscuCapacity||20}/slot</p>`;
+  slots.forEach(slot=>{
+    const aths=getMuscuSlot(k,slot);
+    html+=`<div class="st">${slot} — ${aths.length}/${S.muscuCapacity||20}</div>`;
+    if(!aths.length){ html+='<div class="empty">No registrations</div>'; }
+    else { html+=`<table><tr><th>#</th><th>Name</th></tr>${aths.map((a,i)=>`<tr><td>${i+1}</td><td>${esc(a.name)}</td></tr>`).join('')}</table>`; }
+  });
+  html+='<p style="font-size:.7rem;color:#999;margin-top:20px">Kayak Winter Training — SEVI / CINOR</p></body></html>';
+  const w=window.open('','_blank'); w.document.write(html); w.document.close(); setTimeout(()=>w.print(),500);
 }
 
 function renderCal(){
@@ -1911,7 +1737,6 @@ function renderDayPanel(){
       <div class="dp-actions">
         <button class="btn btn-sm" onclick="copyText()">${t('copyBtn')}</button>
         <button class="btn btn-sm btn-wa" onclick="sendWA()">${t('waBtn')}</button>
-        <button class="btn btn-sm" onclick="printDay()" title="Print this day's registrations">🖨️ Print</button>
       </div>
     </div>`;
   if(closed){
@@ -2041,6 +1866,7 @@ function renderAdmin(){
   renderCustomSlotSummary();
   renderDateCapSummary();
   renderDcMiniCal();
+  renderMuscuAdminGrid();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2069,7 +1895,6 @@ function toggleSlot(dateK,slot){
 // ── Inscription (individuelle ou groupe avec référent) ──────────────────
 function openRegister(dateK,slot){
   if(!S.session){ toast('Log in to register.','error'); return; }
-  // Vérification période de stage
   if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
     if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
       toast(`Registration only available from ${S.profile.arrival_date} to ${S.profile.departure_date}.`,'error');
@@ -2077,515 +1902,62 @@ function openRegister(dateK,slot){
     }
   }
   S.regPending = { dateK, slot };
+  S.regCounter = 0;
   const kx = isKayakCross(dateK, slot);
-  document.getElementById('regModalTitle').textContent = kx ? `🏄 KAYAK CROSS — ${slot} — ${dateK}` : `Register — ${slot} — ${dateK}`;
-  document.getElementById('regModalSub').textContent = `Select athletes from your team or add manually.`;
+  document.getElementById('regModalTitle').textContent = kx ? `🏄 Register — KAYAK CROSS — ${slot}` : `Register — ${slot}`;
+  document.getElementById('regModalSub').textContent = `${dateK} · ${S.profile?.full_name||S.session.user.email}`;
+  // Afficher/masquer la section rental
   const kxBanner = document.getElementById('regKxBanner');
   kxBanner.style.display = kx ? 'block' : 'none';
   document.getElementById('kxRentalNo').checked = true;
-
-  // Masquer le banner KX global (remplacé par checkbox par personne)
-  if(kxBanner) kxBanner.style.display = 'none';
-
-  // Construire la liste de sélection depuis S.athletes
-  const wrap = document.getElementById('regParticipants');
-  wrap.innerHTML = '';
-
-  if(S.athletes.length > 0){
-    const teamDiv = document.createElement('div');
-    teamDiv.style.cssText = 'margin-bottom:12px';
-    teamDiv.innerHTML = `<div style="font-size:.78rem;color:var(--text3);margin-bottom:6px;font-weight:600">
-      📋 Select from My Team${kx?' — tick 🚣 if the athlete needs a rental kayak':''}
-    </div>` +
-      S.athletes.map(a=>`
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1.5px solid var(--border);margin-bottom:4px;background:white" id="ath-row-${esc(a.id)}">
-          <input type="checkbox" name="reg_ath" value="${esc(a.full_name)}" data-role="${a.role}" id="chk-${esc(a.id)}"
-            onchange="
-              const card=this.closest('div');
-              card.style.borderColor=this.checked?'#0d9488':'var(--border)';
-              card.style.background=this.checked?'#f0fdfa':'white';
-              ${kx?`document.getElementById('rent-${esc(a.id)}').style.display=this.checked?'flex':'none';`:''}
-            ">
-          <label for="chk-${esc(a.id)}" style="flex:1;font-weight:600;font-size:.85rem;cursor:pointer">${esc(a.full_name)}</label>
-          <span style="font-size:.7rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
-          ${kx?`<label id="rent-${esc(a.id)}" style="display:none;align-items:center;gap:4px;font-size:.75rem;color:#f97316;cursor:pointer;white-space:nowrap;padding:3px 8px;border-radius:10px;border:1.5px solid #f97316">
-            <input type="checkbox" name="kx_rental" data-athlete="${esc(a.full_name)}"> 🚣 Rental
-          </label>`:''}
-        </div>`).join('');
-    wrap.appendChild(teamDiv);
-    const sep = document.createElement('div');
-    sep.innerHTML = `<div style="font-size:.78rem;color:var(--text3);margin-bottom:6px;font-weight:600;border-top:1px solid var(--border);padding-top:10px">
-      ➕ Or add someone not in your team</div>`;
-    wrap.appendChild(sep);
-  } else {
-    const hint = document.createElement('p');
-    hint.style.cssText = 'font-size:.8rem;color:var(--text3);margin-bottom:8px';
-    hint.textContent = 'No athletes in your team yet. Add them in "My Team" above, or enter manually:';
-    wrap.appendChild(hint);
-  }
-
-  // Toujours afficher un champ manuel (pré-rempli avec le nom du référent)
-  S.regCounter = 0;
-  addParticipantRow(S.athletes.length===0 ? (S.profile?.full_name||'') : '');
+  document.getElementById('regParticipants').innerHTML='';
+  addParticipantRow(S.profile?.full_name||'');
   document.getElementById('registerModal').classList.add('show');
 }
-
 function addParticipantRow(prefillName){
   const id = 'p'+(S.regCounter++);
   const wrap = document.getElementById('regParticipants');
-  const kx = S.regPending ? isKayakCross(S.regPending.dateK, S.regPending.slot) : false;
   const row = document.createElement('div');
   row.className='group-row';
   row.id='row-'+id;
-  row.style.flexWrap='wrap';
   row.innerHTML = `
-    <input class="field" type="text" id="n-${id}" placeholder="Full name"
-      list="nameAutocompleteList" value="${esc(prefillName||'')}" style="flex:2;min-width:130px"
-      oninput="onNameAutocomplete(this,document.getElementById('r-${id}'))">
-    <select class="field" id="r-${id}" style="width:100px">
-      <option value="Athlète">Athlete</option>
-      <option value="Encadrant">Coach</option>
-    </select>
-    ${kx?`<label style="display:flex;align-items:center;gap:4px;font-size:.75rem;color:#f97316;white-space:nowrap;padding:3px 8px;border-radius:10px;border:1.5px solid #f97316;cursor:pointer">
-      <input type="checkbox" name="kx_rental" data-manual="true"> 🚣 Rental
-    </label>`:''}
-    <button class="ath-btn del" onclick="document.getElementById('row-${id}').remove()">✕</button>`;
-  wrap.appendChild(row);
-}
-
-async function submitRegistration(){
-  if(!S.regPending||!S.session) return;
-  const { dateK, slot } = S.regPending;
-
-  // Récupérer les athlètes cochés depuis l'équipe + leur rental individuel
-  const participants = [];
-  document.querySelectorAll('#regParticipants input[name="reg_ath"]:checked').forEach(cb=>{
-    // Chercher la case rental associée à cet athlète
-    const rentalCb = document.querySelector(`input[name="kx_rental"][data-athlete="${cb.value}"]`);
-    participants.push({ name: cb.value, role: cb.dataset.role||'Athlète', rental: rentalCb?.checked||false });
-  });
-  // + les lignes manuelles avec leur rental individuel
-  document.querySelectorAll('#regParticipants .group-row').forEach(r=>{
-    const name = r.querySelector('input[list]')?.value?.trim() || r.querySelector('input[type=text]')?.value?.trim();
-    const role = r.querySelector('select')?.value||'Athlète';
-    const rentalCb = r.querySelector('input[name="kx_rental"][data-manual]');
-    if(name) participants.push({ name, role, rental: rentalCb?.checked||false });
-  });
-
-  if(!participants.length){ toast('Select or add at least one participant.','error'); return; }
-  // Dédupliquer
-  const seen = new Set();
-  const unique = participants.filter(p=>{ if(seen.has(p.name.toLowerCase())) return false; seen.add(p.name.toLowerCase()); return true; });
-
-  const free = cap(slot,dateK) - getSlot(dateK,slot).length;
-  if(unique.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
-  const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
-  const referentName = S.profile?.full_name || S.session.user.email;
-  const kx = isKayakCross(dateK, slot);
-  const payload = unique.map(p=>({
-    date:dateK, creneau:slot, nom:p.name, role:p.role,
-    user_id:S.session.user.id, group_id:groupId, referent_name:referentName,
-    kayak_rental: kx ? (p.rental||false) : false
-  }));
-  try {
-    const inserted = await sbInsertMany(payload);
-    inserted.forEach(r=>getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental }));
-    toast(`✅ ${unique.length} registration(s) added!`,'success');
-    closeModal('registerModal');
-    sendUserConfirmation(unique, dateK, slot);
-    refreshAll();
-  } catch(e){ toast("Registration error — please try again.",'error'); }
-}
-
-// ── Profil : onglets et édition ──────────────────────────────────────
-function switchProfileTab(tab){
-  ['info','sessions','pwd'].forEach(t=>{
-    document.getElementById('tabProfile'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
-    document.getElementById('profileTab'+t.charAt(0).toUpperCase()+t.slice(1)).style.display = t===tab?'block':'none';
-  });
-}
-
-function openProfile(){
-  if(!S.session) return;
-  const p = S.profile;
-  document.getElementById('profileEmailLine').textContent = `${S.session.user.email}${S.isAdmin?' — Admin':''}`;
-  // Remplir les champs d'info
-  document.getElementById('pfFirstName').value  = p?.first_name||'';
-  document.getElementById('pfLastName').value   = p?.last_name||'';
-  document.getElementById('pfArrival').value    = p?.arrival_date||'';
-  document.getElementById('pfDeparture').value  = p?.departure_date||'';
-  document.getElementById('pfPhone').value      = p?.phone||'';
-  document.getElementById('pfAddress').value    = p?.billing_address||'';
-  document.getElementById('pfNationality').value= p?.nationality||'';
-  document.getElementById('pfInfoErr').textContent='';
-  // Remplir la liste des séances
-  const mine=[];
-  Object.keys(S.data).sort().forEach(dateK=>{
-    Object.keys(S.data[dateK]).forEach(slot=>{
-      S.data[dateK][slot].forEach((a,idx)=>{
-        if(a.user_id===S.session.user.id) mine.push({dateK,slot,idx,...a});
-      });
-    });
-  });
-  const list=document.getElementById('profileRegList');
-  if(!mine.length){
-    list.innerHTML=`<p style="color:var(--text3);font-size:.85rem">No registrations yet.</p>`;
-  } else {
-    list.innerHTML=mine.map(a=>`
-      <div class="profile-reg-item">
-        <div class="profile-reg-meta">
-          <b>${esc(a.name)} — ${esc(roleDisplay(a.role))}</b>
-          <span>${a.dateK} — ${a.slot}${a.rental?' 🚣 Rental':''}</span>
-        </div>
-        <button class="ath-btn del" onclick="removeAthlete('${a.dateK}','${a.slot}',${a.idx});openProfile()">✕</button>
-      </div>`).join('');
-  }
-  switchProfileTab('info');
-  document.getElementById('profileModal').classList.add('show');
-}
-
-async function saveProfileInfo(){
-  const firstName  = document.getElementById('pfFirstName').value.trim();
-  const lastName   = document.getElementById('pfLastName').value.trim();
-  const arrival    = document.getElementById('pfArrival').value;
-  const departure  = document.getElementById('pfDeparture').value;
-  const phone      = document.getElementById('pfPhone').value.trim();
-  const address    = document.getElementById('pfAddress').value.trim();
-  const nationality= document.getElementById('pfNationality').value.trim();
-  const err = document.getElementById('pfInfoErr');
-  err.style.color='var(--red)'; err.textContent='';
-  if(arrival && departure && arrival>departure){ err.textContent='Arrival must be before departure.'; return; }
-  const { error } = await sb.from('profiles').update({
-    first_name:firstName, last_name:lastName,
-    full_name: firstName+' '+lastName,
-    arrival_date:arrival||null, departure_date:departure||null,
-    phone, billing_address:address, nationality
-  }).eq('id', S.session.user.id);
-  if(error){ err.textContent='Error: '+error.message; return; }
-  S.profile = { ...S.profile, first_name:firstName, last_name:lastName, full_name:firstName+' '+lastName, arrival_date:arrival, departure_date:departure, phone, billing_address:address, nationality };
-  document.getElementById('userPill').textContent = firstName+' '+lastName;
-  err.style.color='#16a34a';
-  err.textContent='✅ Profile updated!';
-  setTimeout(()=>{ err.textContent=''; }, 3000);
-}
-
-// ── Quick Registration multi-jours ──────────────────────────────────
-let QR = {
-  weekStart:null, selectedDays:new Set(), selectedSlots:new Set(), selectedMembers:new Set(), manualCounter:0
-};
-let _qrOpen = true;
-
-function toggleQuickReg(){
-  _qrOpen=!_qrOpen;
-  document.getElementById('quickRegBody').style.display=_qrOpen?'block':'none';
-  document.getElementById('quickRegChevron').style.transform=_qrOpen?'rotate(0deg)':'rotate(-90deg)';
-}
-
-function initQuickReg(){
-  QR.selectedDays.clear(); QR.selectedSlots.clear(); QR.selectedMembers.clear(); QR.manualCounter=0;
-  QR.weekStart = new Date(S.selectedDate||S.currentDate);
-  const d=QR.weekStart.getDay();
-  QR.weekStart.setDate(QR.weekStart.getDate()-(d===0?6:d-1));
-  // Pré-sélectionner soi-même
-  const selfName=S.profile?.full_name||S.session?.user?.email;
-  if(selfName) QR.selectedMembers.add(selfName);
-  document.getElementById('mdregManualRows').innerHTML='';
-  renderQrWeek(); renderQrSlots(); renderQrMembers(); updateQrSummary();
-}
-
-function mdregPrevWeek(){ QR.weekStart=new Date(QR.weekStart); QR.weekStart.setDate(QR.weekStart.getDate()-7); QR.selectedDays.clear(); renderQrWeek(); renderQrSlots(); updateQrSummary(); }
-function mdregNextWeek(){ QR.weekStart=new Date(QR.weekStart); QR.weekStart.setDate(QR.weekStart.getDate()+7); QR.selectedDays.clear(); renderQrWeek(); renderQrSlots(); updateQrSummary(); }
-
-function renderQrWeek(){
-  const ws=QR.weekStart;
-  const we=new Date(ws); we.setDate(ws.getDate()+6);
-  const months=t('months');
-  document.getElementById('mdregWeekLabel').textContent=`${ws.getDate()} ${months[ws.getMonth()]} — ${we.getDate()} ${months[we.getMonth()]} ${we.getFullYear()}`;
-  // En-têtes
-  const hdrs=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  document.getElementById('mdregDayHeaders').innerHTML=hdrs.map(h=>`<div style="text-align:center;font-size:.62rem;color:var(--text3)">${h}</div>`).join('');
-  // Jours
-  let html='';
-  for(let i=0;i<7;i++){
-    const dt=new Date(ws); dt.setDate(ws.getDate()+i);
-    const k=dk(dt);
-    const closed=isClosed(dt)||outOfRange(dt);
-    let outOfStage=false;
-    if(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date) outOfStage=k<S.profile.arrival_date||k>S.profile.departure_date;
-    const disabled=closed||outOfStage;
-    const sel=QR.selectedDays.has(k);
-    html+=`<div class="mdreg-day${sel?' mdreg-selected':''}${disabled?' mdreg-day-closed':''}"
-      ${disabled?'':`onclick="qrToggleDay('${k}')"`}>
-      <b>${dt.getDate()}</b>
-    </div>`;
-  }
-  document.getElementById('mdregDaysGrid').innerHTML=html;
-}
-
-function qrToggleDay(k){
-  if(QR.selectedDays.has(k)) QR.selectedDays.delete(k); else QR.selectedDays.add(k);
-  renderQrWeek(); renderQrSlots(); updateQrSummary();
-}
-
-function renderQrSlots(){
-  const refDay=QR.selectedDays.size>0?[...QR.selectedDays].sort()[0]:dk(S.selectedDate||S.currentDate);
-  const mSlots=morningSlots(refDay), aSlots=afternoonSlots(refDay);
-  function btn(slot){
-    const kx=isKayakCross(refDay,slot), sel=QR.selectedSlots.has(slot);
-    const lockedOnAny=QR.selectedDays.size>0?[...QR.selectedDays].some(d=>!S.isAdmin&&isLocked(d,slot)):(!S.isAdmin&&isLocked(refDay,slot));
-    const disabled=lockedOnAny&&!kx;
-    return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
-      ${disabled?'disabled':'onclick="qrToggleSlot(\''+slot+'\')"'}
-      title="${disabled?'Locked by priority':''}">${slot}${kx?' 🏄':''}${disabled?' 🔒':''}</button>`;
-  }
-  document.getElementById('mdregMorningSlots').innerHTML=mSlots.map(btn).join('');
-  document.getElementById('mdregAfternoonSlots').innerHTML=aSlots.map(btn).join('');
-}
-
-function qrToggleSlot(slot){
-  if(QR.selectedSlots.has(slot)) QR.selectedSlots.delete(slot); else QR.selectedSlots.add(slot);
-  renderQrSlots(); renderQrKxRental(); updateQrSummary();
-}
-
-function renderQrMembers(){
-  const el=document.getElementById('mdregMemberList');
-  if(!S.athletes.length){
-    el.innerHTML=`<p style="font-size:.8rem;color:var(--text3)">Add athletes in "My Team" above first.</p>`;
-    return;
-  }
-  el.innerHTML=S.athletes.map(a=>{
-    const sel=QR.selectedMembers.has(a.full_name);
-    return `<label class="mdreg-member${sel?' mdreg-selected':''}" onclick="qrToggleMember('${esc(a.full_name)}')">
-      <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();qrToggleMember('${esc(a.full_name)}')">
-      <span style="flex:1">${esc(a.full_name)}</span>
-      <span style="font-size:.72rem;color:var(--text3)">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
-    </label>`;
-  }).join('');
-}
-
-function qrToggleMember(name){
-  if(QR.selectedMembers.has(name)) QR.selectedMembers.delete(name); else QR.selectedMembers.add(name);
-  renderQrMembers(); renderQrKxRental(); updateQrSummary();
-}
-
-function mdregAddManual(){
-  const id='qm'+(QR.manualCounter++);
-  const wrap=document.getElementById('mdregManualRows');
-  const row=document.createElement('div');
-  row.className='group-row'; row.id=id; row.style.marginTop='6px';
-  row.innerHTML=`
-    <input class="field" type="text" id="n-${id}" placeholder="Full name" list="nameAutocompleteList"
-      oninput="onNameAutocomplete(this,document.getElementById('r-${id}'));updateQrSummary()">
+    <input class="field" type="text" id="n-${id}" placeholder="Full name" value="${esc(prefillName||'')}">
     <select class="field" id="r-${id}">
       <option value="Athlète">Athlete</option>
       <option value="Encadrant">Coach</option>
     </select>
-    <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateQrSummary()">✕</button>`;
+    <button class="ath-btn del" onclick="document.getElementById('row-${id}').remove()">✕</button>`;
   wrap.appendChild(row);
 }
-
-function renderQrKxRental(){
-  const refDay=QR.selectedDays.size>0?[...QR.selectedDays].sort()[0]:dk(S.selectedDate||S.currentDate);
-  const hasKX=[...QR.selectedSlots].some(s=>isKayakCross(refDay,s));
-  const sec=document.getElementById('mdregKxRentalSection');
-  if(!sec) return;
-  sec.style.display=hasKX?'block':'none';
-  if(!hasKX) return;
-  const members=[...QR.selectedMembers];
-  document.querySelectorAll('#mdregManualRows .group-row').forEach(r=>{ const n=r.querySelector('input[list]')?.value?.trim(); if(n) members.push(n); });
-  document.getElementById('mdregKxRentalList').innerHTML=members.map(name=>`
-    <label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:.82rem;cursor:pointer">
-      <input type="checkbox" name="qr_kx_rental" data-name="${esc(name)}"> ${esc(name)} needs a rental kayak
-    </label>`).join('');
-}
-
-function getQrParticipants(){
-  const list=[];
-  QR.selectedMembers.forEach(name=>{ const a=S.athletes.find(x=>x.full_name===name); list.push({name,role:a?.role||'Athlète'}); });
-  document.querySelectorAll('#mdregManualRows .group-row').forEach(r=>{ const n=r.querySelector('input[list]')?.value?.trim(); const role=r.querySelector('select')?.value||'Athlète'; if(n) list.push({name:n,role}); });
-  return list;
-}
-
-function updateQrSummary(){
-  renderQrKxRental();
-  const days=[...QR.selectedDays].sort(), slots=[...QR.selectedSlots], participants=getQrParticipants();
-  const el=document.getElementById('mdregSummary');
-  if(!days.length&&!slots.length&&!participants.length){ el.textContent='Select days, sessions and athletes above.'; return; }
-  const total=days.length*slots.length*participants.length;
-  el.innerHTML=`
-    <div style="margin-bottom:4px"><b>📅 Days (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
-    <div style="margin-bottom:4px"><b>🕐 Sessions (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
-    <div style="margin-bottom:4px"><b>👤 Athletes (${participants.length}):</b> ${participants.map(p=>p.name).join(', ')||'—'}</div>
-    <div style="margin-top:6px;font-weight:700;color:var(--accent)">→ ${total} registration(s) to create</div>`;
-}
-
-async function submitQuickReg(){
-  if(!S.session) return;
-  const days=[...QR.selectedDays].sort(), slots=[...QR.selectedSlots], participants=getQrParticipants();
-  if(!days.length){ toast('Select at least one day.','error'); return; }
-  if(!slots.length){ toast('Select at least one session.','error'); return; }
-  if(!participants.length){ toast('Select at least one athlete.','error'); return; }
-  const refDay=days[0];
-  const rentalNames=new Set([...document.querySelectorAll('input[name="qr_kx_rental"]:checked')].map(cb=>cb.dataset.name));
-  const referentName=S.profile?.full_name||S.session.user.email;
-  const groupId=crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random());
-  let created=0, skipped=0;
-  for(const dateK of days){
-    for(const slot of slots){
-      if(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date&&(dateK<S.profile.arrival_date||dateK>S.profile.departure_date)){ skipped+=participants.length; continue; }
-      const dt=new Date(dateK+'T12:00:00');
-      if(isClosed(dt)||outOfRange(dt)){ skipped+=participants.length; continue; }
-      if(!allSlots(dateK).includes(slot)){ skipped+=participants.length; continue; }
-      if(!S.isAdmin&&isLocked(dateK,slot)&&!isKayakCross(dateK,slot)){ skipped+=participants.length; continue; }
-      const free=cap(slot,dateK)-getSlot(dateK,slot).length;
-      const toAdd=participants.slice(0,free);
-      skipped+=participants.length-toAdd.length;
-      if(!toAdd.length) continue;
-      const kx=isKayakCross(dateK,slot);
-      const payload=toAdd.map(p=>({ date:dateK,creneau:slot,nom:p.name,role:p.role, user_id:S.session.user.id,group_id:groupId,referent_name:referentName, kayak_rental:kx&&rentalNames.has(p.name) }));
-      try {
-        const inserted=await sbInsertMany(payload);
-        inserted.forEach(r=>getSlot(dateK,slot).push({name:r.nom,role:r.role,_id:r.id,user_id:r.user_id,group_id:r.group_id,referent:r.referent_name,rental:r.kayak_rental}));
-        created+=inserted.length;
-      } catch(e){ skipped+=toAdd.length; }
-    }
-  }
-  QR.selectedDays.clear(); QR.selectedSlots.clear();
-  renderQrWeek(); renderQrSlots(); updateQrSummary();
-  refreshAll();
-  if(created>0) toast(`✅ ${created} registration(s) created${skipped?`, ${skipped} skipped`:''}!`,'success');
-  else toast(`No registration created — check priority rules, availability and your training period.`,'error');
-}
-// ── Switch activité Kayak / Fitness ──────────────────────────────────
-function switchActivity(act){
-  S.activeTab = act;
-  document.getElementById('tabKayak').style.color = act==='kayak'?'var(--accent)':'var(--text3)';
-  document.getElementById('tabKayak').style.borderBottomColor = act==='kayak'?'var(--accent)':'transparent';
-  document.getElementById('tabMuscu').style.color = act==='musculation'?'var(--accent)':'var(--text3)';
-  document.getElementById('tabMuscu').style.borderBottomColor = act==='musculation'?'var(--accent)':'transparent';
-  document.getElementById('dayPanel').style.display = act==='kayak'?'block':'none';
-  document.getElementById('muscuPanelWrap').style.display = act==='musculation'?'block':'none';
-  if(act==='musculation') renderMuscuPanel();
-}
-
-// ── Admin : modifier les horaires Kayak / Fitness ──────────────────
-async function updateHours(activity, dayType, field, value){
-  if(activity==='kayak'){
-    if(field==='closed'){ if(value){ S.kayakHours[dayType].open=null; S.kayakHours[dayType].close=null; } else { S.kayakHours[dayType].open='07:00'; S.kayakHours[dayType].close='18:00'; } }
-    else S.kayakHours[dayType][field] = value||null;
-  } else {
-    if(field==='closed'){ if(value){ S.muscuHours[dayType].open=null; S.muscuHours[dayType].close=null; } else { S.muscuHours[dayType].open=dayType==='weekday'?'07:30':'08:00'; S.muscuHours[dayType].close=dayType==='weekday'?'18:00':'16:00'; } }
-    else S.muscuHours[dayType][field] = value||null;
-    updateMuscuSlotsPreview();
-  }
-  await saveConfig();
-  if(S.activeTab==='musculation') renderMuscuPanel();
-}
-
-async function updateMuscuConfig(field, value){
-  if(field==='duration') S.muscuSlotDuration = Math.max(30,parseInt(value)||90);
-  if(field==='capacity') S.muscuCapacity = Math.max(1,parseInt(value)||20);
-  await saveConfig();
-  updateMuscuSlotsPreview();
-  if(S.activeTab==='musculation') renderMuscuPanel();
-}
-
-function updateMuscuSlotsPreview(){
-  const el=document.getElementById('muscuSlotsPreview');
-  if(!el||!S.selectedDate) return;
-  const slots=generateMuscuSlots(dk(S.selectedDate));
-  el.textContent = slots.length ? `Preview (selected day): ${slots.join(', ')}` : 'No slots for this day.';
-}
-
-// ── Impression Fitness ────────────────────────────────────────────────
-function printMuscu(){
-  const d=S.selectedDate, k=dk(d);
-  const dayName=t('dowFull')[d.getDay()];
-  const dateStr=`${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
-  const slots=generateMuscuSlots(k);
-  let html=`<html><head><title>Fitness ${dateStr}</title>
-  <style>body{font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px}h1{font-size:1.1rem}table{width:100%;border-collapse:collapse;margin-bottom:14px}th{background:#0d9488;color:white;padding:6px 10px;text-align:left;font-size:.82rem}td{padding:5px 10px;border-bottom:1px solid #eee;font-size:.82rem}tr:nth-child(even){background:#f8fafc}.slot-title{font-weight:700;margin:12px 0 4px;padding:6px 10px;background:#f0fdfa;border-left:4px solid #0d9488;border-radius:4px}.empty{color:#999;font-style:italic;font-size:.8rem}</style>
-  </head><body>
-  <h1>🏋️ Fitness — ${dateStr}</h1>
-  <p style="font-size:.8rem;color:#666">Printed ${new Date().toLocaleDateString('en-GB')} · Capacity: ${S.muscuCapacity||20}/slot</p>`;
-  slots.forEach(slot=>{
-    const aths=getMuscuSlot(k,slot);
-    html+=`<div class="slot-title">${slot} — ${aths.length}/${S.muscuCapacity||20}</div>`;
-    if(!aths.length){ html+=`<div class="empty">No registrations</div>`; }
-    else { html+=`<table><tr><th>#</th><th>Name</th></tr>${aths.map((a,i)=>`<tr><td>${i+1}</td><td>${esc(a.name)}</td></tr>`).join('')}</table>`; }
-  });
-  html+=`<p style="font-size:.7rem;color:#999;margin-top:20px;border-top:1px solid #eee;padding-top:8px">Kayak Winter Training — SEVI / CINOR</p></body></html>`;
-  const win=window.open('','_blank'); win.document.write(html); win.document.close(); setTimeout(()=>win.print(),500);
-}
-
-// ── Mise à jour refreshAll pour inclure musculation ───────────────────
-function printDay(){
-  const d=S.selectedDate, k=dk(d);
-  const dayName=t('dowFull')[d.getDay()];
-  const dateStr=`${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
-  const slots=[...morningSlots(k),...afternoonSlots(k)];
-  let html=`<html><head><title>Planning ${dateStr}</title>
-  <style>
-    body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#111}
-    h1{font-size:1.1rem;margin-bottom:4px}
-    .sub{font-size:.8rem;color:#666;margin-bottom:16px}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    th{background:#1d4ed8;color:white;padding:7px 10px;text-align:left;font-size:.82rem}
-    td{padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:.82rem}
-    tr:nth-child(even){background:#f8fafc}
-    .slot-title{font-weight:700;font-size:.9rem;margin:14px 0 4px;padding:6px 10px;background:#f0f7ff;border-left:4px solid #1d4ed8;border-radius:4px}
-    .kx{background:#fff7ed!important;border-left-color:#f97316!important}
-    .empty{color:#999;font-style:italic;font-size:.8rem;padding:6px 10px}
-    .footer{font-size:.72rem;color:#999;margin-top:24px;border-top:1px solid #eee;padding-top:8px}
-  </style></head><body>
-  <h1>🚣 Planning Kayak WT — ${dateStr}</h1>
-  <div class="sub">Printed on ${new Date().toLocaleDateString('en-GB')} at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>`;
-  slots.forEach(slot=>{
-    const aths=getSlot(k,slot), c=cap(slot,k), kx=isKayakCross(k,slot);
-    html+=`<div class="slot-title${kx?' kx':''}">${kx?'🏄 KAYAK CROSS — ':''}${slot} — ${aths.length}/${c} registered</div>`;
-    if(!aths.length){ html+=`<div class="empty">No registrations</div>`; }
-    else {
-      html+=`<table><tr><th>#</th><th>Name</th><th>Role</th>${kx?'<th>Rental</th>':''}${S.isAdmin?'<th>Registered by</th>':''}</tr>`;
-      aths.forEach((a,i)=>{ html+=`<tr><td>${i+1}</td><td><b>${esc(a.name)}</b></td><td>${esc(roleDisplay(a.role))}</td>${kx?`<td>${a.rental?'🚣 Yes':'No'}</td>`:''}${S.isAdmin?`<td>${esc(a.referent||'—')}</td>`:''}</tr>`; });
-      html+=`</table>`;
-    }
-  });
-  html+=`<div class="footer">Kayak Winter Training 2026-2027 — SEVI / CINOR</div></body></html>`;
-  const win=window.open('','_blank');
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(()=>win.print(),500);
-}
-
-let _allKnownNames = [];
-
-async function loadAllKnownNames(){
-  const { data } = await sb.from('athletes').select('full_name,role').eq('active',true).order('full_name');
-  const seen = new Set();
-  _allKnownNames = [];
-  (data||[]).forEach(r=>{
-    if(r.full_name && !seen.has(r.full_name)){
-      seen.add(r.full_name);
-      _allKnownNames.push({ name:r.full_name, role:r.role||'Athlète' });
-    }
-  });
-  updateNameAutocomplete();
-}
-
-function updateNameAutocomplete(){
-  const dl = document.getElementById('nameAutocompleteList');
-  if(!dl) return;
-  const names = new Set([
-    ...S.athletes.map(a=>a.full_name),
-    ..._allKnownNames.map(n=>n.name)
-  ]);
-  dl.innerHTML = [...names].map(n=>`<option value="${esc(n)}">`).join('');
-}
-
-function onNameAutocomplete(input, roleSelect){
-  const match = _allKnownNames.find(n=>n.name.toLowerCase()===input.value.toLowerCase());
-  if(match && roleSelect) roleSelect.value = match.role||'Athlète';
+async function submitRegistration(){
+  if(!S.regPending||!S.session) return;
+  const { dateK, slot } = S.regPending;
+  const rows = [...document.querySelectorAll('#regParticipants .group-row')];
+  const participants = rows.map(r=>{
+    const name = r.querySelector('input').value.trim();
+    const role = r.querySelector('select').value;
+    return name ? {name,role} : null;
+  }).filter(Boolean);
+  if(!participants.length){ toast('Please enter at least one name.','error'); return; }
+  const free = cap(slot,dateK) - getSlot(dateK,slot).length;
+  if(participants.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
+  const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
+  const referentName = S.profile?.full_name || S.session.user.email;
+  const kx = isKayakCross(dateK, slot);
+  const rental = kx && document.getElementById('kxRentalYes').checked;
+  const payload = participants.map(p => ({
+    date: dateK, creneau: slot, nom: p.name, role: p.role,
+    user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
+    kayak_rental: rental
+  }));
+  try {
+    const inserted = await sbInsertMany(payload);
+    inserted.forEach(r => getSlot(dateK,slot).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental }));
+    toast(`${participants.length} inscription(s) ajoutée(s) sur ${slot} !`,"success");
+    closeModal('registerModal');
+    sendUserConfirmation(participants, dateK, slot); // email de confirmation à l'utilisateur
+    renderDayPanel(); renderCal();
+  } catch(e){ toast("Erreur lors de l'inscription — réessayez.","error"); }
 }
 
 async function removeAthlete(dateK,slot,idx){
@@ -2598,7 +1970,7 @@ async function removeAthlete(dateK,slot,idx){
     getSlot(dateK,slot).splice(idx,1);
     toast(`${name} ${t("toastRemoved")}`,"success");
     checkAndNotifyWaitlist(dateK, slot); // prévenir la liste d'attente
-    refreshAll();
+    renderDayPanel(); renderCal();
   } catch(e){ toast("Erreur réseau — réessayez.","error"); }
 }
 
@@ -3369,185 +2741,25 @@ function renderGlobalPlanning(start, days){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GESTION DES ATHLÈTES (My Team)
+// GESTION ATHLÈTES (My Team)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let _myTeamOpen = true;
-
-function toggleMyTeam(){
-  _myTeamOpen = !_myTeamOpen;
-  document.getElementById('myTeamBody').style.display = _myTeamOpen ? 'block' : 'none';
-  document.getElementById('myTeamChevron').style.transform = _myTeamOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
-}
-
-// Charger les athlètes depuis Supabase
 async function loadAthletes(){
   if(!S.session) return;
-  const { data, error } = await sb.from('athletes')
-    .select('*')
-    .eq('user_id', S.session.user.id)
-    .eq('active', true)
-    .order('full_name', { ascending: true });
-  if(error){ console.error('loadAthletes:', error); return; }
-  S.athletes = data || [];
-  renderAthleteList();
-  updateNameAutocomplete();
+  const { data } = await sb.from('athletes').select('*').eq('user_id',S.session.user.id).eq('active',true).order('full_name');
+  S.athletes = data||[];
 }
 
-function renderAthleteList(){
-  const el = document.getElementById('athleteList');
-  const count = document.getElementById('myTeamCount');
-  if(count) count.textContent = `${S.athletes.length} athlete(s)`;
-  if(!S.athletes.length){
-    el.innerHTML = `<p style="font-size:.82rem;color:var(--text3);padding:8px 0">No athletes yet. Add your team members below.</p>`;
-    return;
-  }
-  el.innerHTML = S.athletes.map(a=>`
-    <div class="athlete-row" id="ath-${a.id}">
-      <div class="athlete-name">${esc(a.full_name)}</div>
-      <span class="athlete-role-tag ${a.role==='Encadrant'?'athlete-role-coach':'athlete-role-athlete'}">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
-      <button class="ath-btn" style="font-size:.7rem;padding:3px 8px;border:1.5px solid var(--border)" onclick="editAthlete('${a.id}','${esc(a.full_name)}','${a.role}')">✏️</button>
-      <button class="ath-btn del" onclick="deleteAthlete('${a.id}','${esc(a.full_name)}')">✕</button>
-    </div>`).join('');
-}
-
-async function addAthleteToDB(){
-  const nameEl = document.getElementById('newAthleteName');
-  const roleEl = document.getElementById('newAthleteRole');
-  const msgEl = document.getElementById('athleteAddMsg');
-  const name = nameEl.value.trim();
-  msgEl.style.color = 'var(--red)'; msgEl.textContent = '';
-  if(!name){ msgEl.textContent = 'Please enter a name.'; return; }
-  // Vérifier doublon dans la liste de l'utilisateur
-  if(S.athletes.some(a=>a.full_name.toLowerCase()===name.toLowerCase())){
-    msgEl.textContent = `${name} is already in your team.`; return;
-  }
-  const { data, error } = await sb.from('athletes').insert({
-    full_name: name, role: roleEl.value, user_id: S.session.user.id, active: true
-  }).select().maybeSingle();
-  if(error){
-    // Unique constraint violation (doublon global)
-    msgEl.textContent = error.code==='23505' ? `${name} already exists in your team.` : error.message;
-    return;
-  }
-  S.athletes.push(data);
-  S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
-  nameEl.value = ''; roleEl.value = 'Athlète';
-  refreshAll(); // sync My Team + Quick Registration + autocomplete
-  msgEl.style.color = '#16a34a';
-  msgEl.textContent = `✅ ${name} added to your team!`;
-  setTimeout(()=>{ msgEl.textContent=''; }, 3000);
-}
-
-function editAthlete(id, currentName, currentRole){
-  const row = document.getElementById('ath-'+id);
-  if(!row) return;
-  row.classList.add('editing');
-  row.innerHTML = `
-    <input class="field" id="edit-name-${id}" value="${esc(currentName)}" style="flex:2;min-width:120px">
-    <select class="field" id="edit-role-${id}" style="width:100px">
-      <option value="Athlète" ${currentRole==='Athlète'?'selected':''}>Athlete</option>
-      <option value="Encadrant" ${currentRole==='Encadrant'?'selected':''}>Coach</option>
-    </select>
-    <button class="btn btn-primary btn-sm" onclick="saveAthleteEdit('${id}')">💾</button>
-    <button class="btn btn-sm" onclick="renderAthleteList()">✕</button>`;
-}
-
-async function saveAthleteEdit(id){
-  const newName = document.getElementById('edit-name-'+id)?.value?.trim();
-  const newRole = document.getElementById('edit-role-'+id)?.value;
-  if(!newName){ toast('Please enter a name.','error'); return; }
-  // Vérifier doublon
-  if(S.athletes.some(a=>a.id!==id && a.full_name.toLowerCase()===newName.toLowerCase())){
-    toast(`${newName} already exists in your team.`,'error'); return;
-  }
-  const { error } = await sb.from('athletes').update({ full_name:newName, role:newRole }).eq('id', id);
-  if(error){ toast('Error saving: '+error.message,'error'); return; }
-  const idx = S.athletes.findIndex(a=>a.id===id);
-  if(idx>=0){ S.athletes[idx].full_name=newName; S.athletes[idx].role=newRole; }
-  S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
-  refreshAll();
-  toast(`✅ ${newName} updated!`,'success');
-}
-
-async function deleteAthlete(id, name){
-  if(!confirm(`Remove ${name} from your team?\n\nNote: their past registrations will not be affected.`)) return;
-  // Soft delete : active = false (les inscriptions passées restent intactes)
-  const { error } = await sb.from('athletes').update({ active: false }).eq('id', id);
-  if(error){ toast('Error: '+error.message,'error'); return; }
-  S.athletes = S.athletes.filter(a=>a.id!==id);
-  refreshAll();
-  toast(`${name} removed from your team.`,'success');
-}
-
-// Mettre à jour le datalist d'autocomplétion avec les athlètes de la DB
-function updateNameAutocomplete(){
+async function loadAllKnownNames(){
+  const { data } = await sb.from('athletes').select('full_name,role').eq('active',true).order('full_name');
   const dl = document.getElementById('nameAutocompleteList');
-  if(!dl) return;
-  // Fusionner les athlètes locaux et les noms globaux connus
-  const names = new Set([
-    ...S.athletes.map(a=>a.full_name),
-    ..._allKnownNames.map(n=>n.name)
-  ]);
-  dl.innerHTML = [...names].map(n=>`<option value="${esc(n)}">`).join('');
+  if(dl && data) dl.innerHTML=[...new Set((data||[]).map(a=>a.full_name))].map(n=>`<option value="${esc(n)}">`).join('');
 }
 
-// ── Admin : voir tous les athlètes + détection doublons ──────────────
-let _allAthletes = [];
-let _adminAthleteFilter = 'all';
-
-async function openAdminAthletes(){
-  if(!S.isAdmin) return;
-  // Récupérer les athlètes actifs
-  const { data: athletes } = await sb.from('athletes').select('*').eq('active',true).order('full_name');
-  // Récupérer les profils des owners séparément
-  const userIds = [...new Set((athletes||[]).map(a=>a.user_id).filter(Boolean))];
-  let profileMap = {};
-  if(userIds.length){
-    const { data: profiles } = await sb.from('profiles').select('id,full_name,email').in('id',userIds);
-    (profiles||[]).forEach(p=>{ profileMap[p.id]=p; });
-  }
-  _allAthletes = (athletes||[]).map(a=>({...a, owner: profileMap[a.user_id]||null}));
-  filterAdminAthletes('all');
-  document.getElementById('adminAthletesModal').classList.add('show');
-}
-
-function filterAdminAthletes(filter){
-  _adminAthleteFilter = filter;
-  ['all','duplicates'].forEach(f=>{
-    const btn = document.getElementById('filter'+f.charAt(0).toUpperCase()+f.slice(1)+'Ath');
-    if(btn){ btn.style.background = f===filter?'var(--accent)':''; btn.style.color = f===filter?'white':''; }
-  });
-  // Détecter les doublons (même nom, insensible à la casse)
-  const nameCount = {};
-  _allAthletes.forEach(a=>{ const k=a.full_name.toLowerCase(); nameCount[k]=(nameCount[k]||0)+1; });
-  const list = filter==='duplicates'
-    ? _allAthletes.filter(a=>nameCount[a.full_name.toLowerCase()]>1)
-    : _allAthletes;
-  const el = document.getElementById('adminAthletesList');
-  if(!list.length){ el.innerHTML=`<p style="color:var(--text3);font-size:.85rem;padding:8px 0">No results.</p>`; return; }
-  el.innerHTML = list.map(a=>{
-    const isDup = nameCount[a.full_name.toLowerCase()]>1;
-    const owner = a.owner?.full_name || a.owner?.email || 'Unknown';
-    // Compter les séances dans S.data
-    let sessions = 0;
-    Object.keys(S.data).forEach(dateK=>{ Object.keys(S.data[dateK]).forEach(slot=>{ S.data[dateK][slot].forEach(r=>{ if(r.name===a.full_name) sessions++; }); }); });
-    return `<div class="request-card" style="border-left:4px solid ${isDup?'#f97316':'#0d9488'}">
-      <b>${esc(a.full_name)} ${isDup?'<span class="duplicate-badge">⚠️ Possible duplicate</span>':''}</b>
-      <div class="rc-meta">Role: ${a.role==='Encadrant'?'Coach':'Athlete'} · Added by: ${esc(owner)} · ${sessions} session(s)</div>
-      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-        <button class="block-btn" style="background:#dc2626" onclick="adminDeleteAthlete('${a.id}','${esc(a.full_name)}')">🗑 Remove</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function adminDeleteAthlete(id, name){
-  if(!confirm(`Remove athlete "${name}" from the system?\nPast registrations are NOT affected.`)) return;
-  const { error } = await sb.from('athletes').update({ active:false }).eq('id', id);
-  if(error){ toast('Error: '+error.message,'error'); return; }
-  _allAthletes = _allAthletes.filter(a=>a.id!==id);
-  filterAdminAthletes(_adminAthleteFilter);
-  toast(`${name} removed.`,'success');
+function onNameAutocomplete(input, roleSelect){
+  if(!roleSelect) return;
+  const val = input.value.toLowerCase();
+  const match = S.athletes.find(a=>a.full_name.toLowerCase()===val);
+  if(match) roleSelect.value = match.role||'Athlète';
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
