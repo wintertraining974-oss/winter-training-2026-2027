@@ -198,6 +198,21 @@ select.field { min-width: 110px; cursor: pointer; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: .75rem; color: var(--text3); }
 .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+/* ── My Team ─────────────────────────────────────────────── */
+.my-team-card { background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden; }
+.my-team-header { background:linear-gradient(135deg,#0f766e,#0d9488);color:white;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none; }
+.my-team-header:hover { opacity:.95; }
+.my-team-title { font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:8px; }
+.my-team-body { padding:20px; }
+.ath-list-row { display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:6px;transition:all .15s; }
+.ath-list-row:hover { border-color:#0d9488;background:#f0fdfa; }
+.ath-list-name { flex:1;font-weight:600;font-size:.85rem; }
+.ath-list-role { font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:700; }
+.ath-role-ath { background:#dbeafe;color:#1e40af; }
+.ath-role-coa { background:#dcfce7;color:#166534; }
+.team-empty-hint { text-align:center;padding:20px;border:2px dashed var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:.85rem; }
+/* Admin athletes modal */
+.dup-badge { font-size:.65rem;background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 6px;font-weight:700;margin-left:6px; }
 @media(max-width: 600px) {
   .week-grid { grid-template-columns: repeat(7, 1fr); gap: 2px; }
   .wk-head { padding: 6px 2px; }
@@ -482,6 +497,35 @@ select.field { min-width: 110px; cursor: pointer; }
 </header>
 
 <div class="app-body" id="appBody" style="display:none">
+  <!-- ── My Team ─────────────────────────────────────────────────── -->
+  <div class="my-team-card" id="myTeamPanel" style="display:none">
+    <div class="my-team-header" onclick="toggleMyTeam()">
+      <div class="my-team-title">
+        🏊 My Team — Manage athletes
+        <span id="myTeamCount" style="background:rgba(255,255,255,.25);border-radius:10px;padding:1px 9px;font-size:.76rem"></span>
+      </div>
+      <span id="myTeamChevron" style="font-size:.85rem;transition:transform .2s">▼</span>
+    </div>
+    <div id="myTeamBody" class="my-team-body">
+      <p style="font-size:.8rem;color:var(--text3);margin-bottom:12px">
+        Add all athletes in your group here <b>before registering</b>. This list is saved for all your bookings. You can only register once your team is set up.
+      </p>
+      <div id="athleteList"></div>
+      <!-- Formulaire ajout -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <input class="field" id="newAthleteName" type="text" placeholder="Athlete full name"
+          list="nameAutocompleteList" style="flex:2;min-width:150px"
+          onkeydown="if(event.key==='Enter')addAthleteToDB()">
+        <select class="field" id="newAthleteRole" style="width:115px">
+          <option value="Athlète">Athlete</option>
+          <option value="Encadrant">Coach</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="addAthleteToDB()">+ Add</button>
+      </div>
+      <div id="athleteAddMsg" style="font-size:.75rem;min-height:1em;margin-top:5px"></div>
+    </div>
+  </div>
+
   <div class="quick-reg-card" id="quickRegPanel">
     <h2 id="qrTitle">⚡ Quick registration</h2>
     <p class="qr-sub"><span id="qrSub"></span><a href="#calNavAnchor" class="qr-jump" id="qrJump" style="display:inline"></a></p>
@@ -604,6 +648,7 @@ select.field { min-width: 110px; cursor: pointer; }
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
       <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
       <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
+      <button class="export-btn" style="background:#0d9488" onclick="openAdminAthletes()">🏊 Gérer athlètes</button>
       <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
     </div>
 
@@ -834,6 +879,23 @@ select.field { min-width: 110px; cursor: pointer; }
 
 <!-- Modal inscription rapide multi-jours -->
 <div class="toast" id="toast"></div>
+<datalist id="nameAutocompleteList"></datalist>
+
+<!-- Modal admin : gestion athlètes -->
+<div class="modal-bg" id="adminAthletesModal">
+  <div class="modal-box" style="max-width:620px;max-height:88vh;overflow-y:auto">
+    <h3>🏊 All Athletes — Admin</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-sm" id="athFilterAll" onclick="filterAdminAthletes('all')" style="background:var(--accent);color:white">All</button>
+      <button class="btn btn-sm" id="athFilterDup" onclick="filterAdminAthletes('duplicates')">⚠️ Possible duplicates</button>
+    </div>
+    <div style="max-height:400px;overflow:auto" id="adminAthletesList"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal('adminAthletesModal')">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="printArea"></div>
 
 <!-- Modal Politique de confidentialité / Privacy Policy -->
@@ -1335,6 +1397,9 @@ async function onAuthed(session){
   document.getElementById('recapBtn').style.display = S.isAdmin ? 'inline-block' : 'none';
   await load();
   await loadConfig();
+  await loadAthletes();
+  await loadAllKnownNames();
+  if(!S.isAdmin) document.getElementById('myTeamPanel').style.display='block';
   let d = todayClamped();
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
   S.selectedDate=d; S.currentDate=d;
@@ -1727,8 +1792,9 @@ function renderSlot(dateK,slot,act='kayak'){
     }
     h+=`</div>`;
     if(st!=='full'&&!(st==='locked'&&!S.isAdmin)){
-      h+=`<div class="add-form">
-        <button class="btn btn-sm btn-primary" onclick="openRegister('${dateK}','${slot}','${act}')">${t('regBtn')}</button>
+      // Pas de bouton Register ici - inscription uniquement via Quick Registration
+      h+=`<div class="add-form" style="padding:6px 10px">
+        <span style="font-size:.75rem;color:var(--text3);font-style:italic">⚡ Use Quick Registration above to register</span>
       </div>`;
     } else if(st==='full'){
       if(act==='kayak'){
@@ -1902,23 +1968,31 @@ function openMultiReg(preDate, preSlot, act){
   }
   if(preSlot) MR.selectedSlots.add(preSlot);
 
-  // Collecter les membres connus depuis les inscriptions passées (kayak + muscu)
-  const seen = new Set();
+  // Utiliser My Team (DB) comme source principale des membres
   MR.knownMembers = [];
-  [S.data, S.muscuData].forEach(store=>{
-    Object.keys(store).forEach(dateK=>{
-      Object.keys(store[dateK]).forEach(slot=>{
-        store[dateK][slot].forEach(a=>{
-          if(a.user_id===S.session.user.id && !seen.has(a.name)){
-            seen.add(a.name);
-            MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
-          }
+  if(S.athletes && S.athletes.length > 0){
+    // Membres depuis la base de données (My Team)
+    S.athletes.forEach(a=>{
+      MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète' });
+    });
+  } else {
+    // Fallback : membres depuis les inscriptions passées
+    const seen = new Set();
+    [S.data, S.muscuData].forEach(store=>{
+      Object.keys(store).forEach(dateK=>{
+        Object.keys(store[dateK]).forEach(slot=>{
+          store[dateK][slot].forEach(a=>{
+            if(a.user_id===S.session.user.id && !seen.has(a.name)){
+              seen.add(a.name);
+              MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
+            }
+          });
         });
       });
     });
-  });
+  }
   const selfName = S.profile?.full_name||S.session.user.email;
-  if(!seen.has(selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
+  if(!MR.knownMembers.find(m=>m.name===selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
   MR.selectedMembers.add(selfName);
 
   document.getElementById('mdregCustoms').innerHTML='';
@@ -2151,6 +2225,7 @@ function updateMdregSummary(){
 
 async function submitMultiReg(){
   if(!S.session) return;
+  if(!checkTeamReady()) return;
   const act = MR.activity;
   const days = [...MR.selectedDays].sort();
   const slots = [...MR.selectedSlots];
@@ -3265,6 +3340,192 @@ function renderRecap(start, days){
   document.getElementById('costBreakdownBody').innerHTML = ch;
 }
 
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MY TEAM — Gestion équipe athlètes
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let _myTeamOpen = true;
+let _allKnownNames = [];
+let _allAthletes = [];
+let _athFilter = 'all';
+
+function toggleMyTeam(){
+  _myTeamOpen = !_myTeamOpen;
+  document.getElementById('myTeamBody').style.display = _myTeamOpen ? 'block' : 'none';
+  document.getElementById('myTeamChevron').style.transform = _myTeamOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
+
+async function loadAthletes(){
+  if(!S.session) return;
+  const { data } = await sb.from('athletes').select('*').eq('user_id', S.session.user.id).eq('active', true).order('full_name');
+  S.athletes = data || [];
+  renderAthleteList();
+  try{ renderMembers(); updateSummary(); } catch(e){}
+}
+
+async function loadAllKnownNames(){
+  const { data } = await sb.from('athletes').select('full_name').eq('active', true).order('full_name');
+  _allKnownNames = [...new Set((data||[]).map(a=>a.full_name))];
+  const dl = document.getElementById('nameAutocompleteList');
+  if(dl) dl.innerHTML = _allKnownNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+}
+
+function renderAthleteList(){
+  const el = document.getElementById('athleteList');
+  const countEl = document.getElementById('myTeamCount');
+  if(countEl) countEl.textContent = `${S.athletes.length} athlete(s)`;
+  if(!el) return;
+  if(!S.athletes.length){
+    el.innerHTML = `<div class="team-empty-hint">🏊 No athletes yet.<br><span style="font-size:.8rem">Add your team members below to enable registration.</span></div>`;
+    return;
+  }
+  el.innerHTML = S.athletes.map(a=>`
+    <div class="ath-list-row" id="ath-row-${a.id}">
+      <div class="ath-list-name">${esc(a.full_name)}</div>
+      <span class="ath-list-role ${a.role==='Encadrant'?'ath-role-coa':'ath-role-ath'}">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
+      <button class="ath-btn" style="font-size:.7rem;padding:3px 8px;border:1.5px solid var(--border)" onclick="editAthlete('${a.id}','${a.full_name.replace(/'/g,"\'")}','${a.role}')">✏️</button>
+      <button class="ath-btn del" onclick="deleteAthlete('${a.id}','${a.full_name.replace(/'/g,"\'")}')">✕</button>
+    </div>`).join('');
+}
+
+async function addAthleteToDB(){
+  const nameEl = document.getElementById('newAthleteName');
+  const roleEl = document.getElementById('newAthleteRole');
+  const msgEl  = document.getElementById('athleteAddMsg');
+  const name = nameEl.value.trim();
+  msgEl.style.color = 'var(--red)'; msgEl.textContent = '';
+  if(!name){ msgEl.textContent = 'Please enter a name.'; return; }
+  if(S.athletes.some(a=>a.full_name.toLowerCase()===name.toLowerCase())){
+    msgEl.textContent = name + ' is already in your team.'; return;
+  }
+  const { data, error } = await sb.from('athletes').insert({
+    full_name: name, role: roleEl.value, user_id: S.session.user.id, active: true
+  }).select().maybeSingle();
+  if(error){ msgEl.textContent = error.code==='23505'? name+' already exists.' : error.message; return; }
+  S.athletes.push(data);
+  S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
+  nameEl.value = ''; roleEl.value = 'Athlète';
+  renderAthleteList();
+  try{ renderMembers(); updateSummary(); } catch(e){}
+  loadAllKnownNames();
+  msgEl.style.color = '#16a34a';
+  msgEl.textContent = '✅ ' + name + ' added to your team!';
+  setTimeout(()=>{ msgEl.textContent=''; }, 3000);
+}
+
+function editAthlete(id, currentName, currentRole){
+  const row = document.getElementById('ath-row-'+id); if(!row) return;
+  row.innerHTML = `
+    <input class="field" id="edit-name-${id}" value="${currentName}" style="flex:2;min-width:120px">
+    <select class="field" id="edit-role-${id}" style="width:100px">
+      <option value="Athlète" ${currentRole==='Athlète'?'selected':''}>Athlete</option>
+      <option value="Encadrant" ${currentRole==='Encadrant'?'selected':''}>Coach</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="saveAthleteEdit('${id}')">💾</button>
+    <button class="btn btn-sm" onclick="renderAthleteList()">✕</button>`;
+}
+
+async function saveAthleteEdit(id){
+  const newName = document.getElementById('edit-name-'+id)?.value?.trim();
+  const newRole = document.getElementById('edit-role-'+id)?.value;
+  if(!newName){ toast('Please enter a name.','error'); return; }
+  if(S.athletes.some(a=>a.id!==id&&a.full_name.toLowerCase()===newName.toLowerCase())){
+    toast(newName + ' already exists in your team.','error'); return;
+  }
+  const { error } = await sb.from('athletes').update({ full_name:newName, role:newRole }).eq('id', id);
+  if(error){ toast('Error: '+error.message,'error'); return; }
+  const idx = S.athletes.findIndex(a=>a.id===id);
+  if(idx>=0){ S.athletes[idx].full_name=newName; S.athletes[idx].role=newRole; }
+  S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
+  renderAthleteList();
+  try{ renderMembers(); updateSummary(); } catch(e){}
+  loadAllKnownNames();
+  toast('✅ ' + newName + ' updated!','success');
+}
+
+async function deleteAthlete(id, name){
+  if(!confirm('Remove ' + name + ' from your team?\nPast registrations will NOT be affected.')) return;
+  const { error } = await sb.from('athletes').update({ active:false }).eq('id', id);
+  if(error){ toast('Error: '+error.message,'error'); return; }
+  S.athletes = S.athletes.filter(a=>a.id!==id);
+  renderAthleteList();
+  try{ renderMembers(); updateSummary(); } catch(e){}
+  loadAllKnownNames();
+  toast(name + ' removed from team.','success');
+}
+
+function checkTeamReady(){
+  if(S.isAdmin) return true;
+  if(!S.athletes || S.athletes.length===0){
+    toast('⚠️ Please add athletes to My Team before registering.','error');
+    const panel = document.getElementById('myTeamPanel');
+    if(panel){ panel.scrollIntoView({ behavior:'smooth', block:'start' }); }
+    if(!_myTeamOpen) toggleMyTeam();
+    return false;
+  }
+  return true;
+}
+
+async function openAdminAthletes(){
+  if(!S.isAdmin) return;
+  const { data: athletes } = await sb.from('athletes').select('*').eq('active',true).order('full_name');
+  const userIds = [...new Set((athletes||[]).map(a=>a.user_id).filter(Boolean))];
+  let profileMap = {};
+  if(userIds.length){
+    const { data: profiles } = await sb.from('profiles').select('id,full_name,email').in('id',userIds);
+    (profiles||[]).forEach(p=>{ profileMap[p.id]=p; });
+  }
+  _allAthletes = (athletes||[]).map(a=>({...a, owner:profileMap[a.user_id]||null}));
+  _athFilter = 'all';
+  filterAdminAthletes('all');
+  document.getElementById('adminAthletesModal').classList.add('show');
+}
+
+function filterAdminAthletes(filter){
+  _athFilter = filter;
+  ['all','duplicates'].forEach(function(f){
+    const btn = document.getElementById('athFilter'+f.charAt(0).toUpperCase()+f.slice(1));
+    if(btn){ btn.style.background=f===filter?'var(--accent)':''; btn.style.color=f===filter?'white':''; }
+  });
+  const nameCount = {};
+  _allAthletes.forEach(a=>{ const k=a.full_name.toLowerCase().trim(); nameCount[k]=(nameCount[k]||0)+1; });
+  const list = filter==='duplicates' ? _allAthletes.filter(a=>nameCount[a.full_name.toLowerCase().trim()]>1) : _allAthletes;
+  const el = document.getElementById('adminAthletesList');
+  if(!list.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem;padding:8px">No results.</p>'; return; }
+  const sessionCount = {};
+  Object.keys(S.data).forEach(function(dateK){ Object.keys(S.data[dateK]).forEach(function(slot){ (S.data[dateK][slot]||[]).forEach(function(r){ sessionCount[r.name]=(sessionCount[r.name]||0)+1; }); }); });
+  el.innerHTML = list.map(function(a){
+    const isDup = nameCount[a.full_name.toLowerCase().trim()]>1;
+    const owner = a.owner ? (a.owner.full_name || a.owner.email || 'Unknown') : 'Unknown';
+    const sessions = sessionCount[a.full_name]||0;
+    return '<div style="padding:10px;border:1.5px solid '+(isDup?'#f97316':'var(--border)')+';border-radius:8px;margin-bottom:8px;background:'+(isDup?'#fff7ed':'white')+'">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      +'<b style="flex:1">'+a.full_name+(isDup?'<span class="dup-badge">⚠️ Duplicate</span>':'')+'</b>'
+      +'<span style="font-size:.72rem;color:var(--text3)">'+(a.role==='Encadrant'?'Coach':'Athlete')+'</span>'
+      +'<span style="font-size:.72rem;color:var(--text3)">'+sessions+' session(s)</span>'
+      +'</div>'
+      +'<div style="font-size:.75rem;color:var(--text3);margin-top:3px">Added by: '+owner+'</div>'
+      +'<div style="margin-top:8px">'
+      +'<button class="btn btn-sm" style="background:#dc2626;color:white" data-id="'+a.id+'" data-name="'+encodeURIComponent(a.full_name)+'" onclick="adminRemoveAthleteSafe(this)">'
+      +'🗑 Remove</button></div></div>';
+  }).join('');
+}
+
+async function adminRemoveAthleteSafe(btn){
+  const id   = btn.dataset.id;
+  const name = decodeURIComponent(btn.dataset.name);
+  await adminRemoveAthlete(id, name);
+}
+
+async function adminRemoveAthlete(id, name){
+  if(!confirm('Remove athlete "' + name + '"?\nPast registrations are NOT affected.')) return;
+  const { error } = await sb.from('athletes').update({ active:false }).eq('id', id);
+  if(error){ toast('Error: '+error.message,'error'); return; }
+  _allAthletes = _allAthletes.filter(a=>a.id!==id);
+  filterAdminAthletes(_athFilter);
+  toast(name + ' removed.','success');
+}
 
 (async()=>{
   switchAuthTab('login');
