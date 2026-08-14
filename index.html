@@ -2055,30 +2055,8 @@ function openMultiReg(preDate, preSlot, act){
   if(preSlot) MR.selectedSlots.add(preSlot);
 
   // Utiliser My Team (DB) comme source principale des membres
-  MR.knownMembers = [];
-  if(S.athletes && S.athletes.length > 0){
-    // Membres depuis la base de données (My Team)
-    S.athletes.forEach(a=>{
-      MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète' });
-    });
-  } else {
-    // Fallback : membres depuis les inscriptions passées
-    const seen = new Set();
-    [S.data, S.muscuData].forEach(store=>{
-      Object.keys(store).forEach(dateK=>{
-        Object.keys(store[dateK]).forEach(slot=>{
-          store[dateK][slot].forEach(a=>{
-            if(a.user_id===S.session.user.id && !seen.has(a.name)){
-              seen.add(a.name);
-              MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
-            }
-          });
-        });
-      });
-    });
-  }
+  mrSyncKnownMembers();
   const selfName = S.profile?.full_name||S.session.user.email;
-  if(!MR.knownMembers.find(m=>m.name===selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
   MR.selectedMembers.add(selfName);
 
   document.getElementById('mdregCustoms').innerHTML='';
@@ -2254,8 +2232,41 @@ function mrRentalOptionsHTML(currentVal){
   return h;
 }
 
+// Reconstruit MR.knownMembers depuis "My Team" (S.athletes) — ou, à défaut, depuis
+// l'historique des inscriptions passées. N'affecte PAS la sélection en cours (MR.selectedMembers).
+function mrSyncKnownMembers(){
+  if(!S.session) return;
+  const prevNames = new Set(MR.knownMembers.map(m=>m.name));
+  MR.knownMembers = [];
+  if(S.athletes && S.athletes.length > 0){
+    S.athletes.forEach(a=>{
+      MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète' });
+    });
+  } else {
+    const seen = new Set();
+    [S.data, S.muscuData].forEach(store=>{
+      Object.keys(store).forEach(dateK=>{
+        Object.keys(store[dateK]).forEach(slot=>{
+          store[dateK][slot].forEach(a=>{
+            if(a.user_id===S.session.user.id && !seen.has(a.name)){
+              seen.add(a.name);
+              MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
+            }
+          });
+        });
+      });
+    });
+  }
+  const selfName = S.profile?.full_name||S.session.user.email;
+  if(!MR.knownMembers.find(m=>m.name===selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
+  // Un membre qui vient d'être retiré de "My Team" ne doit plus rester coché dans la sélection en cours
+  const currentNames = new Set(MR.knownMembers.map(m=>m.name));
+  [...MR.selectedMembers].forEach(n=>{ if(prevNames.has(n) && !currentNames.has(n)) MR.selectedMembers.delete(n); });
+}
+
 function renderMdregMembers(){
   const el = document.getElementById('mdregMembers');
+  if(!el) return;
   const showRental = mrHasKayakCrossSelected();
   if(!MR.knownMembers.length){
     el.innerHTML = `<p style="font-size:.8rem;color:var(--text3)">${t('qrNoMembers')}</p>`;
@@ -2876,7 +2887,6 @@ function resetDefaultSchedule(){
   document.getElementById('dsMsg').textContent = 'Modifications annulées.';
 }
 
-// ── Horaires personnalisés par date ──────────────────────────────────
 let _csDate = null;
 let _csTmp = { morning:[], afternoon:[] };
 
@@ -3573,7 +3583,7 @@ async function loadAthletes(){
   const { data } = await sb.from('athletes').select('*').eq('user_id', S.session.user.id).eq('active', true).order('full_name');
   S.athletes = data || [];
   renderAthleteList();
-  try{ renderMembers(); updateSummary(); } catch(e){}
+  try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
 }
 
 async function loadAllKnownNames(){
@@ -3619,7 +3629,7 @@ async function addAthleteToDB(){
   S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
   nameEl.value = ''; roleEl.value = 'Athlète';
   renderAthleteList();
-  try{ renderMembers(); updateSummary(); } catch(e){}
+  try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
   loadAllKnownNames();
   msgEl.style.color = '#16a34a';
   msgEl.textContent = '✅ ' + name + ' added to your team!';
@@ -3651,7 +3661,7 @@ async function saveAthleteEdit(id){
   if(idx>=0){ S.athletes[idx].full_name=newName; S.athletes[idx].role=newRole; }
   S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
   renderAthleteList();
-  try{ renderMembers(); updateSummary(); } catch(e){}
+  try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
   loadAllKnownNames();
   toast('✅ ' + newName + ' updated!','success');
 }
@@ -3662,7 +3672,7 @@ async function deleteAthlete(id, name){
   if(error){ toast('Error: '+error.message,'error'); return; }
   S.athletes = S.athletes.filter(a=>a.id!==id);
   renderAthleteList();
-  try{ renderMembers(); updateSummary(); } catch(e){}
+  try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
   loadAllKnownNames();
   toast(name + ' removed from team.','success');
 }
