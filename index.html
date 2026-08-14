@@ -718,6 +718,13 @@ select.field { min-width: 110px; cursor: pointer; }
       <div id="dateCapSummary" style="margin-top:10px;font-size:.78rem;color:var(--text3)"></div>
     </div>
 
+    <!-- Flotte de kayaks (Kayak Cross) -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4 id="aBoatQtyTitle">🚣 Flotte de kayaks (Kayak Cross)</h4>
+      <p id="aBoatQtyDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
+      <div id="adminBoatQty"></div>
+    </div>
+
     <!-- Vue planning global -->
     <div class="admin-card" style="margin-top:16px">
       <h4 id="aGlobalPlanTitle">🗓 Vue planning global</h4>
@@ -1056,6 +1063,9 @@ const TR = {
     waJoinSub:"Scannez ce code avec l'appareil photo de WhatsApp pour recevoir les informations sur le planning.",
     dossardPH:'N° dossard', nationalityPH:'Nationalité', rentalLbl:'🚣 Location kayak',
     rentalNone:'Pas de location', rentalPyrhana:'Pyrhana', rentalPanameS:'Paname S', rentalPanameM:'Paname M',
+    boatQtyTitle:'🚣 Flotte de kayaks (Kayak Cross)',
+    boatQtyDesc:"Nombre total de kayaks disponibles par modèle. Une fois ce nombre atteint sur un créneau, ce modèle n'est plus proposé à la location sur ce créneau.",
+    boatRemainingSuffix:' — {n} restant(s)', boatNoneLeft:' — plus disponible',
     printDayBtn:'🖨️ Imprimer le planning du jour',
     printTitle:'Planning', printKayakSection:'🚣 Kayak — Slalom & Kayak Cross',
     printMuscuSection:'🏋️ Salle de musculation',
@@ -1162,6 +1172,9 @@ const TR = {
     waJoinSub:'Scan this code with the WhatsApp camera to get schedule updates.',
     dossardPH:'Bib number', nationalityPH:'Nationality', rentalLbl:'🚣 Kayak rental',
     rentalNone:'No rental', rentalPyrhana:'Pyrhana', rentalPanameS:'Paname S', rentalPanameM:'Paname M',
+    boatQtyTitle:'🚣 Kayak fleet (Kayak Cross)',
+    boatQtyDesc:"Total number of kayaks available per model. Once this number is reached for a slot, that model is no longer offered for rental on that slot.",
+    boatRemainingSuffix:' — {n} left', boatNoneLeft:' — none left',
     printDayBtn:'🖨️ Print day schedule',
     printTitle:'Schedule', printKayakSection:'🚣 Kayak — Slalom & Kayak Cross',
     printMuscuSection:'🏋️ Weight room',
@@ -1255,6 +1268,7 @@ let S = {
   customClosed:{},
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
+  boatQty:{'Pyrhana':6,'Paname S':6,'Paname M':6}, // Flotte de kayaks disponibles par modèle (Kayak Cross)
   data:{}, expanded:{}, movePending:null,
   // ── Salle de musculation (activité parallèle) ──────────────────────
   muscuSlots:['7h30-9h00','9h00-10h30','10h30-12h00','12h00-13h30','13h30-15h00','15h00-16h30','16h30-18h00'],
@@ -1456,6 +1470,7 @@ async function saveConfig() {
     kayakCross:     S.kayakCross,
     dateCapacity:   S.dateCapacity,
     muscuCapacity:  S.muscuCapacity,
+    boatQty:        S.boatQty,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -1477,6 +1492,7 @@ async function loadConfig() {
   if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
   if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
   if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
+  if (cfg.boatQty        !== undefined) S.boatQty        = Object.assign({'Pyrhana':6,'Paname S':6,'Paname M':6}, cfg.boatQty);
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -1577,6 +1593,22 @@ async function toggleKayakCross(dateK, slot){
   await saveConfig();
   renderDayPanel(); renderCal();
   toast(isKayakCross(dateK,slot)?'🏄 Kayak Cross activé !':'Slalom rétabli','success');
+}
+// ── Flotte de kayaks (quantités par modèle, limitées sur les créneaux Kayak Cross) ──
+const BOAT_MODELS = ['Pyrhana','Paname S','Paname M'];
+function boatUsed(dateK, slot, model){
+  return getSlot(dateK, slot, 'kayak').filter(a=>a.kayakModel===model).length;
+}
+function boatRemaining(dateK, slot, model){
+  const qty = (S.boatQty && S.boatQty[model]!=null) ? S.boatQty[model] : Infinity;
+  return Math.max(0, qty - boatUsed(dateK, slot, model));
+}
+async function updateBoatQty(model, val){
+  if(!S.isAdmin) return;
+  if(!S.boatQty) S.boatQty = {};
+  S.boatQty[model] = Math.max(0, parseInt(val)||0);
+  await saveConfig();
+  renderMdregMembers();
 }
 function toggleCustomCode(sel){
   const c = document.getElementById('sfPhoneCustomCode');
@@ -1881,6 +1913,18 @@ function renderAdmin(){
   });
   document.getElementById('adminMuscuCap').innerHTML=mch;
 
+  document.getElementById('aBoatQtyTitle').textContent = t('boatQtyTitle');
+  document.getElementById('aBoatQtyDesc').textContent = t('boatQtyDesc');
+  let bqh='';
+  BOAT_MODELS.forEach(model=>{
+    const key = model==='Pyrhana'?'rentalPyrhana':(model==='Paname S'?'rentalPanameS':'rentalPanameM');
+    const qty = (S.boatQty && S.boatQty[model]!=null) ? S.boatQty[model] : 0;
+    bqh+=`<div class="cap-row"><div style="flex:1">${t(key)}</div>
+      <input type="number" class="cap-input" value="${qty}" min="0" max="100" onchange="updateBoatQty('${model}',this.value)">
+    </div>`;
+  });
+  document.getElementById('adminBoatQty').innerHTML=bqh;
+
   // DOW buttons (0=dim..6=sam)
   let dh='';
   for(let dow=0;dow<7;dow++){
@@ -2142,6 +2186,32 @@ function mrHasKayakCrossSelected(){
   return days.some(d=>slots.some(s=>isKayakCross(d,s)));
 }
 
+// Places restantes pour un modèle de bateau, en tenant compte de TOUS les jours/créneaux
+// Kayak Cross actuellement sélectionnés dans la carte d'inscription rapide (le pire cas est retenu).
+function mrBoatRemaining(model){
+  const days=[...MR.selectedDays], slots=[...MR.selectedSlots];
+  let min = Infinity;
+  days.forEach(d=>slots.forEach(s=>{
+    if(isKayakCross(d,s)){
+      const r = boatRemaining(d,s,model);
+      if(r<min) min=r;
+    }
+  }));
+  return min===Infinity ? ((S.boatQty&&S.boatQty[model]!=null)?S.boatQty[model]:0) : min;
+}
+function mrRentalOptionsHTML(currentVal){
+  let h = `<option value="" ${!currentVal?'selected':''}>${t('rentalNone')}</option>`;
+  BOAT_MODELS.forEach(m=>{
+    const remaining = mrBoatRemaining(m);
+    const isCurrent = currentVal===m;
+    const disabled = remaining<=0 && !isCurrent;
+    const suffix = remaining<=0 ? t('boatNoneLeft') : t('boatRemainingSuffix').replace('{n}',remaining);
+    const key = m==='Pyrhana'?'rentalPyrhana':(m==='Paname S'?'rentalPanameS':'rentalPanameM');
+    h += `<option value="${m}" ${isCurrent?'selected':''} ${disabled?'disabled':''}>${t(key)}${suffix}</option>`;
+  });
+  return h;
+}
+
 function renderMdregMembers(){
   const el = document.getElementById('mdregMembers');
   const showRental = mrHasKayakCrossSelected();
@@ -2160,10 +2230,7 @@ function renderMdregMembers(){
         <span style="font-size:.72rem;color:var(--text3)">${roleDisplay(m.role)}</span>
       </label>
       ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
-        <option value="" ${!ex.rental?'selected':''}>${t('rentalNone')}</option>
-        <option value="Pyrhana" ${ex.rental==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
-        <option value="Paname S" ${ex.rental==='Paname S'?'selected':''}>${t('rentalPanameS')}</option>
-        <option value="Paname M" ${ex.rental==='Paname M'?'selected':''}>${t('rentalPanameM')}</option>
+        ${mrRentalOptionsHTML(ex.rental)}
       </select>`:''}
     </div>`;
   }).join('');
@@ -2190,10 +2257,7 @@ function mdregAddCustom(){
       <option value="Encadrant">${t('roleCoach')}</option>
     </select>
     ${showRental?`<select class="field mdreg-extra" id="rent-${id}">
-      <option value="">${t('rentalNone')}</option>
-      <option value="Pyrhana">${t('rentalPyrhana')}</option>
-      <option value="Paname S">${t('rentalPanameS')}</option>
-      <option value="Paname M">${t('rentalPanameM')}</option>
+      ${mrRentalOptionsHTML('')}
     </select>`:''}
     <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateMdregSummary()">✕</button>`;
   wrap.appendChild(row);
@@ -2276,11 +2340,27 @@ async function submitMultiReg(){
       if(act==='kayak' && !S.isAdmin && isLocked(dateK, slot)){ skipped++; continue; }
       // Vérifier places disponibles
       const free = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
-      const toAdd = participants.slice(0, free);
-      if(!toAdd.length){ skipped++; continue; }
-      if(toAdd.length < participants.length) skipped += participants.length - toAdd.length;
+      let toAdd = participants.slice(0, free);
 
       const kx = act==='kayak' ? isKayakCross(dateK, slot) : false;
+
+      // Vérifier la flotte de kayaks disponible (Kayak Cross) : si le modèle choisi n'a plus
+      // de bateau disponible sur ce créneau, le participant concerné est ignoré (skip).
+      if(kx){
+        const used = {};
+        BOAT_MODELS.forEach(m=> used[m] = getSlot(dateK,slot,act).filter(a=>a.kayakModel===m).length);
+        toAdd = toAdd.filter(p=>{
+          if(p.rental && used.hasOwnProperty(p.rental)){
+            const qty = (S.boatQty && S.boatQty[p.rental]!=null) ? S.boatQty[p.rental] : Infinity;
+            if(used[p.rental] < qty){ used[p.rental]++; return true; }
+            return false;
+          }
+          return true;
+        });
+      }
+
+      if(!toAdd.length){ skipped++; continue; }
+      if(toAdd.length < participants.length) skipped += participants.length - toAdd.length;
       const payload = toAdd.map(p=>({
         date: dateK, creneau: slot, nom: p.name, role: p.role,
         user_id: S.session.user.id, group_id: groupId, referent_name: referentName,
