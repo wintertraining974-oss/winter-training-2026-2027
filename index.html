@@ -652,6 +652,46 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
     </div>
 
+    <!-- Horaires par défaut (Kayak + Musculation) -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4 id="aDefaultSchedTitle">🕐 Horaires par défaut — Kayak &amp; Musculation</h4>
+      <p id="aDefaultSchedDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
+        Ces horaires s'appliquent à tous les jours qui n'ont pas d'horaires personnalisés (voir ci-dessous).
+        Renomme, ajoute, supprime ou réordonne les créneaux.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <b style="font-size:.8rem;display:block;margin-bottom:6px">🌅 Kayak — Matin</b>
+          <div id="dsKayakMorningList"></div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <input class="field" id="dsKayakMorningNew" placeholder="ex: 7h-8h" style="flex:1;font-size:.78rem">
+            <button class="btn btn-sm" onclick="addDefaultSlot('kmorning')">+ Ajouter</button>
+          </div>
+        </div>
+        <div>
+          <b style="font-size:.8rem;display:block;margin-bottom:6px">🌇 Kayak — Après-midi</b>
+          <div id="dsKayakAfternoonList"></div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <input class="field" id="dsKayakAfternoonNew" placeholder="ex: 16h-17h" style="flex:1;font-size:.78rem">
+            <button class="btn btn-sm" onclick="addDefaultSlot('kafternoon')">+ Ajouter</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <b style="font-size:.8rem;display:block;margin-bottom:6px">🏋️ Musculation — Créneaux</b>
+        <div id="dsMuscuList"></div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <input class="field" id="dsMuscuNew" placeholder="ex: 18h00-19h30" style="flex:1;font-size:.78rem">
+          <button class="btn btn-sm" onclick="addDefaultSlot('muscu')">+ Ajouter</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" onclick="saveDefaultSchedule()">💾 Enregistrer les horaires par défaut</button>
+        <button class="btn btn-sm" style="color:var(--red)" onclick="resetDefaultSchedule()">↺ Annuler mes modifications</button>
+      </div>
+      <div id="dsMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+    </div>
+
     <!-- Horaires personnalisés par jour -->
     <div class="admin-card" style="margin-top:16px">
       <h4>🕐 Horaires personnalisés par date</h4>
@@ -1925,6 +1965,8 @@ function renderAdmin(){
   });
   document.getElementById('adminBoatQty').innerHTML=bqh;
 
+  renderDefaultScheduleEditor();
+
   // DOW buttons (0=dim..6=sam)
   let dh='';
   for(let dow=0;dow<7;dow++){
@@ -2553,9 +2595,10 @@ function printDaySchedule(dateK, act){
   } else if(act==='muscu'){
     const extraLabel = t('printColNat'), extraKey = 'nationality';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    h += sheet(S.muscuSlots.slice(0,4), extraLabel, extraKey);
+    const muscuMid = Math.ceil(S.muscuSlots.length/2);
+    h += sheet(S.muscuSlots.slice(0,muscuMid), extraLabel, extraKey);
     h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += sheet(S.muscuSlots.slice(4), extraLabel, extraKey);
+    h += sheet(S.muscuSlots.slice(muscuMid), extraLabel, extraKey);
   } else {
     const extraLabel = t('printColDossard'), extraKey = 'dossard';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
@@ -2742,6 +2785,95 @@ function exportCSV(){
   a.download=`inscriptions-kayak-${new Date().toISOString().split('T')[0]}.csv`;
   a.click(); URL.revokeObjectURL(url);
   toast('Export CSV téléchargé !','success');
+}
+
+// ── Horaires par défaut (Kayak + Musculation) ─────────────────────────
+let _dsTmp = null; // { kmorning:[], kafternoon:[], muscu:[] }
+
+function _dsInit(){
+  if(!_dsTmp){
+    _dsTmp = {
+      kmorning:   [...S.morningOrder],
+      kafternoon: [...S.afternoonOrder],
+      muscu:      [...S.muscuSlots],
+    };
+  }
+}
+function _dsListElId(period){
+  return period==='kmorning' ? 'dsKayakMorningList' : (period==='kafternoon' ? 'dsKayakAfternoonList' : 'dsMuscuList');
+}
+function renderDefaultScheduleEditor(){
+  _dsInit();
+  ['kmorning','kafternoon','muscu'].forEach(period=>{
+    const list = document.getElementById(_dsListElId(period));
+    if(!list) return;
+    list.innerHTML = _dsTmp[period].map((slot,i)=>`
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <input class="field" style="flex:1;font-size:.82rem" value="${esc(slot)}"
+          onchange="renameDefaultSlot('${period}',${i},this.value)">
+        ${i>0?`<button class="ath-btn mv" onclick="moveDefaultSlot('${period}',${i},-1)">↑</button>`:'<span style="width:22px"></span>'}
+        ${i<_dsTmp[period].length-1?`<button class="ath-btn mv" onclick="moveDefaultSlot('${period}',${i},1)">↓</button>`:'<span style="width:22px"></span>'}
+        <button class="ath-btn del" onclick="removeDefaultSlot('${period}',${i})">✕</button>
+      </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau — ajoutes-en ci-dessous.</p>`;
+  });
+}
+function addDefaultSlot(period){
+  _dsInit();
+  const inputId = period==='kmorning' ? 'dsKayakMorningNew' : (period==='kafternoon' ? 'dsKayakAfternoonNew' : 'dsMuscuNew');
+  const el = document.getElementById(inputId);
+  const val = el.value.trim();
+  if(!val) return;
+  if(_dsTmp[period].includes(val)){ toast('Ce créneau existe déjà.','error'); return; }
+  _dsTmp[period].push(val);
+  el.value = '';
+  renderDefaultScheduleEditor();
+}
+function removeDefaultSlot(period, idx){
+  _dsInit();
+  _dsTmp[period].splice(idx,1);
+  renderDefaultScheduleEditor();
+}
+function renameDefaultSlot(period, idx, val){
+  _dsInit();
+  val = val.trim();
+  if(!val) { renderDefaultScheduleEditor(); return; }
+  _dsTmp[period][idx] = val;
+  renderDefaultScheduleEditor();
+}
+function moveDefaultSlot(period, idx, dir){
+  _dsInit();
+  const arr = _dsTmp[period];
+  const newIdx = idx+dir;
+  if(newIdx<0||newIdx>=arr.length) return;
+  [arr[idx],arr[newIdx]]=[arr[newIdx],arr[idx]];
+  renderDefaultScheduleEditor();
+}
+async function saveDefaultSchedule(){
+  _dsInit();
+  if(!_dsTmp.kmorning.length && !_dsTmp.kafternoon.length){
+    document.getElementById('dsMsg').style.color='#dc2626';
+    document.getElementById('dsMsg').textContent = 'Il faut au moins un créneau kayak (matin ou après-midi).';
+    return;
+  }
+  if(!_dsTmp.muscu.length){
+    document.getElementById('dsMsg').style.color='#dc2626';
+    document.getElementById('dsMsg').textContent = 'Il faut au moins un créneau musculation.';
+    return;
+  }
+  S.morningOrder   = [..._dsTmp.kmorning];
+  S.afternoonOrder = [..._dsTmp.kafternoon];
+  S.muscuSlots      = [..._dsTmp.muscu];
+  _dsTmp = null;
+  await saveConfig();
+  document.getElementById('dsMsg').style.color='#16a34a';
+  document.getElementById('dsMsg').textContent = '✅ Horaires par défaut enregistrés.';
+  render();
+}
+function resetDefaultSchedule(){
+  _dsTmp = null;
+  renderDefaultScheduleEditor();
+  document.getElementById('dsMsg').style.color='#6b7280';
+  document.getElementById('dsMsg').textContent = 'Modifications annulées.';
 }
 
 // ── Horaires personnalisés par date ──────────────────────────────────
