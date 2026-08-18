@@ -946,15 +946,20 @@ select.field { min-width: 110px; cursor: pointer; }
 
 <!-- Modal admin : gestion athlètes -->
 <div class="modal-bg" id="adminAthletesModal">
-  <div class="modal-box" style="max-width:620px;max-height:88vh;overflow-y:auto">
-    <h3>🏊 All Athletes — Admin</h3>
+  <div class="modal-box" style="max-width:640px;max-height:88vh;overflow-y:auto">
+    <h3>🏊 Gérer les athlètes — Admin</h3>
+    <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
+      Tous les athlètes créés dans "My Team" <b>et</b> tous ceux trouvés dans l'historique des inscriptions
+      (kayak + musculation) sont listés ici, sans doublon. Modifie le nom/rôle, consulte le planning
+      de chaque athlète, déplace ou annule une inscription, ou retire un athlète de son équipe.
+    </p>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <button class="btn btn-sm" id="athFilterAll" onclick="filterAdminAthletes('all')" style="background:var(--accent);color:white">All</button>
-      <button class="btn btn-sm" id="athFilterDup" onclick="filterAdminAthletes('duplicates')">⚠️ Possible duplicates</button>
+      <button class="btn btn-sm" id="athFilterAll" onclick="filterAdminAthletes('all')" style="background:var(--accent);color:white">Tous</button>
+      <button class="btn btn-sm" id="athFilterDup" onclick="filterAdminAthletes('duplicates')">⚠️ Doublons possibles</button>
     </div>
-    <div style="max-height:400px;overflow:auto" id="adminAthletesList"></div>
+    <div style="max-height:440px;overflow:auto" id="adminAthletesList"></div>
     <div class="modal-actions" style="margin-top:14px">
-      <button class="btn" onclick="closeModal('adminAthletesModal')">Close</button>
+      <button class="btn" onclick="closeModal('adminAthletesModal')">Fermer</button>
     </div>
   </div>
 </div>
@@ -2704,31 +2709,42 @@ function adminToggleClose(){
   saveConfig(); render();
 }
 
-function openMove(dateK,slot,idx){
-  const a=getSlot(dateK,slot)[idx];
-  S.movePending={dateK,slot,idx,name:a.name,role:a.role};
+function openMove(dateK,slot,idx,act='kayak'){
+  const a=getSlot(dateK,slot,act)[idx];
+  S.movePending={dateK,slot,idx,name:a.name,role:a.role,act};
   document.getElementById('moveInfo').textContent=
     t('moveInfoTpl').replace('{name}',a.name).replace('{role}',roleDisplay(a.role)).replace('{slot}',slot).replace('{date}',dateK);
   const sel=document.getElementById('moveSlot');
-  sel.innerHTML=allSlots().map(s=>`<option value="${s}"${s===slot?' selected':''}>${s}</option>`).join('');
+  const slotList = act==='muscu' ? muscuSlotsOf() : allSlots(dateK);
+  sel.innerHTML=slotList.map(s=>`<option value="${s}"${s===slot?' selected':''}>${s}</option>`).join('');
   document.getElementById('moveDate').value=dateK;
   document.getElementById('moveModal').classList.add('show');
 }
 async function confirmMove(){
   if(!S.movePending) return;
-  const {dateK,slot,idx,name,role}=S.movePending;
+  const {dateK,slot,idx,name,role,act='kayak'}=S.movePending;
   const nd=document.getElementById('moveDate').value;
   const ns=document.getElementById('moveSlot').value;
   if(!nd){ toast(t('toastNoTarget'),'error'); return; }
-  if(getSlot(nd,ns).length>=cap(ns,nd)){ toast(t('toastTargetFull'),'error'); return; }
-  const a=getSlot(dateK,slot)[idx];
+  if(getSlot(nd,ns,act).length>=cap(ns,nd,act)){ toast(t('toastTargetFull'),'error'); return; }
+  const a=getSlot(dateK,slot,act)[idx];
   try {
     if(a._id) await sbDelete(a._id);
-    const newId=await sbInsert(nd,ns,name,role);
-    getSlot(dateK,slot).splice(idx,1);
-    getSlot(nd,ns).push({name,role,_id:newId});
+    const row = {
+      date: nd, creneau: ns, nom: name, role: role,
+      user_id: a.user_id||null, group_id: a.group_id||null, referent_name: a.referent||null,
+      kayak_rental: act==='kayak' ? !!a.rental : false,
+      kayak_model: act==='kayak' && a.rental ? a.kayakModel : null,
+      dossard: a.dossard||null, nationalite: a.nationality||null,
+      activity: act
+    };
+    const inserted = await sbInsertMany([row]);
+    const newRow = inserted[0];
+    getSlot(dateK,slot,act).splice(idx,1);
+    getSlot(nd,ns,act).push({ name:newRow.nom, role:newRow.role, _id:newRow.id, user_id:newRow.user_id, group_id:newRow.group_id, referent:newRow.referent_name, rental:newRow.kayak_rental, kayakModel:newRow.kayak_model, dossard:newRow.dossard, nationality:newRow.nationalite });
     toast(`${name} ${t('toastMoved')} ${ns} (${nd}).`,'success');
     closeModal('moveModal'); S.movePending=null; render();
+    if(typeof filterAdminAthletes==='function' && document.getElementById('adminAthletesModal')?.classList.contains('show')) filterAdminAthletes(_athFilter);
   } catch(e){ toast('Erreur réseau — réessayez.','error'); }
 }
 
@@ -3661,6 +3677,7 @@ let _myTeamOpen = true;
 let _allKnownNames = [];
 let _allAthletes = [];
 let _athFilter = 'all';
+let _athExpanded = {};
 
 function toggleMyTeam(){
   _myTeamOpen = !_myTeamOpen;
@@ -3782,14 +3799,45 @@ function checkTeamReady(){
 async function openAdminAthletes(){
   if(!S.isAdmin) return;
   const { data: athletes } = await sb.from('athletes').select('*').eq('active',true).order('full_name');
-  const userIds = [...new Set((athletes||[]).map(a=>a.user_id).filter(Boolean))];
+
+  // Clé de fusion : compte (user_id) + nom normalisé — pour regrouper proprement et éviter les doublons
+  const keyOf = (uid,name) => (uid||'noaccount') + '::' + String(name||'').toLowerCase().trim();
+
+  const map = {}; // key -> athlete unifié
+  (athletes||[]).forEach(a=>{
+    map[keyOf(a.user_id,a.full_name)] = {
+      id:a.id, full_name:a.full_name, role:a.role||'Athlète', user_id:a.user_id||null, sessions:[]
+    };
+  });
+
+  // Compléter avec TOUTES les inscriptions passées/futures (kayak + muscu), même celles
+  // dont l'athlète n'a jamais été formellement ajouté dans "My Team" → plus aucun nom manquant.
+  ['kayak','muscu'].forEach(act=>{
+    const store = act==='muscu' ? S.muscuData : S.data;
+    Object.keys(store).forEach(dateK=>{
+      Object.keys(store[dateK]).forEach(slot=>{
+        (store[dateK][slot]||[]).forEach((r,idx)=>{
+          if(!r.name) return;
+          const key = keyOf(r.user_id,r.name);
+          if(!map[key]) map[key] = { id:null, full_name:r.name, role:r.role||'Athlète', user_id:r.user_id||null, sessions:[] };
+          map[key].sessions.push({ dateK, slot, act, idx, _id:r._id });
+        });
+      });
+    });
+  });
+
+  const userIds = [...new Set(Object.values(map).map(a=>a.user_id).filter(Boolean))];
   let profileMap = {};
   if(userIds.length){
     const { data: profiles } = await sb.from('profiles').select('id,full_name,email').in('id',userIds);
     (profiles||[]).forEach(p=>{ profileMap[p.id]=p; });
   }
-  _allAthletes = (athletes||[]).map(a=>({...a, owner:profileMap[a.user_id]||null}));
+
+  _allAthletes = Object.values(map)
+    .map(a=>({...a, owner:profileMap[a.user_id]||null}))
+    .sort((x,y)=>x.full_name.localeCompare(y.full_name));
   _athFilter = 'all';
+  _athExpanded = {};
   filterAdminAthletes('all');
   document.getElementById('adminAthletesModal').classList.add('show');
 }
@@ -3804,24 +3852,105 @@ function filterAdminAthletes(filter){
   _allAthletes.forEach(a=>{ const k=a.full_name.toLowerCase().trim(); nameCount[k]=(nameCount[k]||0)+1; });
   const list = filter==='duplicates' ? _allAthletes.filter(a=>nameCount[a.full_name.toLowerCase().trim()]>1) : _allAthletes;
   const el = document.getElementById('adminAthletesList');
-  if(!list.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem;padding:8px">No results.</p>'; return; }
-  const sessionCount = {};
-  Object.keys(S.data).forEach(function(dateK){ Object.keys(S.data[dateK]).forEach(function(slot){ (S.data[dateK][slot]||[]).forEach(function(r){ sessionCount[r.name]=(sessionCount[r.name]||0)+1; }); }); });
+  if(!list.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem;padding:8px">Aucun résultat.</p>'; return; }
   el.innerHTML = list.map(function(a){
+    const key = (a.user_id||'noaccount')+'::'+a.full_name.toLowerCase().trim();
     const isDup = nameCount[a.full_name.toLowerCase().trim()]>1;
-    const owner = a.owner ? (a.owner.full_name || a.owner.email || 'Unknown') : 'Unknown';
-    const sessions = sessionCount[a.full_name]||0;
-    return '<div style="padding:10px;border:1.5px solid '+(isDup?'#f97316':'var(--border)')+';border-radius:8px;margin-bottom:8px;background:'+(isDup?'#fff7ed':'white')+'">'
-      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-      +'<b style="flex:1">'+a.full_name+(isDup?'<span class="dup-badge">⚠️ Duplicate</span>':'')+'</b>'
-      +'<span style="font-size:.72rem;color:var(--text3)">'+(a.role==='Encadrant'?'Coach':'Athlete')+'</span>'
-      +'<span style="font-size:.72rem;color:var(--text3)">'+sessions+' session(s)</span>'
+    const owner = a.owner ? (a.owner.full_name || a.owner.email || 'Compte inconnu') : 'Compte inconnu';
+    const sessions = a.sessions.length;
+    const isVirtual = !a.id;
+    const expanded = !!_athExpanded[key];
+    const sortedSessions = [...a.sessions].sort((s1,s2)=> (s1.dateK+s1.slot).localeCompare(s2.dateK+s2.slot));
+    const sessionsHtml = expanded ? (
+      sessions ? '<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">' +
+        sortedSessions.map(function(s){
+          const icon = s.act==='muscu' ? '🏋️' : '🚣';
+          const moveBtn = s.act==='kayak' ? '<button class="ath-btn mv" title="Déplacer" onclick="openMove(\''+s.dateK+'\',\''+s.slot.replace(/'/g,"\\'")+'\','+s.idx+',\''+s.act+'\')">↔</button>' : '';
+          return '<div style="display:flex;align-items:center;gap:6px;font-size:.75rem;padding:3px 0">'
+            + '<span style="flex:1">'+icon+' '+esc(s.dateK)+' — '+esc(s.slot)+'</span>'
+            + moveBtn
+            + '<button class="ath-btn del" title="Annuler cette inscription" onclick="adminCancelSession(\''+s.dateK+'\',\''+s.slot.replace(/'/g,"\\'")+'\','+s.idx+',\''+s.act+'\')">✕</button>'
+            + '</div>';
+        }).join('')
+      + '</div>' : '<p style="font-size:.75rem;color:var(--text3);margin-top:8px">Aucune inscription.</p>'
+    ) : '';
+    return '<div style="padding:10px;border:1.5px solid '+(isDup?'#f97316':(isVirtual?'#0d9488':'var(--border)'))+';border-radius:8px;margin-bottom:8px;background:'+(isDup?'#fff7ed':(isVirtual?'#f0fdfa':'white'))+'">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap" id="ath-view-'+key.replace(/[^a-zA-Z0-9]/g,'_')+'">'
+      +'<b style="flex:1">'+esc(a.full_name)+(isDup?'<span class="dup-badge">⚠️ Doublon</span>':'')+(isVirtual?'<span class="dup-badge" style="background:#0d9488;color:white">⚠️ Pas dans My Team</span>':'')+'</b>'
+      +'<span style="font-size:.72rem;color:var(--text3)">'+(a.role==='Encadrant'?'Coach':'Athlète')+'</span>'
+      +'<button class="btn btn-sm" style="font-size:.7rem;padding:3px 8px" onclick="adminToggleAthSessions(\''+key.replace(/'/g,"\\\\'")+'\')">📅 '+sessions+' séance(s) '+(expanded?'▲':'▼')+'</button>'
+      +'<button class="btn btn-sm" style="font-size:.7rem;padding:3px 8px" onclick="adminEditAthleteStart(this,\''+key.replace(/'/g,"\\\\'")+'\')">✏️ Modifier</button>'
+      + (isVirtual
+          ? '<button class="btn btn-sm" style="font-size:.7rem;padding:3px 8px;background:#0d9488;color:white" onclick="adminPromoteVirtual(\''+key.replace(/'/g,"\\\\'")+'\')">+ Créer le profil</button>'
+          : '<button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.7rem;padding:3px 8px" data-id="'+a.id+'" data-name="'+encodeURIComponent(a.full_name)+'" onclick="adminRemoveAthleteSafe(this)">🗑 Supprimer</button>')
       +'</div>'
-      +'<div style="font-size:.75rem;color:var(--text3);margin-top:3px">Added by: '+owner+'</div>'
-      +'<div style="margin-top:8px">'
-      +'<button class="btn btn-sm" style="background:#dc2626;color:white" data-id="'+a.id+'" data-name="'+encodeURIComponent(a.full_name)+'" onclick="adminRemoveAthleteSafe(this)">'
-      +'🗑 Remove</button></div></div>';
+      +'<div style="font-size:.75rem;color:var(--text3);margin-top:3px">Équipe / compte : '+esc(owner)+'</div>'
+      + sessionsHtml
+      +'</div>';
   }).join('');
+}
+
+function adminToggleAthSessions(key){
+  _athExpanded[key] = !_athExpanded[key];
+  filterAdminAthletes(_athFilter);
+}
+
+async function adminCancelSession(dateK,slot,idx,act){
+  await removeAthlete(dateK,slot,idx,act);
+  await openAdminAthletes(); // recharger proprement (les index peuvent avoir bougé)
+}
+
+function adminEditAthleteStart(btn, key){
+  const a = _allAthletes.find(x=>(x.user_id||'noaccount')+'::'+x.full_name.toLowerCase().trim()===key);
+  if(!a) return;
+  const row = btn.closest('div[id^="ath-view-"]');
+  if(!row) return;
+  row.innerHTML = `
+    <input class="field" id="athEditName-${key.replace(/[^a-zA-Z0-9]/g,'_')}" value="${esc(a.full_name)}" style="flex:2;min-width:120px">
+    <select class="field" id="athEditRole-${key.replace(/[^a-zA-Z0-9]/g,'_')}" style="width:110px">
+      <option value="Athlète" ${a.role==='Athlète'?'selected':''}>Athlète</option>
+      <option value="Encadrant" ${a.role==='Encadrant'?'selected':''}>Coach</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="adminSaveAthleteEdit('${escJs(key)}')">💾</button>
+    <button class="btn btn-sm" onclick="filterAdminAthletes(_athFilter)">✕</button>`;
+}
+
+async function adminSaveAthleteEdit(key){
+  const a = _allAthletes.find(x=>(x.user_id||'noaccount')+'::'+x.full_name.toLowerCase().trim()===key);
+  if(!a) return;
+  const idSafe = key.replace(/[^a-zA-Z0-9]/g,'_');
+  const newName = document.getElementById('athEditName-'+idSafe)?.value?.trim();
+  const newRole = document.getElementById('athEditRole-'+idSafe)?.value;
+  if(!newName){ toast('Merci de saisir un nom.','error'); return; }
+  if(a.id){
+    const { error } = await sb.from('athletes').update({ full_name:newName, role:newRole }).eq('id', a.id);
+    if(error){ toast('Erreur : '+error.message,'error'); return; }
+  } else {
+    // Athlète "virtuel" (jamais ajouté dans My Team) : on crée le profil directement avec le nouveau nom/rôle
+    const { data, error } = await sb.from('athletes').insert({
+      full_name:newName, role:newRole, user_id:a.user_id, active:true
+    }).select().maybeSingle();
+    if(error){ toast('Erreur : '+error.message,'error'); return; }
+    a.id = data.id;
+  }
+  toast('✅ ' + newName + ' mis à jour !','success');
+  await openAdminAthletes();
+  // Rafraîchir aussi "My Team" et "Inscription rapide" si le compte modifié est celui de l'utilisateur connecté
+  if(S.session && a.user_id===S.session.user.id) await loadAthletes();
+  loadAllKnownNames();
+}
+
+async function adminPromoteVirtual(key){
+  const a = _allAthletes.find(x=>(x.user_id||'noaccount')+'::'+x.full_name.toLowerCase().trim()===key);
+  if(!a || a.id) return;
+  const { data, error } = await sb.from('athletes').insert({
+    full_name:a.full_name, role:a.role, user_id:a.user_id, active:true
+  }).select().maybeSingle();
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  toast('✅ Profil créé pour ' + a.full_name,'success');
+  await openAdminAthletes();
+  if(S.session && a.user_id===S.session.user.id) await loadAthletes();
+  loadAllKnownNames();
 }
 
 async function adminRemoveAthleteSafe(btn){
@@ -3831,12 +3960,12 @@ async function adminRemoveAthleteSafe(btn){
 }
 
 async function adminRemoveAthlete(id, name){
-  if(!confirm('Remove athlete "' + name + '"?\nPast registrations are NOT affected.')) return;
+  if(!confirm('Supprimer l\'athlète "' + name + '" de son équipe ?\nSes inscriptions passées/à venir ne seront PAS affectées.')) return;
   const { error } = await sb.from('athletes').update({ active:false }).eq('id', id);
-  if(error){ toast('Error: '+error.message,'error'); return; }
-  _allAthletes = _allAthletes.filter(a=>a.id!==id);
-  filterAdminAthletes(_athFilter);
-  toast(name + ' removed.','success');
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  toast(name + ' retiré(e) de son équipe.','success');
+  await openAdminAthletes();
+  loadAllKnownNames();
 }
 
 (async()=>{
