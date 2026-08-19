@@ -511,20 +511,14 @@ select.field { min-width: 110px; cursor: pointer; }
         Add all athletes in your group here before registering. This list is saved for all your bookings. You can only register once your team is set up.
       </p>
       <div id="athleteList"></div>
-      <!-- Formulaire ajout -->
+      <!-- Formulaire ajout : on choisit un athlète déjà enregistré par l'admin, on ne peut plus en créer -->
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-        <input class="field" id="newAthleteFirstName" type="text" placeholder="Prénom"
-          list="firstNameAutocompleteList" style="flex:1;min-width:110px"
-          onkeydown="if(event.key==='Enter')document.getElementById('newAthleteLastName').focus()">
-        <input class="field" id="newAthleteLastName" type="text" placeholder="Nom"
-          list="lastNameAutocompleteList" style="flex:1;min-width:110px"
-          onkeydown="if(event.key==='Enter')addAthleteToDB()">
-        <select class="field" id="newAthleteRole" style="width:115px">
-          <option value="Athlète" id="newAthleteRoleAth">Athlete</option>
-          <option value="Encadrant" id="newAthleteRoleCoa">Coach</option>
+        <select class="field" id="newAthleteSelect" style="flex:2;min-width:200px">
+          <option value="">…</option>
         </select>
         <button class="btn btn-primary btn-sm" id="addAthleteBtn" onclick="addAthleteToDB()">+ Add</button>
       </div>
+      <p id="noUnassignedHint" style="font-size:.75rem;color:var(--text3);margin-top:6px;display:none"></p>
       <div id="athleteAddMsg" style="font-size:.75rem;min-height:1em;margin-top:5px"></div>
     </div>
   </div>
@@ -778,6 +772,21 @@ select.field { min-width: 110px; cursor: pointer; }
       <h4 id="aGlobalPlanTitle">🗓 Vue planning global</h4>
       <p id="aGlobalPlanDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
       <button class="btn btn-sm btn-primary" id="aGlobalPlanBtn" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
+    </div>
+
+    <!-- Zone dangereuse : réinitialisation complète -->
+    <div class="admin-card" style="margin-top:16px;border:1.5px solid #dc2626;background:#fef2f2">
+      <h4 style="color:#dc2626">⚠️ Zone dangereuse — Réinitialisation complète</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
+        Supprime <b>toutes</b> les inscriptions (kayak + musculation) et retire <b>tous</b> les athlètes de leur équipe
+        (ils repartent dans la base commune, prêts à être réassignés). Le logiciel repart à 0 inscription, 0 athlète en équipe.
+        <b>Action irréversible.</b>
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input class="field" id="resetConfirmInput" placeholder="Tape RESET pour confirmer" style="max-width:220px">
+        <button class="btn btn-sm" style="background:#dc2626;color:white" onclick="adminFullReset()">🗑️ Tout réinitialiser</button>
+      </div>
+      <div id="resetMsg" style="font-size:.78rem;margin-top:8px;min-height:1em"></div>
     </div>
   </div>
 </div>
@@ -1077,11 +1086,18 @@ const TR = {
     fullMsg:'Créneau complet — plus de places disponibles.',
     namePH:'Nom Prénom', roleAth:'Athlète', roleCoach:'Encadrant', regBtn:"S'inscrire",
     myTeamTitleTxt:'My Team — Gérer les athlètes',
-    myTeamDesc:"Ajoute ici tous les athlètes de ton groupe avant de t'inscrire. Cette liste est sauvegardée pour toutes tes inscriptions. Tu ne peux t'inscrire qu'une fois ton équipe créée.",
-    athCountSuffix:'athlète(s)', athNoneYet:'Aucun athlète pour le moment.', athNoneYetSub:"Ajoute les membres de ton équipe ci-dessous pour pouvoir t'inscrire.",
+    myTeamDesc:"Choisis ci-dessous les athlètes déjà enregistrés par l'administrateur pour les ajouter à ton équipe. Tu ne peux t'inscrire qu'une fois ton équipe créée.",
+    athCountSuffix:'athlète(s)', athNoneYet:'Aucun athlète pour le moment.', athNoneYetSub:"Choisis un athlète enregistré ci-dessous pour l'ajouter à ton équipe.",
     athMsgNeedBoth:'Merci de saisir un prénom et un nom.', athMsgAlready:'est déjà dans ton équipe.',
     athMsgExists:'existe déjà.', athMsgAdded:'ajouté(e) à ton équipe !', athMsgUpdated:'mis à jour !',
     athMsgRemoved:'retiré(e) de ton équipe.', athConfirmDelete:'Retirer {name} de ton équipe ?\nSes inscriptions passées ne seront PAS affectées.',
+    athPickOne:'— Choisir un athlète enregistré —', athNoUnassigned:'Aucun athlète disponible pour le moment',
+    athAskAdminHint:"Aucun athlète disponible — demande à l'administrateur de t'ajouter dans la base commune.",
+    athMsgPickOne:'Merci de choisir un athlète dans la liste.',
+    athMsgAlreadyTaken:'Cet athlète vient d\'être pris par une autre équipe — la liste a été actualisée.',
+    athReleaseTitle:'Libérer cet athlète (il redevient disponible pour une autre équipe)',
+    athConfirmRelease:'Retirer {name} de ton équipe ?\nIl/elle redevient disponible pour une autre équipe (rien n\'est supprimé).',
+    athMsgReleased:'a été retiré(e) de ton équipe.',
     toastError:'Erreur', addAthleteBtnLbl:'+ Ajouter',
     copyBtn:'📋 Copier', waBtn:'📲 WhatsApp',
     copyOk:'Copié !', copyErr:'Erreur de copie.',
@@ -1195,11 +1211,18 @@ const TR = {
     fullMsg:'Slot full — no spots left.',
     namePH:'First Last Name', roleAth:'Athlete', roleCoach:'Coach', regBtn:'Register',
     myTeamTitleTxt:'My Team — Manage athletes',
-    myTeamDesc:'Add all athletes in your group here before registering. This list is saved for all your bookings. You can only register once your team is set up.',
-    athCountSuffix:'athlete(s)', athNoneYet:'No athletes yet.', athNoneYetSub:'Add your team members below to enable registration.',
+    myTeamDesc:'Pick from the athletes already registered by the admin to add them to your team. You can only register once your team is set up.',
+    athCountSuffix:'athlete(s)', athNoneYet:'No athletes yet.', athNoneYetSub:'Pick a registered athlete below to add them to your team.',
     athMsgNeedBoth:'Please enter a first name and last name.', athMsgAlready:'is already in your team.',
     athMsgExists:'already exists.', athMsgAdded:'added to your team!', athMsgUpdated:'updated!',
     athMsgRemoved:'removed from team.', athConfirmDelete:'Remove {name} from your team?\nPast registrations will NOT be affected.',
+    athPickOne:'— Pick a registered athlete —', athNoUnassigned:'No athlete available yet',
+    athAskAdminHint:'No athlete available — ask the admin to add you one in the shared database.',
+    athMsgPickOne:'Please pick an athlete from the list.',
+    athMsgAlreadyTaken:'This athlete was just claimed by another team — the list has been refreshed.',
+    athReleaseTitle:'Release this athlete (becomes available for another team)',
+    athConfirmRelease:'Remove {name} from your team?\nThey become available for another team (nothing is deleted).',
+    athMsgReleased:'was removed from your team.',
     toastError:'Error', addAthleteBtnLbl:'+ Add',
     copyBtn:'📋 Copy', waBtn:'📲 WhatsApp',
     copyOk:'Copied!', copyErr:'Copy failed.',
@@ -1309,7 +1332,7 @@ function applyI18n(){
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub',
     'costModeLbl','costModeTeamLbl','costModePersonLbl',
-    'myTeamTitleTxt','myTeamDesc','newAthleteRoleAth','newAthleteRoleCoa','addAthleteBtn'];
+    'myTeamTitleTxt','myTeamDesc','addAthleteBtn'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
@@ -1324,7 +1347,7 @@ function applyI18n(){
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub',
     'costModeLbl','costModeTeamLbl','costModePersonLbl',
-    'myTeamTitleTxt','myTeamDesc','roleAth','roleCoach','addAthleteBtnLbl'];
+    'myTeamTitleTxt','myTeamDesc','addAthleteBtnLbl'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
@@ -1336,9 +1359,10 @@ function applyI18n(){
   if(step2HintEl) step2HintEl.textContent = MR.activity==='muscu' ? t('qrStep2HintMuscu') : t('qrStep2Hint');
   const morningLbl = document.getElementById('qrMorningLbl'); if(morningLbl) morningLbl.textContent = t('morning');
   const afternoonLbl = document.getElementById('qrAfternoonLbl'); if(afternoonLbl) afternoonLbl.textContent = t('afternoon');
-  ['newAthleteFirstName','adminNewFirstName'].forEach(id=>{ const el=document.getElementById(id); if(el) el.placeholder = LANG==='fr'?'Prénom':'First name'; });
-  ['newAthleteLastName','adminNewLastName'].forEach(id=>{ const el=document.getElementById(id); if(el) el.placeholder = LANG==='fr'?'Nom':'Last name'; });
+  ['adminNewFirstName'].forEach(id=>{ const el=document.getElementById(id); if(el) el.placeholder = LANG==='fr'?'Prénom':'First name'; });
+  ['adminNewLastName'].forEach(id=>{ const el=document.getElementById(id); if(el) el.placeholder = LANG==='fr'?'Nom':'Last name'; });
   if(document.getElementById('mdregSummary')) updateMdregSummary();
+  if(document.getElementById('newAthleteSelect')) renderUnassignedSelect();
   // Rafraîchir les vues dynamiques qui contiennent du texte traduit généré en JS
   renderDateCapSummary();
   renderDcMiniCal();
@@ -1519,6 +1543,7 @@ async function onAuthed(session){
   await loadConfig();
   await loadAthletes();
   await loadAllKnownNames();
+  await loadUnassignedAthletes();
   if(!S.isAdmin) document.getElementById('myTeamPanel').style.display='block';
   let d = todayClamped();
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
@@ -3722,6 +3747,7 @@ function toggleMyTeam(){
   _myTeamOpen = !_myTeamOpen;
   document.getElementById('myTeamBody').style.display = _myTeamOpen ? 'block' : 'none';
   document.getElementById('myTeamChevron').style.transform = _myTeamOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+  if(_myTeamOpen) loadUnassignedAthletes(); // toujours la liste la plus fraîche à l'ouverture
 }
 
 async function loadAthletes(){
@@ -3733,7 +3759,7 @@ async function loadAthletes(){
 }
 
 // Base commune de prénoms/noms : alimentée par TOUS les athlètes de TOUTES les équipes
-// (actifs), pour proposer l'autocomplétion à quiconque inscrit une nouvelle équipe.
+// (actifs), pour l'autocomplétion proposée à l'admin quand il enregistre un nouveau nom.
 async function loadAllKnownNames(){
   const { data } = await sb.from('athletes').select('full_name').eq('active', true).order('full_name');
   _allKnownNames = [...new Set((data||[]).map(a=>a.full_name))];
@@ -3750,6 +3776,34 @@ async function loadAllKnownNames(){
   if(ldl) ldl.innerHTML = [...lastNames].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${esc(n)}">`).join('');
 }
 
+// Athlètes enregistrés par l'admin mais pas encore rattachés à une équipe :
+// c'est LE réservoir dans lequel chaque équipe vient piocher pour se constituer.
+let _unassignedAthletes = [];
+async function loadUnassignedAthletes(){
+  const { data } = await sb.from('athletes').select('id,full_name,role').is('user_id', null).eq('active', true).order('full_name');
+  _unassignedAthletes = data || [];
+  renderUnassignedSelect();
+}
+
+function renderUnassignedSelect(){
+  const sel = document.getElementById('newAthleteSelect');
+  const hint = document.getElementById('noUnassignedHint');
+  const btn = document.getElementById('addAthleteBtn');
+  if(!sel) return;
+  if(!_unassignedAthletes.length){
+    sel.innerHTML = `<option value="">${t('athNoUnassigned')}</option>`;
+    sel.disabled = true;
+    if(btn) btn.disabled = true;
+    if(hint){ hint.style.display = 'block'; hint.textContent = t('athAskAdminHint'); }
+    return;
+  }
+  sel.disabled = false;
+  if(btn) btn.disabled = false;
+  if(hint) hint.style.display = 'none';
+  sel.innerHTML = `<option value="">${t('athPickOne')}</option>` +
+    _unassignedAthletes.map(a=>`<option value="${a.id}">${esc(a.full_name)} (${a.role==='Encadrant'?t('roleCoach'):t('roleAth')})</option>`).join('');
+}
+
 function renderAthleteList(){
   const el = document.getElementById('athleteList');
   const countEl = document.getElementById('myTeamCount');
@@ -3763,84 +3817,43 @@ function renderAthleteList(){
     <div class="ath-list-row" id="ath-row-${a.id}">
       <div class="ath-list-name">${esc(a.full_name)}</div>
       <span class="ath-list-role ${a.role==='Encadrant'?'ath-role-coa':'ath-role-ath'}">${a.role==='Encadrant'?t('roleCoach'):t('roleAth')}</span>
-      <button class="ath-btn" style="font-size:.7rem;padding:3px 8px;border:1.5px solid var(--border)" onclick="editAthlete('${a.id}','${escJs(a.full_name)}','${a.role}')">✏️</button>
-      <button class="ath-btn del" onclick="deleteAthlete('${a.id}','${escJs(a.full_name)}')">✕</button>
+      <button class="ath-btn del" title="${t('athReleaseTitle')}" onclick="deleteAthlete('${a.id}','${escJs(a.full_name)}')">✕</button>
     </div>`).join('');
 }
 
+// "Ajouter" = rattacher (claim) un athlète déjà enregistré par l'admin à MON équipe.
+// On ne peut plus créer de nom soi-même : tout vient de la base commune gérée par l'admin.
 async function addAthleteToDB(){
-  const fnEl = document.getElementById('newAthleteFirstName');
-  const lnEl = document.getElementById('newAthleteLastName');
-  const roleEl = document.getElementById('newAthleteRole');
-  const msgEl  = document.getElementById('athleteAddMsg');
-  const firstName = fnEl.value.trim();
-  const lastName = lnEl.value.trim();
+  const selEl = document.getElementById('newAthleteSelect');
+  const msgEl = document.getElementById('athleteAddMsg');
   msgEl.style.color = 'var(--red)'; msgEl.textContent = '';
-  if(!firstName || !lastName){ msgEl.textContent = t('athMsgNeedBoth'); return; }
-  const name = firstName + ' ' + lastName;
-  if(S.athletes.some(a=>a.full_name.toLowerCase()===name.toLowerCase())){
-    msgEl.textContent = name + ' ' + t('athMsgAlready'); return;
-  }
-  const { data, error } = await sb.from('athletes').insert({
-    full_name: name, role: roleEl.value, user_id: S.session.user.id, active: true
-  }).select().maybeSingle();
-  if(error){ msgEl.textContent = error.code==='23505'? name+' '+t('athMsgExists') : error.message; return; }
+  const id = selEl.value;
+  if(!id){ msgEl.textContent = t('athMsgPickOne'); return; }
+  // .is('user_id', null) protège contre une double-réservation simultanée par 2 équipes
+  const { data, error } = await sb.from('athletes').update({ user_id: S.session.user.id }).eq('id', id).is('user_id', null).select().maybeSingle();
+  if(error){ msgEl.textContent = error.message; return; }
+  if(!data){ msgEl.textContent = t('athMsgAlreadyTaken'); await loadUnassignedAthletes(); return; }
   S.athletes.push(data);
   S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
-  fnEl.value = ''; lnEl.value = ''; roleEl.value = 'Athlète';
   renderAthleteList();
   try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
-  loadAllKnownNames();
+  await loadUnassignedAthletes();
   msgEl.style.color = '#16a34a';
-  msgEl.textContent = '✅ ' + name + ' ' + t('athMsgAdded');
+  msgEl.textContent = '✅ ' + data.full_name + ' ' + t('athMsgAdded');
   setTimeout(()=>{ msgEl.textContent=''; }, 3000);
 }
 
-function editAthlete(id, currentName, currentRole){
-  const row = document.getElementById('ath-row-'+id); if(!row) return;
-  const parts = String(currentName||'').trim().split(/\s+/);
-  const firstName = parts[0]||'';
-  const lastName = parts.slice(1).join(' ');
-  row.innerHTML = `
-    <input class="field" id="edit-fname-${id}" value="${esc(firstName)}" placeholder="Prénom" list="firstNameAutocompleteList" style="flex:1;min-width:90px">
-    <input class="field" id="edit-lname-${id}" value="${esc(lastName)}" placeholder="Nom" list="lastNameAutocompleteList" style="flex:1;min-width:90px">
-    <select class="field" id="edit-role-${id}" style="width:100px">
-      <option value="Athlète" ${currentRole==='Athlète'?'selected':''}>${t('roleAth')}</option>
-      <option value="Encadrant" ${currentRole==='Encadrant'?'selected':''}>${t('roleCoach')}</option>
-    </select>
-    <button class="btn btn-primary btn-sm" onclick="saveAthleteEdit('${id}')">💾</button>
-    <button class="btn btn-sm" onclick="renderAthleteList()">✕</button>`;
-}
-
-async function saveAthleteEdit(id){
-  const firstName = document.getElementById('edit-fname-'+id)?.value?.trim();
-  const lastName = document.getElementById('edit-lname-'+id)?.value?.trim();
-  const newRole = document.getElementById('edit-role-'+id)?.value;
-  if(!firstName || !lastName){ toast(t('athMsgNeedBoth'),'error'); return; }
-  const newName = firstName + ' ' + lastName;
-  if(S.athletes.some(a=>a.id!==id&&a.full_name.toLowerCase()===newName.toLowerCase())){
-    toast(newName + ' ' + t('athMsgAlready'),'error'); return;
-  }
-  const { error } = await sb.from('athletes').update({ full_name:newName, role:newRole }).eq('id', id);
-  if(error){ toast(t('toastError')+': '+error.message,'error'); return; }
-  const idx = S.athletes.findIndex(a=>a.id===id);
-  if(idx>=0){ S.athletes[idx].full_name=newName; S.athletes[idx].role=newRole; }
-  S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
-  renderAthleteList();
-  try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
-  loadAllKnownNames();
-  toast('✅ ' + newName + ' ' + t('athMsgUpdated'),'success');
-}
-
+// "Supprimer" = libérer l'athlète de mon équipe : il retourne dans la base commune
+// (redevient disponible pour une autre équipe), son profil n'est jamais détruit.
 async function deleteAthlete(id, name){
-  if(!confirm(t('athConfirmDelete').replace('{name}',name))) return;
-  const { error } = await sb.from('athletes').update({ active:false }).eq('id', id);
+  if(!confirm(t('athConfirmRelease').replace('{name}',name))) return;
+  const { error } = await sb.from('athletes').update({ user_id:null }).eq('id', id);
   if(error){ toast(t('toastError')+': '+error.message,'error'); return; }
   S.athletes = S.athletes.filter(a=>a.id!==id);
   renderAthleteList();
   try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
-  loadAllKnownNames();
-  toast(name + ' ' + t('athMsgRemoved'),'success');
+  await loadUnassignedAthletes();
+  toast(name + ' ' + t('athMsgReleased'),'success');
 }
 
 function checkTeamReady(){
@@ -3856,6 +3869,40 @@ function checkTeamReady(){
 }
 
 let _athProfileMap = {}; // user_id -> profile {full_name,email}
+
+// ⚠️ Réinitialisation complète : supprime toutes les inscriptions et libère tous les
+// athlètes de leur équipe (ils repartent dans la base commune, rien n'est détruit côté noms).
+async function adminFullReset(){
+  if(!S.isAdmin) return;
+  const input = document.getElementById('resetConfirmInput');
+  const msg = document.getElementById('resetMsg');
+  if((input.value||'').trim().toUpperCase() !== 'RESET'){
+    msg.style.color='#dc2626'; msg.textContent = 'Tape exactement RESET dans le champ pour confirmer.';
+    return;
+  }
+  if(!confirm('Dernière confirmation : supprimer TOUTES les inscriptions et retirer TOUS les athlètes de leur équipe ?\nCette action est IRRÉVERSIBLE.')) return;
+  msg.style.color='var(--text3)'; msg.textContent = 'Réinitialisation en cours...';
+  try{
+    const { error: e1 } = await sb.from('inscriptions').delete().not('id','is',null);
+    if(e1) throw e1;
+    const { error: e2 } = await sb.from('athletes').update({ user_id:null }).not('id','is',null);
+    if(e2) throw e2;
+    input.value = '';
+    msg.style.color = '#16a34a';
+    msg.textContent = '✅ Réinitialisation terminée — 0 inscription, 0 athlète en équipe.';
+    await load();
+    S.athletes = [];
+    renderAthleteList();
+    try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
+    await loadAllKnownNames();
+    await loadUnassignedAthletes();
+    render();
+    if(document.getElementById('adminAthletesModal')?.classList.contains('show')) openAdminAthletes();
+  } catch(e){
+    msg.style.color = '#dc2626';
+    msg.textContent = 'Erreur : ' + e.message;
+  }
+}
 
 async function openAdminAthletes(){
   if(!S.isAdmin) return;
