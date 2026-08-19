@@ -501,26 +501,29 @@ select.field { min-width: 110px; cursor: pointer; }
   <div class="my-team-card" id="myTeamPanel" style="display:none">
     <div class="my-team-header" onclick="toggleMyTeam()">
       <div class="my-team-title">
-        🏊 My Team — Manage athletes
+        🏊 <span id="myTeamTitleTxt">My Team — Manage athletes</span>
         <span id="myTeamCount" style="background:rgba(255,255,255,.25);border-radius:10px;padding:1px 9px;font-size:.76rem"></span>
       </div>
       <span id="myTeamChevron" style="font-size:.85rem;transition:transform .2s">▼</span>
     </div>
     <div id="myTeamBody" class="my-team-body">
-      <p style="font-size:.8rem;color:var(--text3);margin-bottom:12px">
-        Add all athletes in your group here <b>before registering</b>. This list is saved for all your bookings. You can only register once your team is set up.
+      <p id="myTeamDesc" style="font-size:.8rem;color:var(--text3);margin-bottom:12px">
+        Add all athletes in your group here before registering. This list is saved for all your bookings. You can only register once your team is set up.
       </p>
       <div id="athleteList"></div>
       <!-- Formulaire ajout -->
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-        <input class="field" id="newAthleteName" type="text" placeholder="Athlete full name"
-          list="nameAutocompleteList" style="flex:2;min-width:150px"
+        <input class="field" id="newAthleteFirstName" type="text" placeholder="Prénom"
+          list="firstNameAutocompleteList" style="flex:1;min-width:110px"
+          onkeydown="if(event.key==='Enter')document.getElementById('newAthleteLastName').focus()">
+        <input class="field" id="newAthleteLastName" type="text" placeholder="Nom"
+          list="lastNameAutocompleteList" style="flex:1;min-width:110px"
           onkeydown="if(event.key==='Enter')addAthleteToDB()">
         <select class="field" id="newAthleteRole" style="width:115px">
-          <option value="Athlète">Athlete</option>
-          <option value="Encadrant">Coach</option>
+          <option value="Athlète" id="newAthleteRoleAth">Athlete</option>
+          <option value="Encadrant" id="newAthleteRoleCoa">Coach</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="addAthleteToDB()">+ Add</button>
+        <button class="btn btn-primary btn-sm" id="addAthleteBtn" onclick="addAthleteToDB()">+ Add</button>
       </div>
       <div id="athleteAddMsg" style="font-size:.75rem;min-height:1em;margin-top:5px"></div>
     </div>
@@ -942,7 +945,8 @@ select.field { min-width: 110px; cursor: pointer; }
 
 <!-- Modal inscription rapide multi-jours -->
 <div class="toast" id="toast"></div>
-<datalist id="nameAutocompleteList"></datalist>
+<datalist id="firstNameAutocompleteList"></datalist>
+<datalist id="lastNameAutocompleteList"></datalist>
 
 <!-- Modal admin : gestion athlètes -->
 <div class="modal-bg" id="adminAthletesModal">
@@ -951,16 +955,24 @@ select.field { min-width: 110px; cursor: pointer; }
     <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
       Tous les athlètes créés dans "My Team" <b>et</b> tous ceux trouvés dans l'historique des inscriptions
       (kayak + musculation) sont listés ici, sans doublon. Modifie le nom/rôle, consulte le planning
-      de chaque athlète, déplace ou annule une inscription, retire un athlète de son équipe, ou
-      réassigne un doublon vers la bonne équipe puis supprime le doublon restant.
+      de chaque athlète, déplace ou annule une inscription, ou retire un athlète de son équipe.
     </p>
     <details style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;padding:8px 10px">
-      <summary style="cursor:pointer;font-weight:700;font-size:.82rem">🏷️ Nommer les équipes</summary>
+      <summary style="cursor:pointer;font-weight:700;font-size:.82rem">➕ Ajouter un prénom/nom à la base commune</summary>
       <p style="font-size:.72rem;color:var(--text3);margin:6px 0">
-        Donne un nom à chaque équipe/compte pour vous y retrouver plus facilement (ex: "Club de Rennes", "Famille Martin"...).
-        Ce nom apparaît ensuite dans les regroupements ci-dessous et dans le sélecteur "Équipe" de chaque doublon.
+        Ce nom sera immédiatement proposé dans les listes déroulantes d'autocomplétion à toutes les personnes
+        qui inscrivent une nouvelle équipe — sans être rattaché à une équipe en particulier.
       </p>
-      <div id="adminTeamNames"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input class="field" id="adminNewFirstName" placeholder="Prénom" list="firstNameAutocompleteList" style="flex:1;min-width:100px;font-size:.8rem">
+        <input class="field" id="adminNewLastName" placeholder="Nom" list="lastNameAutocompleteList" style="flex:1;min-width:100px;font-size:.8rem">
+        <select class="field" id="adminNewRole" style="width:105px;font-size:.8rem">
+          <option value="Athlète">Athlète</option>
+          <option value="Encadrant">Coach</option>
+        </select>
+        <button class="btn btn-sm btn-primary" onclick="adminAddSharedName()">+ Ajouter</button>
+      </div>
+      <div id="adminSharedNameMsg" style="font-size:.72rem;margin-top:5px;min-height:1em"></div>
     </details>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <button class="btn btn-sm" id="athFilterAll" onclick="filterAdminAthletes('all')" style="background:var(--accent);color:white">Tous</button>
@@ -1064,6 +1076,13 @@ const TR = {
     registered:'inscrits', noReg:'Aucun inscrit pour le moment.',
     fullMsg:'Créneau complet — plus de places disponibles.',
     namePH:'Nom Prénom', roleAth:'Athlète', roleCoach:'Encadrant', regBtn:"S'inscrire",
+    myTeamTitleTxt:'My Team — Gérer les athlètes',
+    myTeamDesc:"Ajoute ici tous les athlètes de ton groupe avant de t'inscrire. Cette liste est sauvegardée pour toutes tes inscriptions. Tu ne peux t'inscrire qu'une fois ton équipe créée.",
+    athCountSuffix:'athlète(s)', athNoneYet:'Aucun athlète pour le moment.', athNoneYetSub:"Ajoute les membres de ton équipe ci-dessous pour pouvoir t'inscrire.",
+    athMsgNeedBoth:'Merci de saisir un prénom et un nom.', athMsgAlready:'est déjà dans ton équipe.',
+    athMsgExists:'existe déjà.', athMsgAdded:'ajouté(e) à ton équipe !', athMsgUpdated:'mis à jour !',
+    athMsgRemoved:'retiré(e) de ton équipe.', athConfirmDelete:'Retirer {name} de ton équipe ?\nSes inscriptions passées ne seront PAS affectées.',
+    toastError:'Erreur', addAthleteBtnLbl:'+ Ajouter',
     copyBtn:'📋 Copier', waBtn:'📲 WhatsApp',
     copyOk:'Copié !', copyErr:'Erreur de copie.',
     toastAdded:'inscrit(e) sur', toastRemoved:'désinscrit(e).', toastMoved:'déplacé vers',
@@ -1175,6 +1194,13 @@ const TR = {
     registered:'registered', noReg:'No participants yet.',
     fullMsg:'Slot full — no spots left.',
     namePH:'First Last Name', roleAth:'Athlete', roleCoach:'Coach', regBtn:'Register',
+    myTeamTitleTxt:'My Team — Manage athletes',
+    myTeamDesc:'Add all athletes in your group here before registering. This list is saved for all your bookings. You can only register once your team is set up.',
+    athCountSuffix:'athlete(s)', athNoneYet:'No athletes yet.', athNoneYetSub:'Add your team members below to enable registration.',
+    athMsgNeedBoth:'Please enter a first name and last name.', athMsgAlready:'is already in your team.',
+    athMsgExists:'already exists.', athMsgAdded:'added to your team!', athMsgUpdated:'updated!',
+    athMsgRemoved:'removed from team.', athConfirmDelete:'Remove {name} from your team?\nPast registrations will NOT be affected.',
+    toastError:'Error', addAthleteBtnLbl:'+ Add',
     copyBtn:'📋 Copy', waBtn:'📲 WhatsApp',
     copyOk:'Copied!', copyErr:'Copy failed.',
     toastAdded:'registered on', toastRemoved:'unregistered.', toastMoved:'moved to',
@@ -1282,7 +1308,8 @@ function applyI18n(){
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub',
-    'costModeLbl','costModeTeamLbl','costModePersonLbl'];
+    'costModeLbl','costModeTeamLbl','costModePersonLbl',
+    'myTeamTitleTxt','myTeamDesc','newAthleteRoleAth','newAthleteRoleCoa','addAthleteBtn'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
@@ -1296,7 +1323,8 @@ function applyI18n(){
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub',
-    'costModeLbl','costModeTeamLbl','costModePersonLbl'];
+    'costModeLbl','costModeTeamLbl','costModePersonLbl',
+    'myTeamTitleTxt','myTeamDesc','roleAth','roleCoach','addAthleteBtnLbl'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
@@ -1308,6 +1336,8 @@ function applyI18n(){
   if(step2HintEl) step2HintEl.textContent = MR.activity==='muscu' ? t('qrStep2HintMuscu') : t('qrStep2Hint');
   const morningLbl = document.getElementById('qrMorningLbl'); if(morningLbl) morningLbl.textContent = t('morning');
   const afternoonLbl = document.getElementById('qrAfternoonLbl'); if(afternoonLbl) afternoonLbl.textContent = t('afternoon');
+  ['newAthleteFirstName','adminNewFirstName'].forEach(id=>{ const el=document.getElementById(id); if(el) el.placeholder = LANG==='fr'?'Prénom':'First name'; });
+  ['newAthleteLastName','adminNewLastName'].forEach(id=>{ const el=document.getElementById(id); if(el) el.placeholder = LANG==='fr'?'Nom':'Last name'; });
   if(document.getElementById('mdregSummary')) updateMdregSummary();
   // Rafraîchir les vues dynamiques qui contiennent du texte traduit généré en JS
   renderDateCapSummary();
@@ -1345,7 +1375,6 @@ let S = {
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
   boatQty:{'Pyrhana':6,'Paname S':6,'Paname M':6}, // Flotte de kayaks disponibles par modèle (Kayak Cross)
-  teamNames:{}, // { [user_id]: "Nom de l'équipe" } — permet à l'admin de nommer chaque équipe/compte
   data:{}, expanded:{}, movePending:null,
   // ── Salle de musculation (activité parallèle) ──────────────────────
   muscuSlots:['7h30-9h00','9h00-10h30','10h30-12h00','12h00-13h30','13h30-15h00','15h00-16h30','16h30-18h00'],
@@ -1548,7 +1577,6 @@ async function saveConfig() {
     dateCapacity:   S.dateCapacity,
     muscuCapacity:  S.muscuCapacity,
     boatQty:        S.boatQty,
-    teamNames:      S.teamNames,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -1571,7 +1599,6 @@ async function loadConfig() {
   if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
   if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
   if (cfg.boatQty        !== undefined) S.boatQty        = Object.assign({'Pyrhana':6,'Paname S':6,'Paname M':6}, cfg.boatQty);
-  if (cfg.teamNames      !== undefined) S.teamNames      = cfg.teamNames || {};
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -3705,95 +3732,115 @@ async function loadAthletes(){
   try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
 }
 
+// Base commune de prénoms/noms : alimentée par TOUS les athlètes de TOUTES les équipes
+// (actifs), pour proposer l'autocomplétion à quiconque inscrit une nouvelle équipe.
 async function loadAllKnownNames(){
   const { data } = await sb.from('athletes').select('full_name').eq('active', true).order('full_name');
   _allKnownNames = [...new Set((data||[]).map(a=>a.full_name))];
-  const dl = document.getElementById('nameAutocompleteList');
-  if(dl) dl.innerHTML = _allKnownNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+  const firstNames = new Set(), lastNames = new Set();
+  _allKnownNames.forEach(n=>{
+    const parts = String(n||'').trim().split(/\s+/);
+    if(!parts.length || !parts[0]) return;
+    firstNames.add(parts[0]);
+    if(parts.length>1) lastNames.add(parts.slice(1).join(' '));
+  });
+  const fdl = document.getElementById('firstNameAutocompleteList');
+  const ldl = document.getElementById('lastNameAutocompleteList');
+  if(fdl) fdl.innerHTML = [...firstNames].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${esc(n)}">`).join('');
+  if(ldl) ldl.innerHTML = [...lastNames].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${esc(n)}">`).join('');
 }
 
 function renderAthleteList(){
   const el = document.getElementById('athleteList');
   const countEl = document.getElementById('myTeamCount');
-  if(countEl) countEl.textContent = `${S.athletes.length} athlete(s)`;
+  if(countEl) countEl.textContent = `${S.athletes.length} ${t('athCountSuffix')}`;
   if(!el) return;
   if(!S.athletes.length){
-    el.innerHTML = `<div class="team-empty-hint">🏊 No athletes yet.<br><span style="font-size:.8rem">Add your team members below to enable registration.</span></div>`;
+    el.innerHTML = `<div class="team-empty-hint">🏊 ${t('athNoneYet')}<br><span style="font-size:.8rem">${t('athNoneYetSub')}</span></div>`;
     return;
   }
   el.innerHTML = S.athletes.map(a=>`
     <div class="ath-list-row" id="ath-row-${a.id}">
       <div class="ath-list-name">${esc(a.full_name)}</div>
-      <span class="ath-list-role ${a.role==='Encadrant'?'ath-role-coa':'ath-role-ath'}">${a.role==='Encadrant'?'Coach':'Athlete'}</span>
-      <button class="ath-btn" style="font-size:.7rem;padding:3px 8px;border:1.5px solid var(--border)" onclick="editAthlete('${a.id}','${a.full_name.replace(/'/g,"\'")}','${a.role}')">✏️</button>
-      <button class="ath-btn del" onclick="deleteAthlete('${a.id}','${a.full_name.replace(/'/g,"\'")}')">✕</button>
+      <span class="ath-list-role ${a.role==='Encadrant'?'ath-role-coa':'ath-role-ath'}">${a.role==='Encadrant'?t('roleCoach'):t('roleAth')}</span>
+      <button class="ath-btn" style="font-size:.7rem;padding:3px 8px;border:1.5px solid var(--border)" onclick="editAthlete('${a.id}','${escJs(a.full_name)}','${a.role}')">✏️</button>
+      <button class="ath-btn del" onclick="deleteAthlete('${a.id}','${escJs(a.full_name)}')">✕</button>
     </div>`).join('');
 }
 
 async function addAthleteToDB(){
-  const nameEl = document.getElementById('newAthleteName');
+  const fnEl = document.getElementById('newAthleteFirstName');
+  const lnEl = document.getElementById('newAthleteLastName');
   const roleEl = document.getElementById('newAthleteRole');
   const msgEl  = document.getElementById('athleteAddMsg');
-  const name = nameEl.value.trim();
+  const firstName = fnEl.value.trim();
+  const lastName = lnEl.value.trim();
   msgEl.style.color = 'var(--red)'; msgEl.textContent = '';
-  if(!name){ msgEl.textContent = 'Please enter a name.'; return; }
+  if(!firstName || !lastName){ msgEl.textContent = t('athMsgNeedBoth'); return; }
+  const name = firstName + ' ' + lastName;
   if(S.athletes.some(a=>a.full_name.toLowerCase()===name.toLowerCase())){
-    msgEl.textContent = name + ' is already in your team.'; return;
+    msgEl.textContent = name + ' ' + t('athMsgAlready'); return;
   }
   const { data, error } = await sb.from('athletes').insert({
     full_name: name, role: roleEl.value, user_id: S.session.user.id, active: true
   }).select().maybeSingle();
-  if(error){ msgEl.textContent = error.code==='23505'? name+' already exists.' : error.message; return; }
+  if(error){ msgEl.textContent = error.code==='23505'? name+' '+t('athMsgExists') : error.message; return; }
   S.athletes.push(data);
   S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
-  nameEl.value = ''; roleEl.value = 'Athlète';
+  fnEl.value = ''; lnEl.value = ''; roleEl.value = 'Athlète';
   renderAthleteList();
   try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
   loadAllKnownNames();
   msgEl.style.color = '#16a34a';
-  msgEl.textContent = '✅ ' + name + ' added to your team!';
+  msgEl.textContent = '✅ ' + name + ' ' + t('athMsgAdded');
   setTimeout(()=>{ msgEl.textContent=''; }, 3000);
 }
 
 function editAthlete(id, currentName, currentRole){
   const row = document.getElementById('ath-row-'+id); if(!row) return;
+  const parts = String(currentName||'').trim().split(/\s+/);
+  const firstName = parts[0]||'';
+  const lastName = parts.slice(1).join(' ');
   row.innerHTML = `
-    <input class="field" id="edit-name-${id}" value="${currentName}" style="flex:2;min-width:120px">
+    <input class="field" id="edit-fname-${id}" value="${esc(firstName)}" placeholder="Prénom" list="firstNameAutocompleteList" style="flex:1;min-width:90px">
+    <input class="field" id="edit-lname-${id}" value="${esc(lastName)}" placeholder="Nom" list="lastNameAutocompleteList" style="flex:1;min-width:90px">
     <select class="field" id="edit-role-${id}" style="width:100px">
-      <option value="Athlète" ${currentRole==='Athlète'?'selected':''}>Athlete</option>
-      <option value="Encadrant" ${currentRole==='Encadrant'?'selected':''}>Coach</option>
+      <option value="Athlète" ${currentRole==='Athlète'?'selected':''}>${t('roleAth')}</option>
+      <option value="Encadrant" ${currentRole==='Encadrant'?'selected':''}>${t('roleCoach')}</option>
     </select>
     <button class="btn btn-primary btn-sm" onclick="saveAthleteEdit('${id}')">💾</button>
     <button class="btn btn-sm" onclick="renderAthleteList()">✕</button>`;
 }
 
 async function saveAthleteEdit(id){
-  const newName = document.getElementById('edit-name-'+id)?.value?.trim();
+  const firstName = document.getElementById('edit-fname-'+id)?.value?.trim();
+  const lastName = document.getElementById('edit-lname-'+id)?.value?.trim();
   const newRole = document.getElementById('edit-role-'+id)?.value;
-  if(!newName){ toast('Please enter a name.','error'); return; }
+  if(!firstName || !lastName){ toast(t('athMsgNeedBoth'),'error'); return; }
+  const newName = firstName + ' ' + lastName;
   if(S.athletes.some(a=>a.id!==id&&a.full_name.toLowerCase()===newName.toLowerCase())){
-    toast(newName + ' already exists in your team.','error'); return;
+    toast(newName + ' ' + t('athMsgAlready'),'error'); return;
   }
   const { error } = await sb.from('athletes').update({ full_name:newName, role:newRole }).eq('id', id);
-  if(error){ toast('Error: '+error.message,'error'); return; }
+  if(error){ toast(t('toastError')+': '+error.message,'error'); return; }
   const idx = S.athletes.findIndex(a=>a.id===id);
   if(idx>=0){ S.athletes[idx].full_name=newName; S.athletes[idx].role=newRole; }
   S.athletes.sort((a,b)=>a.full_name.localeCompare(b.full_name));
   renderAthleteList();
   try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
   loadAllKnownNames();
-  toast('✅ ' + newName + ' updated!','success');
+  toast('✅ ' + newName + ' ' + t('athMsgUpdated'),'success');
 }
 
 async function deleteAthlete(id, name){
-  if(!confirm('Remove ' + name + ' from your team?\nPast registrations will NOT be affected.')) return;
+  if(!confirm(t('athConfirmDelete').replace('{name}',name))) return;
   const { error } = await sb.from('athletes').update({ active:false }).eq('id', id);
-  if(error){ toast('Error: '+error.message,'error'); return; }
+  if(error){ toast(t('toastError')+': '+error.message,'error'); return; }
   S.athletes = S.athletes.filter(a=>a.id!==id);
   renderAthleteList();
   try{ mrSyncKnownMembers(); renderMdregMembers(); updateMdregSummary(); } catch(e){}
   loadAllKnownNames();
-  toast(name + ' removed from team.','success');
+  toast(name + ' ' + t('athMsgRemoved'),'success');
 }
 
 function checkTeamReady(){
@@ -3808,15 +3855,7 @@ function checkTeamReady(){
   return true;
 }
 
-let _allTeams = [];      // [{ user_id, profileLabel }] — tous les comptes/équipes connus
 let _athProfileMap = {}; // user_id -> profile {full_name,email}
-
-function teamLabel(uid){
-  if(!uid) return 'Sans compte';
-  if(S.teamNames && S.teamNames[uid]) return S.teamNames[uid];
-  const p = _athProfileMap[uid];
-  return p ? (p.full_name || p.email || 'Compte inconnu') : 'Compte inconnu';
-}
 
 async function openAdminAthletes(){
   if(!S.isAdmin) return;
@@ -3859,48 +3898,34 @@ async function openAdminAthletes(){
     .map(a=>({...a, owner:_athProfileMap[a.user_id]||null}))
     .sort((x,y)=>x.full_name.localeCompare(y.full_name));
 
-  _allTeams = userIds
-    .map(uid=>({ user_id:uid, label:teamLabel(uid) }))
-    .sort((x,y)=>x.label.localeCompare(y.label));
-
   _athFilter = 'all';
   _athExpanded = {};
   filterAdminAthletes('all');
   document.getElementById('adminAthletesModal').classList.add('show');
 }
 
-function adminTeamOptionsHTML(selectedUid){
-  let h = `<option value="__none__" ${!selectedUid?'selected':''}>Sans compte</option>`;
-  _allTeams.forEach(tm=>{
-    h += `<option value="${esc(tm.user_id)}" ${tm.user_id===selectedUid?'selected':''}>${esc(tm.label)}</option>`;
-  });
-  return h;
-}
-
-function renderAdminTeamNames(){
-  const el = document.getElementById('adminTeamNames');
-  if(!el) return;
-  if(!_allTeams.length){ el.innerHTML = '<p style="font-size:.75rem;color:var(--text3)">Aucune équipe pour l\'instant.</p>'; return; }
-  el.innerHTML = _allTeams.map(tm=>{
-    const idSafe = tm.user_id.replace(/[^a-zA-Z0-9]/g,'_');
-    const p = _athProfileMap[tm.user_id];
-    const acctInfo = p ? (p.full_name||'') + (p.email?' — '+p.email:'') : '';
-    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <input class="field" id="teamName-${idSafe}" value="${esc(S.teamNames[tm.user_id]||'')}" placeholder="${esc(acctInfo||'Nom de l\'équipe')}" style="flex:1;font-size:.8rem" onchange="adminUpdateTeamName('${escJs(tm.user_id)}',this.value)">
-      <span style="font-size:.7rem;color:var(--text3);min-width:140px">${esc(acctInfo)}</span>
-    </div>`;
-  }).join('');
-}
-
-async function adminUpdateTeamName(uid, val){
-  if(!S.isAdmin) return;
-  if(!S.teamNames) S.teamNames = {};
-  val = (val||'').trim();
-  if(val) S.teamNames[uid] = val; else delete S.teamNames[uid];
-  await saveConfig();
-  _allTeams.forEach(tm=>{ if(tm.user_id===uid) tm.label = teamLabel(uid); });
-  filterAdminAthletes(_athFilter);
-  toast('✅ Nom d\'équipe mis à jour.','success');
+// ➕ Ajouter un prénom/nom à la base commune, sans les rattacher à une équipe précise.
+// Ce nom devient immédiatement disponible dans les listes déroulantes d'autocomplétion
+// proposées à tous ceux qui inscrivent une nouvelle équipe.
+async function adminAddSharedName(){
+  const fnEl = document.getElementById('adminNewFirstName');
+  const lnEl = document.getElementById('adminNewLastName');
+  const roleEl = document.getElementById('adminNewRole');
+  const msgEl = document.getElementById('adminSharedNameMsg');
+  const firstName = (fnEl.value||'').trim();
+  const lastName  = (lnEl.value||'').trim();
+  if(msgEl){ msgEl.style.color='var(--red)'; msgEl.textContent=''; }
+  if(!firstName || !lastName){ if(msgEl) msgEl.textContent = t('athMsgNeedBoth'); return; }
+  const name = firstName + ' ' + lastName;
+  const { error } = await sb.from('athletes').insert({ full_name:name, role:roleEl.value, user_id:null, active:true });
+  if(error){
+    if(msgEl) msgEl.textContent = error.code==='23505' ? name+' '+t('athMsgExists') : error.message;
+    return;
+  }
+  if(msgEl){ msgEl.style.color='#16a34a'; msgEl.textContent = '✅ ' + name + ' ' + t('athMsgAdded'); }
+  fnEl.value=''; lnEl.value='';
+  loadAllKnownNames();
+  await openAdminAthletes();
 }
 
 function filterAdminAthletes(filter){
@@ -3909,16 +3934,15 @@ function filterAdminAthletes(filter){
     const btn = document.getElementById('athFilter'+f.charAt(0).toUpperCase()+f.slice(1));
     if(btn){ btn.style.background=f===filter?'var(--accent)':''; btn.style.color=f===filter?'white':''; }
   });
-  renderAdminTeamNames();
   const nameCount = {};
   _allAthletes.forEach(a=>{ const k=a.full_name.toLowerCase().trim(); nameCount[k]=(nameCount[k]||0)+1; });
   const list = filter==='duplicates' ? _allAthletes.filter(a=>nameCount[a.full_name.toLowerCase().trim()]>1) : _allAthletes;
   const el = document.getElementById('adminAthletesList');
   if(!list.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem;padding:8px">Aucun résultat.</p>'; return; }
-
-  function athleteCardHtml(a, showTeamLine){
+  el.innerHTML = list.map(function(a){
     const key = (a.user_id||'noaccount')+'::'+a.full_name.toLowerCase().trim();
     const isDup = nameCount[a.full_name.toLowerCase().trim()]>1;
+    const owner = a.owner ? (a.owner.full_name || a.owner.email || 'Compte inconnu') : (a.user_id ? 'Compte inconnu' : 'Sans équipe (base commune)');
     const sessions = a.sessions.length;
     const isVirtual = !a.id;
     const expanded = !!_athExpanded[key];
@@ -3936,13 +3960,6 @@ function filterAdminAthletes(filter){
         }).join('')
       + '</div>' : '<p style="font-size:.75rem;color:var(--text3);margin-top:8px">Aucune inscription.</p>'
     ) : '';
-    const teamLine = showTeamLine
-      ? '<div style="display:flex;align-items:center;gap:6px;margin-top:5px">'
-        + '<span style="font-size:.72rem;color:var(--text3)">Équipe :</span>'
-        + '<select class="field" style="font-size:.72rem;padding:2px 4px;flex:1" onchange="adminMoveAthleteToTeam(\''+escJs(key)+'\',this.value)">'
-        + adminTeamOptionsHTML(a.user_id)
-        + '</select></div>'
-      : '';
     return '<div style="padding:10px;border:1.5px solid '+(isDup?'#f97316':(isVirtual?'#0d9488':'var(--border)'))+';border-radius:8px;margin-bottom:8px;background:'+(isDup?'#fff7ed':(isVirtual?'#f0fdfa':'white'))+'">'
       +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap" id="ath-view-'+key.replace(/[^a-zA-Z0-9]/g,'_')+'">'
       +'<b style="flex:1">'+esc(a.full_name)+(isDup?'<span class="dup-badge">⚠️ Doublon</span>':'')+(isVirtual?'<span class="dup-badge" style="background:#0d9488;color:white">⚠️ Pas dans My Team</span>':'')+'</b>'
@@ -3953,36 +3970,9 @@ function filterAdminAthletes(filter){
           ? '<button class="btn btn-sm" style="font-size:.7rem;padding:3px 8px;background:#0d9488;color:white" onclick="adminPromoteVirtual(\''+escJs(key)+'\')">+ Créer le profil</button>'
           : '<button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.7rem;padding:3px 8px" data-id="'+a.id+'" data-name="'+encodeURIComponent(a.full_name)+'" onclick="adminRemoveAthleteSafe(this)">🗑 Supprimer</button>')
       +'</div>'
-      + teamLine
+      +'<div style="font-size:.75rem;color:var(--text3);margin-top:3px">Équipe / compte : '+esc(owner)+'</div>'
       + sessionsHtml
       +'</div>';
-  }
-
-  if(filter==='duplicates'){
-    // Vue plate : chaque doublon avec un sélecteur d'équipe pour le remettre dans la bonne équipe
-    el.innerHTML = list.map(a=>athleteCardHtml(a,true)).join('');
-    return;
-  }
-
-  // Vue "Tous" : regroupée par équipe, avec le nom d'équipe en en-tête
-  const byTeam = {};
-  list.forEach(a=>{
-    const uid = a.user_id||'__none__';
-    if(!byTeam[uid]) byTeam[uid] = [];
-    byTeam[uid].push(a);
-  });
-  const teamUids = Object.keys(byTeam).sort((u1,u2)=>{
-    const l1 = u1==='__none__' ? 'Sans compte' : teamLabel(u1);
-    const l2 = u2==='__none__' ? 'Sans compte' : teamLabel(u2);
-    return l1.localeCompare(l2);
-  });
-  el.innerHTML = teamUids.map(uid=>{
-    const label = uid==='__none__' ? 'Sans compte' : teamLabel(uid);
-    const members = byTeam[uid];
-    return `<div style="margin-bottom:18px">
-      <div style="font-weight:800;font-size:.85rem;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid var(--accent);color:var(--accent)">🏷️ ${esc(label)} <span style="font-weight:400;color:var(--text3);font-size:.75rem">(${members.length})</span></div>
-      ${members.map(a=>athleteCardHtml(a,false)).join('')}
-    </div>`;
   }).join('');
 }
 
@@ -4001,9 +3991,14 @@ function adminEditAthleteStart(btn, key){
   if(!a) return;
   const row = btn.closest('div[id^="ath-view-"]');
   if(!row) return;
+  const parts = a.full_name.trim().split(/\s+/);
+  const firstName = parts[0]||'';
+  const lastName = parts.slice(1).join(' ');
+  const idSafe = key.replace(/[^a-zA-Z0-9]/g,'_');
   row.innerHTML = `
-    <input class="field" id="athEditName-${key.replace(/[^a-zA-Z0-9]/g,'_')}" value="${esc(a.full_name)}" style="flex:2;min-width:120px">
-    <select class="field" id="athEditRole-${key.replace(/[^a-zA-Z0-9]/g,'_')}" style="width:110px">
+    <input class="field" id="athEditFirstName-${idSafe}" value="${esc(firstName)}" placeholder="Prénom" list="firstNameAutocompleteList" style="flex:1;min-width:90px">
+    <input class="field" id="athEditLastName-${idSafe}" value="${esc(lastName)}" placeholder="Nom" list="lastNameAutocompleteList" style="flex:1;min-width:90px">
+    <select class="field" id="athEditRole-${idSafe}" style="width:110px">
       <option value="Athlète" ${a.role==='Athlète'?'selected':''}>Athlète</option>
       <option value="Encadrant" ${a.role==='Encadrant'?'selected':''}>Coach</option>
     </select>
@@ -4015,9 +4010,11 @@ async function adminSaveAthleteEdit(key){
   const a = _allAthletes.find(x=>(x.user_id||'noaccount')+'::'+x.full_name.toLowerCase().trim()===key);
   if(!a) return;
   const idSafe = key.replace(/[^a-zA-Z0-9]/g,'_');
-  const newName = document.getElementById('athEditName-'+idSafe)?.value?.trim();
+  const firstName = document.getElementById('athEditFirstName-'+idSafe)?.value?.trim();
+  const lastName = document.getElementById('athEditLastName-'+idSafe)?.value?.trim();
   const newRole = document.getElementById('athEditRole-'+idSafe)?.value;
-  if(!newName){ toast('Merci de saisir un nom.','error'); return; }
+  if(!firstName || !lastName){ toast(t('athMsgNeedBoth'),'error'); return; }
+  const newName = firstName + ' ' + lastName;
   if(a.id){
     const { error } = await sb.from('athletes').update({ full_name:newName, role:newRole }).eq('id', a.id);
     if(error){ toast('Erreur : '+error.message,'error'); return; }
@@ -4046,33 +4043,6 @@ async function adminPromoteVirtual(key){
   toast('✅ Profil créé pour ' + a.full_name,'success');
   await openAdminAthletes();
   if(S.session && a.user_id===S.session.user.id) await loadAthletes();
-  loadAllKnownNames();
-}
-
-// Réassigne un athlète (doublon) vers une autre équipe/compte, pour pouvoir ensuite
-// supprimer proprement le doublon restant dans l'ancienne équipe.
-async function adminMoveAthleteToTeam(key, newUidRaw){
-  const a = _allAthletes.find(x=>(x.user_id||'noaccount')+'::'+x.full_name.toLowerCase().trim()===key);
-  if(!a) return;
-  const newUid = newUidRaw==='__none__' ? null : newUidRaw;
-  if(newUid===a.user_id){ return; }
-  if(a.id){
-    const { error } = await sb.from('athletes').update({ user_id:newUid }).eq('id', a.id);
-    if(error){
-      toast("Erreur : impossible de déplacer (peut-être un doublon exact dans l'équipe cible) — "+error.message,'error');
-      filterAdminAthletes(_athFilter);
-      return;
-    }
-  } else {
-    const { data, error } = await sb.from('athletes').insert({
-      full_name:a.full_name, role:a.role, user_id:newUid, active:true
-    }).select().maybeSingle();
-    if(error){ toast('Erreur : '+error.message,'error'); filterAdminAthletes(_athFilter); return; }
-    a.id = data.id;
-  }
-  toast('✅ ' + a.full_name + ' déplacé(e) vers ' + teamLabel(newUid) + '.','success');
-  await openAdminAthletes();
-  if(S.session && (a.user_id===S.session.user.id || newUid===S.session.user.id)) await loadAthletes();
   loadAllKnownNames();
 }
 
