@@ -563,8 +563,7 @@ select.field { min-width: 110px; cursor: pointer; }
     <div class="mdreg-section">
       <h4 id="qrStep3"></h4>
       <div id="mdregMembers"></div>
-      <button class="btn btn-sm" style="margin-top:6px" id="qrAddPerson" onclick="mdregAddCustom()"></button>
-      <div id="mdregCustoms"></div>
+      <p id="qrNoFreeTextHint" style="font-size:.72rem;color:var(--text3);margin-top:6px"></p>
     </div>
 
     <!-- Résumé -->
@@ -664,10 +663,15 @@ select.field { min-width: 110px; cursor: pointer; }
           <option value="Athlète">Athlète</option>
           <option value="Encadrant">Coach</option>
         </select>
+        <input class="field" id="adminNewGroup" placeholder="Groupe / Référent (optionnel)" list="athleteGroupAutocompleteList" style="flex:1;min-width:160px">
         <button class="btn btn-sm btn-primary" onclick="adminAddSharedName()">+ Inscrire cet athlète</button>
       </div>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:5px">
+        Le champ "Groupe / Référent" est libre (ex: nom du club, du responsable, de la ville...) — il sert uniquement à classer et rechercher plus facilement dans "Gérer athlètes".
+      </p>
       <div id="adminSharedNameMsg" style="font-size:.75rem;margin-top:6px;min-height:1em"></div>
     </div>
+    <datalist id="athleteGroupAutocompleteList"></datalist>
 
     <!-- Horaires par défaut (Kayak + Musculation) -->
     <div class="admin-card" style="margin-top:16px">
@@ -987,10 +991,11 @@ select.field { min-width: 110px; cursor: pointer; }
       de chaque athlète, déplace ou annule une inscription, ou retire un athlète de son équipe.
       Pour <b>inscrire un nouvel athlète</b>, utilise le formulaire "👤 Inscrire un athlète" dans le panneau admin.
     </p>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
       <button class="btn btn-sm" id="athFilterAll" onclick="filterAdminAthletes('all')" style="background:var(--accent);color:white">Tous</button>
       <button class="btn btn-sm" id="athFilterDup" onclick="filterAdminAthletes('duplicates')">⚠️ Doublons possibles</button>
     </div>
+    <input class="field" id="athSearchBox" placeholder="🔍 Rechercher par nom ou par groupe / référent…" style="width:100%;margin-bottom:12px;box-sizing:border-box" oninput="filterAdminAthletes(_athFilter)">
     <div style="max-height:440px;overflow:auto" id="adminAthletesList"></div>
     <div class="modal-actions" style="margin-top:14px">
       <button class="btn" onclick="closeModal('adminAthletesModal')">Fermer</button>
@@ -1151,7 +1156,8 @@ const TR = {
     qrStep2Muscu:'② Sélectionner les créneaux (1h30, de 7h30 à 18h00)',
     qrStep2Hint:'Les créneaux verrouillés ou indisponibles sont automatiquement ignorés. 🏄 = Kayak Cross.',
     qrStep2HintMuscu:'Les créneaux complets sont automatiquement ignorés.',
-    qrStep3:'③ Sélectionner les participants', qrAddPerson:'+ Ajouter une autre personne',
+    qrStep3:'③ Sélectionner les participants',
+    qrNoFreeTextHint:"Seuls les athlètes déjà rattachés à ton équipe (My Team) peuvent être inscrits ici. Pour ajouter quelqu'un, va d'abord dans My Team.",
     qrSummary:'Résumé', qrSummaryDefault:'Sélectionnez des jours, créneaux et participants ci-dessus.',
     qrResetBtn:'↺ Réinitialiser la sélection', qrSubmitBtn:'⚡ Tout inscrire',
     qrDaysLbl:'📅 Jours', qrSessionsLbl:'🕐 Créneaux', qrParticipantsLbl:'👤 Participants',
@@ -1276,7 +1282,8 @@ const TR = {
     qrStep2Muscu:'② Select sessions (1h30, from 7:30 to 18:00)',
     qrStep2Hint:'Locked or unavailable slots are automatically skipped. 🏄 = Kayak Cross.',
     qrStep2HintMuscu:'Full slots are automatically skipped.',
-    qrStep3:'③ Select participants', qrAddPerson:'+ Add another person',
+    qrStep3:'③ Select participants',
+    qrNoFreeTextHint:'Only athletes already added to your team (My Team) can be registered here. To add someone, go to My Team first.',
     qrSummary:'Summary', qrSummaryDefault:'Select days, sessions and participants above.',
     qrResetBtn:'↺ Reset selection', qrSubmitBtn:'⚡ Register all',
     qrDaysLbl:'📅 Days', qrSessionsLbl:'🕐 Sessions', qrParticipantsLbl:'👤 Participants',
@@ -1332,7 +1339,7 @@ function applyI18n(){
     'whoRegisteredBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
     'gpDays7Opt','gpDays14Opt','gpDays30Opt',
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
-    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
+    'qrPrevLbl','qrNextLbl','qrStep3','qrNoFreeTextHint','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub',
     'costModeLbl','costModeTeamLbl','costModePersonLbl',
@@ -1347,7 +1354,7 @@ function applyI18n(){
     'whoRegBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
     'gpDays7','gpDays14','gpDays30',
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
-    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
+    'qrPrevLbl','qrNextLbl','qrStep3','qrNoFreeTextHint','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub',
     'costModeLbl','costModeTeamLbl','costModePersonLbl',
@@ -1403,6 +1410,7 @@ let S = {
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
   boatQty:{'Pyrhana':6,'Paname S':6,'Paname M':6}, // Flotte de kayaks disponibles par modèle (Kayak Cross)
+  athleteGroups:{}, // { [athlete_id]: "Nom du groupe / référent" } — pour classer et rechercher les athlètes côté admin
   data:{}, expanded:{}, movePending:null,
   // ── Salle de musculation (activité parallèle) ──────────────────────
   muscuSlots:['7h30-9h00','9h00-10h30','10h30-12h00','12h00-13h30','13h30-15h00','15h00-16h30','16h30-18h00'],
@@ -1545,6 +1553,7 @@ async function onAuthed(session){
   document.getElementById('recapBtn').style.display = S.isAdmin ? 'inline-block' : 'none';
   await load();
   await loadConfig();
+  if(S.isAdmin) renderGroupAutocomplete();
   await loadAthletes();
   await loadAllKnownNames();
   await loadUnassignedAthletes();
@@ -1606,6 +1615,7 @@ async function saveConfig() {
     dateCapacity:   S.dateCapacity,
     muscuCapacity:  S.muscuCapacity,
     boatQty:        S.boatQty,
+    athleteGroups:  S.athleteGroups,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -1628,6 +1638,7 @@ async function loadConfig() {
   if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
   if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
   if (cfg.boatQty        !== undefined) S.boatQty        = Object.assign({'Pyrhana':6,'Paname S':6,'Paname M':6}, cfg.boatQty);
+  if (cfg.athleteGroups  !== undefined) S.athleteGroups  = cfg.athleteGroups || {};
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -2151,7 +2162,6 @@ let MR = {
   selectedDays: new Set(),   // Set de dateK sélectionnés
   selectedSlots: new Set(),  // Set de slots sélectionnés
   selectedMembers: new Set(),// Set de noms sélectionnés
-  customCounter: 0,
   knownMembers: [],  // Membres connus depuis les inscriptions passées
   extras: {},        // { pid: {dossard, nationality, rental} } — préservé entre les re-rendus
 };
@@ -2166,7 +2176,6 @@ function openMultiReg(preDate, preSlot, act){
   MR.selectedDays.clear();
   MR.selectedSlots.clear();
   MR.selectedMembers.clear();
-  MR.customCounter = 0;
   MR.extras = {};
 
   // Pré-sélectionner le jour et le créneau si fournis
@@ -2189,7 +2198,6 @@ function openMultiReg(preDate, preSlot, act){
   const selfName = S.profile?.full_name||S.session.user.email;
   MR.selectedMembers.add(selfName);
 
-  document.getElementById('mdregCustoms').innerHTML='';
   document.getElementById('qrTabKayak').classList.toggle('active', MR.activity==='kayak');
   document.getElementById('qrTabMuscu').classList.toggle('active', MR.activity==='muscu');
   document.getElementById('qrKayakSlots').style.display = MR.activity==='muscu'?'none':'block';
@@ -2425,36 +2433,10 @@ function mdregToggleMember(name, idx){
   updateMdregSummary();
 }
 
-function mdregAddCustom(){
-  const id = 'mc'+(MR.customCounter++);
-  const wrap = document.getElementById('mdregCustoms');
-  const row = document.createElement('div');
-  row.className = 'group-row mdreg-custom-row'; row.id = id;
-  row.style.marginTop = '6px';
-  const showRental = mrHasKayakCrossSelected();
-  row.innerHTML = `
-    <input class="field" type="text" id="n-${id}" placeholder="${t('namePH')}" oninput="updateMdregSummary()">
-    <select class="field" id="r-${id}">
-      <option value="Athlète">${t('roleAth')}</option>
-      <option value="Encadrant">${t('roleCoach')}</option>
-    </select>
-    ${showRental?`<select class="field mdreg-extra" id="rent-${id}">
-      ${mrRentalOptionsHTML('')}
-    </select>`:''}
-    <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateMdregSummary()">✕</button>`;
-  wrap.appendChild(row);
-}
-
 function updateMdregSummary(){
   const days = [...MR.selectedDays].sort();
   const slots = [...MR.selectedSlots];
-  // Membres depuis la liste connue
   const members = [...MR.selectedMembers];
-  // Membres custom
-  [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
-    const n = r.querySelector('input')?.value?.trim();
-    if(n) members.push(n);
-  });
 
   const el = document.getElementById('mdregSummary');
   if(!el) return;
@@ -2488,13 +2470,6 @@ async function submitMultiReg(){
     const member = MR.knownMembers[i];
     const ex = MR.extras['k'+i]||{};
     participants.push({ name, role: member?.role||'Athlète', dossard:'', nationality: profileNationality, rental: ex.rental||'' });
-  });
-  [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
-    const id = r.id;
-    const n = document.getElementById('n-'+id)?.value?.trim();
-    const role = document.getElementById('r-'+id)?.value||'Athlète';
-    const rental = document.getElementById('rent-'+id)?.value || '';
-    if(n) participants.push({ name: n, role, dossard:'', nationality: profileNationality, rental });
   });
   if(!participants.length){ toast(t('qrErrPart'),'error'); return; }
 
@@ -3951,8 +3926,16 @@ async function openAdminAthletes(){
 
   _athFilter = 'all';
   _athExpanded = {};
+  renderGroupAutocomplete();
   filterAdminAthletes('all');
   document.getElementById('adminAthletesModal').classList.add('show');
+}
+
+function renderGroupAutocomplete(){
+  const dl = document.getElementById('athleteGroupAutocompleteList');
+  if(!dl || !S.athleteGroups) return;
+  const groups = [...new Set(Object.values(S.athleteGroups).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  dl.innerHTML = groups.map(g=>`<option value="${esc(g)}">`).join('');
 }
 
 // ➕ Ajouter un prénom/nom à la base commune, sans les rattacher à une équipe précise.
@@ -3962,19 +3945,26 @@ async function adminAddSharedName(){
   const fnEl = document.getElementById('adminNewFirstName');
   const lnEl = document.getElementById('adminNewLastName');
   const roleEl = document.getElementById('adminNewRole');
+  const grpEl = document.getElementById('adminNewGroup');
   const msgEl = document.getElementById('adminSharedNameMsg');
   const firstName = (fnEl.value||'').trim();
   const lastName  = (lnEl.value||'').trim();
+  const group = (grpEl?.value||'').trim();
   if(msgEl){ msgEl.style.color='var(--red)'; msgEl.textContent=''; }
   if(!firstName || !lastName){ if(msgEl) msgEl.textContent = t('athMsgNeedBoth'); return; }
   const name = firstName + ' ' + lastName;
-  const { error } = await sb.from('athletes').insert({ full_name:name, role:roleEl.value, user_id:null, active:true });
+  const { data, error } = await sb.from('athletes').insert({ full_name:name, role:roleEl.value, user_id:null, active:true }).select().maybeSingle();
   if(error){
     if(msgEl) msgEl.textContent = error.code==='23505' ? name+' '+t('athMsgExists') : error.message;
     return;
   }
+  if(group && data?.id){
+    if(!S.athleteGroups) S.athleteGroups = {};
+    S.athleteGroups[data.id] = group;
+    await saveConfig();
+  }
   if(msgEl){ msgEl.style.color='#16a34a'; msgEl.textContent = '✅ ' + name + ' ' + t('athMsgAdded'); }
-  fnEl.value=''; lnEl.value='';
+  fnEl.value=''; lnEl.value=''; if(grpEl) grpEl.value='';
   loadAllKnownNames();
   await loadUnassignedAthletes();
   if(document.getElementById('adminAthletesModal')?.classList.contains('show')) await openAdminAthletes();
@@ -3987,15 +3977,22 @@ function filterAdminAthletes(filter){
     const btn = document.getElementById('athFilter'+f.charAt(0).toUpperCase()+f.slice(1));
     if(btn){ btn.style.background=f===filter?'var(--accent)':''; btn.style.color=f===filter?'white':''; }
   });
+  const groupOf = a => (S.athleteGroups && S.athleteGroups[a.id]) || '';
+  const search = (document.getElementById('athSearchBox')?.value || '').toLowerCase().trim();
   const nameCount = {};
   _allAthletes.forEach(a=>{ const k=a.full_name.toLowerCase().trim(); nameCount[k]=(nameCount[k]||0)+1; });
-  const list = filter==='duplicates' ? _allAthletes.filter(a=>nameCount[a.full_name.toLowerCase().trim()]>1) : _allAthletes;
+  let list = filter==='duplicates' ? _allAthletes.filter(a=>nameCount[a.full_name.toLowerCase().trim()]>1) : _allAthletes;
+  if(search){
+    list = list.filter(a=> a.full_name.toLowerCase().includes(search) || groupOf(a).toLowerCase().includes(search));
+  }
   const el = document.getElementById('adminAthletesList');
   if(!list.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem;padding:8px">Aucun résultat.</p>'; return; }
-  el.innerHTML = list.map(function(a){
+
+  function athleteCardHtml(a){
     const key = (a.user_id||'noaccount')+'::'+a.full_name.toLowerCase().trim();
     const isDup = nameCount[a.full_name.toLowerCase().trim()]>1;
     const owner = a.owner ? (a.owner.full_name || a.owner.email || 'Compte inconnu') : (a.user_id ? 'Compte inconnu' : 'Sans équipe (base commune)');
+    const group = groupOf(a);
     const sessions = a.sessions.length;
     const isVirtual = !a.id;
     const expanded = !!_athExpanded[key];
@@ -4023,9 +4020,34 @@ function filterAdminAthletes(filter){
           ? '<button class="btn btn-sm" style="font-size:.7rem;padding:3px 8px;background:#0d9488;color:white" onclick="adminPromoteVirtual(\''+escJs(key)+'\')">+ Créer le profil</button>'
           : '<button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.7rem;padding:3px 8px" data-id="'+a.id+'" data-name="'+encodeURIComponent(a.full_name)+'" onclick="adminRemoveAthleteSafe(this)">🗑 Supprimer</button>')
       +'</div>'
-      +'<div style="font-size:.75rem;color:var(--text3);margin-top:3px">Équipe / compte : '+esc(owner)+'</div>'
+      +'<div style="font-size:.75rem;color:var(--text3);margin-top:3px">Équipe / compte : '+esc(owner)+(group?' &nbsp;·&nbsp; 🏷️ '+esc(group):'')+'</div>'
       + sessionsHtml
       +'</div>';
+  }
+
+  if(filter==='duplicates'){
+    el.innerHTML = list.map(athleteCardHtml).join('');
+    return;
+  }
+
+  // Vue "Tous" : regroupée par Groupe / Référent renseigné par l'admin
+  const byGroup = {};
+  list.forEach(a=>{
+    const g = groupOf(a) || '— Sans groupe —';
+    if(!byGroup[g]) byGroup[g] = [];
+    byGroup[g].push(a);
+  });
+  const groupNames = Object.keys(byGroup).sort((g1,g2)=>{
+    if(g1==='— Sans groupe —') return 1;
+    if(g2==='— Sans groupe —') return -1;
+    return g1.localeCompare(g2);
+  });
+  el.innerHTML = groupNames.map(g=>{
+    const members = byGroup[g];
+    return `<div style="margin-bottom:18px">
+      <div style="font-weight:800;font-size:.85rem;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid var(--accent);color:var(--accent)">🏷️ ${esc(g)} <span style="font-weight:400;color:var(--text3);font-size:.75rem">(${members.length})</span></div>
+      ${members.map(athleteCardHtml).join('')}
+    </div>`;
   }).join('');
 }
 
@@ -4047,6 +4069,7 @@ function adminEditAthleteStart(btn, key){
   const parts = a.full_name.trim().split(/\s+/);
   const firstName = parts[0]||'';
   const lastName = parts.slice(1).join(' ');
+  const currentGroup = (a.id && S.athleteGroups && S.athleteGroups[a.id]) || '';
   const idSafe = key.replace(/[^a-zA-Z0-9]/g,'_');
   row.innerHTML = `
     <input class="field" id="athEditFirstName-${idSafe}" value="${esc(firstName)}" placeholder="Prénom" list="firstNameAutocompleteList" style="flex:1;min-width:90px">
@@ -4055,6 +4078,7 @@ function adminEditAthleteStart(btn, key){
       <option value="Athlète" ${a.role==='Athlète'?'selected':''}>Athlète</option>
       <option value="Encadrant" ${a.role==='Encadrant'?'selected':''}>Coach</option>
     </select>
+    <input class="field" id="athEditGroup-${idSafe}" value="${esc(currentGroup)}" placeholder="Groupe / Référent" list="athleteGroupAutocompleteList" style="flex:1;min-width:130px">
     <button class="btn btn-primary btn-sm" onclick="adminSaveAthleteEdit('${escJs(key)}')">💾</button>
     <button class="btn btn-sm" onclick="filterAdminAthletes(_athFilter)">✕</button>`;
 }
@@ -4066,6 +4090,7 @@ async function adminSaveAthleteEdit(key){
   const firstName = document.getElementById('athEditFirstName-'+idSafe)?.value?.trim();
   const lastName = document.getElementById('athEditLastName-'+idSafe)?.value?.trim();
   const newRole = document.getElementById('athEditRole-'+idSafe)?.value;
+  const newGroup = document.getElementById('athEditGroup-'+idSafe)?.value?.trim() || '';
   if(!firstName || !lastName){ toast(t('athMsgNeedBoth'),'error'); return; }
   const newName = firstName + ' ' + lastName;
   if(a.id){
@@ -4079,6 +4104,9 @@ async function adminSaveAthleteEdit(key){
     if(error){ toast('Erreur : '+error.message,'error'); return; }
     a.id = data.id;
   }
+  if(!S.athleteGroups) S.athleteGroups = {};
+  if(newGroup) S.athleteGroups[a.id] = newGroup; else delete S.athleteGroups[a.id];
+  await saveConfig();
   toast('✅ ' + newName + ' mis à jour !','success');
   await openAdminAthletes();
   // Rafraîchir aussi "My Team" et "Inscription rapide" si le compte modifié est celui de l'utilisateur connecté
