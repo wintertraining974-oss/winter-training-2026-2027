@@ -649,6 +649,26 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
     </div>
 
+    <!-- Inscrire un athlète (base commune) — bien visible, sans avoir besoin d'ouvrir "Gérer athlètes" -->
+    <div class="admin-card" style="margin-top:16px;border:1.5px solid #0d9488;background:#f0fdfa">
+      <h4 style="color:#0d9488">👤 Inscrire un athlète</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
+        C'est ici que tu enregistres le prénom/nom de chaque athlète que les équipes t'ont transmis.
+        Il sera ensuite proposé dans une liste déroulante à toutes les équipes pour qu'elles se constituent —
+        elles ne peuvent plus créer de nom elles-mêmes.
+      </p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input class="field" id="adminNewFirstName" placeholder="Prénom" list="firstNameAutocompleteList" style="flex:1;min-width:120px">
+        <input class="field" id="adminNewLastName" placeholder="Nom" list="lastNameAutocompleteList" style="flex:1;min-width:120px">
+        <select class="field" id="adminNewRole" style="width:115px">
+          <option value="Athlète">Athlète</option>
+          <option value="Encadrant">Coach</option>
+        </select>
+        <button class="btn btn-sm btn-primary" onclick="adminAddSharedName()">+ Inscrire cet athlète</button>
+      </div>
+      <div id="adminSharedNameMsg" style="font-size:.75rem;margin-top:6px;min-height:1em"></div>
+    </div>
+
     <!-- Horaires par défaut (Kayak + Musculation) -->
     <div class="admin-card" style="margin-top:16px">
       <h4 id="aDefaultSchedTitle">🕐 Horaires par défaut — Kayak &amp; Musculation</h4>
@@ -965,24 +985,8 @@ select.field { min-width: 110px; cursor: pointer; }
       Tous les athlètes créés dans "My Team" <b>et</b> tous ceux trouvés dans l'historique des inscriptions
       (kayak + musculation) sont listés ici, sans doublon. Modifie le nom/rôle, consulte le planning
       de chaque athlète, déplace ou annule une inscription, ou retire un athlète de son équipe.
+      Pour <b>inscrire un nouvel athlète</b>, utilise le formulaire "👤 Inscrire un athlète" dans le panneau admin.
     </p>
-    <details style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;padding:8px 10px">
-      <summary style="cursor:pointer;font-weight:700;font-size:.82rem">➕ Ajouter un prénom/nom à la base commune</summary>
-      <p style="font-size:.72rem;color:var(--text3);margin:6px 0">
-        Ce nom sera immédiatement proposé dans les listes déroulantes d'autocomplétion à toutes les personnes
-        qui inscrivent une nouvelle équipe — sans être rattaché à une équipe en particulier.
-      </p>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        <input class="field" id="adminNewFirstName" placeholder="Prénom" list="firstNameAutocompleteList" style="flex:1;min-width:100px;font-size:.8rem">
-        <input class="field" id="adminNewLastName" placeholder="Nom" list="lastNameAutocompleteList" style="flex:1;min-width:100px;font-size:.8rem">
-        <select class="field" id="adminNewRole" style="width:105px;font-size:.8rem">
-          <option value="Athlète">Athlète</option>
-          <option value="Encadrant">Coach</option>
-        </select>
-        <button class="btn btn-sm btn-primary" onclick="adminAddSharedName()">+ Ajouter</button>
-      </div>
-      <div id="adminSharedNameMsg" style="font-size:.72rem;margin-top:5px;min-height:1em"></div>
-    </details>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <button class="btn btn-sm" id="athFilterAll" onclick="filterAdminAthletes('all')" style="background:var(--accent);color:white">Tous</button>
       <button class="btn btn-sm" id="athFilterDup" onclick="filterAdminAthletes('duplicates')">⚠️ Doublons possibles</button>
@@ -3972,7 +3976,9 @@ async function adminAddSharedName(){
   if(msgEl){ msgEl.style.color='#16a34a'; msgEl.textContent = '✅ ' + name + ' ' + t('athMsgAdded'); }
   fnEl.value=''; lnEl.value='';
   loadAllKnownNames();
-  await openAdminAthletes();
+  await loadUnassignedAthletes();
+  if(document.getElementById('adminAthletesModal')?.classList.contains('show')) await openAdminAthletes();
+  setTimeout(()=>{ if(msgEl) msgEl.textContent=''; }, 3000);
 }
 
 function filterAdminAthletes(filter){
