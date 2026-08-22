@@ -98,6 +98,7 @@ header { background: var(--white); border-bottom: 1px solid var(--border); paddi
 .sb-mid { background: var(--orange-light); color: #92400e; }
 .sb-full { background: var(--red-light); color: #991b1b; }
 .sb-locked { background: var(--surface2); color: var(--text3); }
+.sb-blocked { background: #e5e7eb; color: #374151; }
 .slot-chevron { color: var(--text3); font-size: .75rem; transition: transform .15s; }
 .slot-chevron.open { transform: rotate(180deg); }
 .locked-msg { padding: 0 14px 8px; font-size: .74rem; color: var(--text3); font-style: italic; }
@@ -240,6 +241,9 @@ select.field { min-width: 110px; cursor: pointer; }
 .kx-wk-slot { background: linear-gradient(135deg,#fff7ed,#fef3c7); border-left: 3px solid #f97316; }
 .kx-toggle { background:none;border:1.5px solid #f97316;color:#f97316;border-radius:6px;padding:3px 8px;font-size:.72rem;font-weight:700;cursor:pointer;margin-left:6px; }
 .kx-toggle.active { background:#f97316;color:white; }
+.block-toggle { border-color:#6b7280 !important; color:#6b7280 !important; }
+.block-toggle.active { background:#6b7280 !important; color:white !important; }
+.blocked-slot { background: repeating-linear-gradient(135deg,#f3f4f6,#f3f4f6 10px,#e5e7eb 10px,#e5e7eb 20px) !important; opacity:.85; }
 .phone-wrap { display: flex; gap: 6px; }
 .phone-wrap select { width: 110px; flex-shrink: 0; }
 .phone-wrap input { flex: 1; }
@@ -1120,6 +1124,9 @@ const TR = {
     closedMsg:'Ce jour est fermé — aucune séance.',
     slotOpen:'Disponible', slotMid:'Presque plein', slotFull:'Complet', slotLocked:'🔒 Verrouillé',
     lockedMsg:"S'ouvre après remplissage du créneau",
+    slotBlocked:'🚫 Bloqué', blockedBtnLbl:'Bloqué', blockToggleTitle:'Bloquer / débloquer cette séance',
+    slotBlockedMsg:'Cette séance est bloquée par l\'administrateur — aucune inscription possible.',
+    toastSlotBlocked:'🚫 Séance bloquée — plus aucune inscription possible.', toastSlotUnblocked:'✅ Séance débloquée.',
     registered:'inscrits', noReg:'Aucun inscrit pour le moment.',
     fullMsg:'Créneau complet — plus de places disponibles.',
     namePH:'Nom Prénom', roleAth:'Athlète', roleCoach:'Encadrant', regBtn:"S'inscrire",
@@ -1246,6 +1253,9 @@ const TR = {
     closedMsg:'This day is closed — no sessions.',
     slotOpen:'Available', slotMid:'Almost full', slotFull:'Full', slotLocked:'🔒 Locked',
     lockedMsg:'Opens after slot is full:',
+    slotBlocked:'🚫 Blocked', blockedBtnLbl:'Blocked', blockToggleTitle:'Block / unblock this session',
+    slotBlockedMsg:'This session has been blocked by the admin — no registration possible.',
+    toastSlotBlocked:'🚫 Session blocked — no more registrations possible.', toastSlotUnblocked:'✅ Session unblocked.',
     registered:'registered', noReg:'No participants yet.',
     fullMsg:'Slot full — no spots left.',
     namePH:'First Last Name', roleAth:'Athlete', roleCoach:'Coach', regBtn:'Register',
@@ -1438,6 +1448,7 @@ let S = {
   customClosed:{},
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
+  blockedSlots:{},  // { "2026-07-06": { "kayak|9h-10h": true } } → créneau bloqué (aucune inscription possible)
   boatQty:{'Pyrhana':6,'Paname S':6,'Paname M':6}, // Flotte de kayaks disponibles par modèle (Kayak Cross)
   athleteGroups:{}, // { [athlete_id]: "Nom du groupe / référent" } — pour classer et rechercher les athlètes côté admin
   scheduleRules:[], // [{ id, label, startDate, endDate, days:[0..6], kayakMorning:[], kayakAfternoon:[], muscu:[] }]
@@ -1642,6 +1653,7 @@ async function saveConfig() {
     priorityDays:   S.priorityDays,
     customSlots:    S.customSlots,
     kayakCross:     S.kayakCross,
+    blockedSlots:   S.blockedSlots,
     dateCapacity:   S.dateCapacity,
     muscuCapacity:  S.muscuCapacity,
     boatQty:        S.boatQty,
@@ -1666,6 +1678,7 @@ async function loadConfig() {
   if (cfg.priorityDays   !== undefined) S.priorityDays   = cfg.priorityDays;
   if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
   if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
+  if (cfg.blockedSlots   !== undefined) S.blockedSlots   = cfg.blockedSlots || {};
   if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
   if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
   if (cfg.boatQty        !== undefined) S.boatQty        = Object.assign({'Pyrhana':6,'Paname S':6,'Paname M':6}, cfg.boatQty);
@@ -1796,6 +1809,22 @@ async function toggleKayakCross(dateK, slot){
   renderDayPanel(); renderCal();
   toast(isKayakCross(dateK,slot)?'🏄 Kayak Cross activé !':'Slalom rétabli','success');
 }
+// ── Blocage d'une séance précise (empêche toute inscription sur ce créneau, ce jour-là) ──
+function isBlocked(dateK, slot, act='kayak'){
+  return !!(S.blockedSlots && S.blockedSlots[dateK] && S.blockedSlots[dateK][act+'|'+slot]);
+}
+async function toggleBlocked(dateK, slot, act='kayak'){
+  if(!S.isAdmin) return;
+  if(!S.blockedSlots) S.blockedSlots={};
+  if(!S.blockedSlots[dateK]) S.blockedSlots[dateK]={};
+  const key = act+'|'+slot;
+  if(S.blockedSlots[dateK][key]) delete S.blockedSlots[dateK][key];
+  else S.blockedSlots[dateK][key] = true;
+  if(!Object.keys(S.blockedSlots[dateK]).length) delete S.blockedSlots[dateK];
+  await saveConfig();
+  renderDayPanel(); renderMuscuDayPanel(); renderCal();
+  toast(isBlocked(dateK,slot,act) ? t('toastSlotBlocked') : t('toastSlotUnblocked'), 'success');
+}
 // ── Flotte de kayaks (quantités par modèle, limitées sur les créneaux Kayak Cross) ──
 function boatModelsList(){
   if(!S.boatQty) S.boatQty = {};
@@ -1874,6 +1903,7 @@ function isLocked(dateK,slot){
   return false;
 }
 function slotStatus(dateK,slot,act='kayak'){
+  if(isBlocked(dateK,slot,act)) return 'blocked';
   if(act==='kayak' && isLocked(dateK,slot)) return 'locked';
   const n=getSlot(dateK,slot,act).length, c=cap(slot,dateK,act);
   if(n>=c) return 'full'; if(n/c>=0.6) return 'mid'; return 'open';
@@ -2019,22 +2049,26 @@ function renderSlot(dateK,slot,act='kayak'){
   const aths=getSlot(dateK,slot,act),c=cap(slot,dateK,act),st=slotStatus(dateK,slot,act);
   const pct=Math.min(1,aths.length/c), exp=S.expanded[slotKey(dateK,slot,act)];
   const kx=act==='kayak'?isKayakCross(dateK,slot):false;
-  const labels={open:t('slotOpen'),mid:t('slotMid'),full:t('slotFull'),locked:t('slotLocked')};
-  const bCls={open:'sb-open',mid:'sb-mid',full:'sb-full',locked:'sb-locked'};
+  const blocked=isBlocked(dateK,slot,act);
+  const labels={open:t('slotOpen'),mid:t('slotMid'),full:t('slotFull'),locked:t('slotLocked'),blocked:t('slotBlocked')};
+  const bCls={open:'sb-open',mid:'sb-mid',full:'sb-full',locked:'sb-locked',blocked:'sb-blocked'};
   let prevSlot='';
   if(st==='locked'){
     const g=morningSlots(dateK).includes(slot)?morningSlots(dateK):afternoonSlots(dateK);
     const idx=g.indexOf(slot); if(idx>0) prevSlot=g[idx-1];
   }
-  let h=`<div class="slot-card s-${st}${kx?' kx-slot':''}">
+  let h=`<div class="slot-card s-${st}${kx?' kx-slot':''}${blocked?' blocked-slot':''}">
     <div class="slot-header" onclick="toggleSlot('${dateK}','${slot}','${act}')">
       <div class="slot-time">${slot}${kx?`<span class="kx-badge">🏄 KAYAK CROSS</span>`:(act==='kayak'?'<span style="font-size:.65rem;color:var(--text3);margin-left:6px">SLALOM</span>':'')}</div>
       <div class="slot-count-text">${aths.length} / ${c} ${t('registered')}</div>
-      <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${kx?'#f97316':''}"></div></div>
+      <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${blocked?'#6b7280':(kx?'#f97316':'')}"></div></div>
       <span class="slot-badge ${bCls[st]}">${labels[st]}</span>
       ${(S.isAdmin&&act==='kayak')?`<button class="kx-toggle${kx?' active':''}" onclick="event.stopPropagation();toggleKayakCross('${dateK}','${slot}')" title="Kayak Cross / Slalom">🏄 KX</button>`:''}
+      ${S.isAdmin?`<button class="kx-toggle block-toggle${blocked?' active':''}" onclick="event.stopPropagation();toggleBlocked('${dateK}','${slot.replace(/'/g,"\\'")}','${act}')" title="${t('blockToggleTitle')}">🚫 ${t('blockedBtnLbl')}</button>`:''}
       <span class="slot-chevron${exp?' open':''}">▼</span>
     </div>`;
+  if(blocked&&!S.isAdmin)
+    h+=`<div class="locked-msg">🚫 ${t('slotBlockedMsg')}</div>`;
   if(st==='locked'&&!S.isAdmin)
     h+=`<div class="locked-msg">⏳ ${t('lockedMsg')} ${prevSlot}</div>`;
   if(exp){
@@ -2057,7 +2091,11 @@ function renderSlot(dateK,slot,act='kayak'){
       });
     }
     h+=`</div>`;
-    if(st!=='full'&&!(st==='locked'&&!S.isAdmin)){
+    if(blocked){
+      if(S.isAdmin) h+=`<div class="add-form" style="padding:6px 10px">
+        <span style="color:#6b7280;font-size:.8rem;font-weight:600">🚫 ${t('slotBlockedMsg')}</span>
+      </div>`;
+    } else if(st!=='full'&&!(st==='locked'&&!S.isAdmin)){
       // Pas de bouton Register ici - inscription uniquement via Quick Registration
       h+=`<div class="add-form" style="padding:6px 10px">
         <span style="font-size:.75rem;color:var(--text3);font-style:italic">⚡ Use Quick Registration above to register</span>
@@ -2341,14 +2379,18 @@ function renderMdregSlots(refDay){
     const el = document.getElementById('mdregMuscuSlots');
     function slotBtnMuscu(slot){
       const sel = MR.selectedSlots.has(slot);
+      const blockedOnAny = !S.isAdmin && (MR.selectedDays.size>0
+        ? [...MR.selectedDays].some(d=>isBlocked(d,slot,'muscu'))
+        : isBlocked(refDay,slot,'muscu'));
       const fullOnAll = MR.selectedDays.size>0
         ? [...MR.selectedDays].every(d=> cap(slot,d,'muscu')<=getSlot(d,slot,'muscu').length)
         : false;
-      const fullLabel = fullOnAll ? t('qrFullLabel') : '';
-      return `<button class="mdreg-slot-btn${sel&&!fullOnAll?' mdreg-selected':''}"
-        style="${fullOnAll?'opacity:.4;cursor:not-allowed;':''}"
-        ${fullOnAll?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-        title="${fullOnAll?t('qrFullTitle'):''}">
+      const disabled = blockedOnAny || fullOnAll;
+      const fullLabel = fullOnAll ? t('qrFullLabel') : (blockedOnAny ? ' '+t('slotBlocked') : '');
+      return `<button class="mdreg-slot-btn${sel&&!disabled?' mdreg-selected':''}"
+        style="${disabled?'opacity:.4;cursor:not-allowed;':''}"
+        ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
+        title="${blockedOnAny?t('slotBlockedMsg'):(fullOnAll?t('qrFullTitle'):'')}">
         ${slot}${fullLabel}
       </button>`;
     }
@@ -2368,16 +2410,19 @@ function renderMdregSlots(refDay){
     const lockedOnAny = MR.selectedDays.size>0
       ? [...MR.selectedDays].some(d=>!S.isAdmin && isLocked(d,slot))
       : (!S.isAdmin && isLocked(refDay, slot));
+    const blockedOnAny = !S.isAdmin && (MR.selectedDays.size>0
+      ? [...MR.selectedDays].some(d=>isBlocked(d,slot,'kayak'))
+      : isBlocked(refDay,slot,'kayak'));
     const fullOnAll = MR.selectedDays.size>0
       ? [...MR.selectedDays].every(d=> cap(slot,d)<=getSlot(d,slot).length)
       : false;
-    const disabled = (lockedOnAny && !kx) || fullOnAll;
+    const disabled = (lockedOnAny && !kx) || fullOnAll || blockedOnAny;
     const lockIcon = lockedOnAny && !kx ? ' 🔒' : '';
-    const fullLabel = fullOnAll ? t('qrFullLabel') : '';
+    const fullLabel = fullOnAll ? t('qrFullLabel') : (blockedOnAny ? ' '+t('slotBlocked') : '');
     return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
       style="${disabled?'opacity:.4;cursor:not-allowed;':''}"
       ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-      title="${disabled?(lockedOnAny?t('qrLockedTitle'):t('qrFullTitle')):''}">
+      title="${blockedOnAny?t('slotBlockedMsg'):(disabled?(lockedOnAny?t('qrLockedTitle'):t('qrFullTitle')):'')}">
       ${slot}${kx?' 🏄':''}${lockIcon}${fullLabel}
     </button>`;
   }
@@ -2550,6 +2595,8 @@ async function submitMultiReg(){
       // Vérifier si le créneau existe ce jour
       const daySlots = act==='muscu' ? muscuSlotsOf(dateK) : allSlots(dateK);
       if(!daySlots.includes(slot)){ skipped++; continue; }
+      // Vérifier si la séance est bloquée par l'admin
+      if(!S.isAdmin && isBlocked(dateK, slot, act)){ skipped++; continue; }
       // Vérifier priorité (kayak uniquement, seulement pour les utilisateurs non-admin)
       if(act==='kayak' && !S.isAdmin && isLocked(dateK, slot)){ skipped++; continue; }
       // Vérifier places disponibles
