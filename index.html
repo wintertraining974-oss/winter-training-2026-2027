@@ -713,6 +713,35 @@ select.field { min-width: 110px; cursor: pointer; }
       <div id="dsMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
     </div>
 
+    <!-- Périodes d'horaires (ex: week-ends différents de la semaine sur une partie de saison) -->
+    <div class="admin-card" style="margin-top:16px">
+      <h4>📅 Périodes d'horaires</h4>
+      <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
+        Définis des horaires différents pour une plage de dates et certains jours de la semaine
+        (ex: horaires du week-end différents de la semaine, du 1er juillet au 31 août).
+        Une période active prend le pas sur les horaires par défaut ci-dessus, sauf s'il existe un
+        horaire personnalisé pour la date exacte (voir "Horaires personnalisés par date" plus bas).
+      </p>
+      <div id="scheduleRulesList"></div>
+      <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+        <b style="font-size:.8rem;display:block;margin-bottom:8px">+ Nouvelle période</b>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <input class="field" id="srLabel" placeholder="Nom de la période (ex: Été - weekends)" style="flex:2;min-width:200px;font-size:.8rem">
+          <input type="date" class="field" id="srStart" style="font-size:.8rem">
+          <span style="align-self:center;font-size:.8rem;color:var(--text3)">→</span>
+          <input type="date" class="field" id="srEnd" style="font-size:.8rem">
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px" id="srDaysBox"></div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+          <input class="field" id="srKayakMorning" placeholder="🚣 Kayak matin — séparés par virgule (ex: 9h-10h, 10h-11h)" style="font-size:.8rem">
+          <input class="field" id="srKayakAfternoon" placeholder="🚣 Kayak après-midi — séparés par virgule" style="font-size:.8rem">
+          <input class="field" id="srMuscu" placeholder="🏋️ Musculation — séparés par virgule" style="font-size:.8rem">
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="addScheduleRule()">+ Ajouter cette période</button>
+        <div id="srMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+      </div>
+    </div>
+
     <!-- Horaires personnalisés par jour -->
     <div class="admin-card" style="margin-top:16px">
       <h4>🕐 Horaires personnalisés par date</h4>
@@ -1411,6 +1440,7 @@ let S = {
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
   boatQty:{'Pyrhana':6,'Paname S':6,'Paname M':6}, // Flotte de kayaks disponibles par modèle (Kayak Cross)
   athleteGroups:{}, // { [athlete_id]: "Nom du groupe / référent" } — pour classer et rechercher les athlètes côté admin
+  scheduleRules:[], // [{ id, label, startDate, endDate, days:[0..6], kayakMorning:[], kayakAfternoon:[], muscu:[] }]
   data:{}, expanded:{}, movePending:null,
   // ── Salle de musculation (activité parallèle) ──────────────────────
   muscuSlots:['7h30-9h00','9h00-10h30','10h30-12h00','12h00-13h30','13h30-15h00','15h00-16h30','16h30-18h00'],
@@ -1616,6 +1646,7 @@ async function saveConfig() {
     muscuCapacity:  S.muscuCapacity,
     boatQty:        S.boatQty,
     athleteGroups:  S.athleteGroups,
+    scheduleRules:  S.scheduleRules,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -1639,6 +1670,7 @@ async function loadConfig() {
   if (cfg.muscuCapacity  !== undefined) S.muscuCapacity  = cfg.muscuCapacity;
   if (cfg.boatQty        !== undefined) S.boatQty        = Object.assign({'Pyrhana':6,'Paname S':6,'Paname M':6}, cfg.boatQty);
   if (cfg.athleteGroups  !== undefined) S.athleteGroups  = cfg.athleteGroups || {};
+  if (cfg.scheduleRules  !== undefined) S.scheduleRules  = cfg.scheduleRules || [];
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -1696,20 +1728,40 @@ function closedLabel(d){
   if(S.closedDow[d.getDay()])  return t('closed');
   return '';
 }
+// ── Périodes d'horaires (ex: horaires week-end différents en été) ──
+// Une règle s'applique à une plage de dates ET à des jours de la semaine précis (0=dimanche..6=samedi).
+// Priorité de résolution des horaires pour une date donnée :
+//   1) Horaires personnalisés pour CETTE date précise (S.customSlots)
+//   2) Première règle de période correspondante (S.scheduleRules, dans l'ordre de la liste)
+//   3) Horaires par défaut (S.morningOrder / S.afternoonOrder / S.muscuSlots)
+function findScheduleRule(dateK){
+  if(!dateK || !S.scheduleRules || !S.scheduleRules.length) return null;
+  const dow = parseDate(dateK).getDay(); // 0=dimanche..6=samedi
+  return S.scheduleRules.find(r=>
+    r.startDate && r.endDate && dateK>=r.startDate && dateK<=r.endDate &&
+    Array.isArray(r.days) && r.days.includes(dow)
+  ) || null;
+}
 function allSlots(dateK){
   // Si l'admin a défini des créneaux custom pour cette date, on les utilise
   if(dateK && S.customSlots && S.customSlots[dateK]){
     const cs = S.customSlots[dateK];
     return [...(cs.morning||[]), ...(cs.afternoon||[])];
   }
+  const rule = findScheduleRule(dateK);
+  if(rule) return [...(rule.kayakMorning||[]), ...(rule.kayakAfternoon||[])];
   return [...S.morningOrder,...S.afternoonOrder];
 }
 function morningSlots(dateK){
   if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].morning||[];
+  const rule = findScheduleRule(dateK);
+  if(rule) return rule.kayakMorning||[];
   return S.morningOrder;
 }
 function afternoonSlots(dateK){
   if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].afternoon||[];
+  const rule = findScheduleRule(dateK);
+  if(rule) return rule.kayakAfternoon||[];
   return S.afternoonOrder;
 }
 function cap(slot,dateK,act='kayak'){
@@ -1725,7 +1777,11 @@ function getSlot(dateK,slot,act='kayak'){
   if(!store[dateK][slot]) store[dateK][slot]=[];
   return store[dateK][slot];
 }
-function muscuSlotsOf(){ return S.muscuSlots; }
+function muscuSlotsOf(dateK){
+  const rule = findScheduleRule(dateK);
+  if(rule) return rule.muscu||[];
+  return S.muscuSlots;
+}
 function isKayakCross(dateK, slot){
   return !!(S.kayakCross && S.kayakCross[dateK] && S.kayakCross[dateK][slot]);
 }
@@ -2043,7 +2099,7 @@ function renderMuscuDayPanel(){
     h+=`<div style="padding:28px;text-align:center;color:var(--text3)">${t('closedMsg')}</div>`;
   } else {
     h+=`<div class="slots-body"><div class="slot-group">`;
-    S.muscuSlots.forEach(slot=>h+=renderSlot(k,slot,'muscu'));
+    muscuSlotsOf(k).forEach(slot=>h+=renderSlot(k,slot,'muscu'));
     h+=`</div></div>`;
   }
   h+='</div>'; el.innerHTML=h;
@@ -2107,6 +2163,7 @@ function renderAdmin(){
   document.getElementById('addBoatBtn').textContent = '+ ' + t('addBoatBtnLbl');
 
   renderDefaultScheduleEditor();
+  renderScheduleRulesEditor();
 
   // DOW buttons (0=dim..6=sam)
   let dh='';
@@ -2295,7 +2352,7 @@ function renderMdregSlots(refDay){
         ${slot}${fullLabel}
       </button>`;
     }
-    el.innerHTML = S.muscuSlots.map(slotBtnMuscu).join('');
+    el.innerHTML = muscuSlotsOf(refDay).map(slotBtnMuscu).join('');
     return;
   }
 
@@ -2491,7 +2548,7 @@ async function submitMultiReg(){
       const dt = new Date(dateK+'T12:00:00');
       if(isClosed(dt)||outOfRange(dt)){ skipped++; continue; }
       // Vérifier si le créneau existe ce jour
-      const daySlots = act==='muscu' ? S.muscuSlots : allSlots(dateK);
+      const daySlots = act==='muscu' ? muscuSlotsOf(dateK) : allSlots(dateK);
       if(!daySlots.includes(slot)){ skipped++; continue; }
       // Vérifier priorité (kayak uniquement, seulement pour les utilisateurs non-admin)
       if(act==='kayak' && !S.isAdmin && isLocked(dateK, slot)){ skipped++; continue; }
@@ -2710,10 +2767,10 @@ function printDaySchedule(dateK, act){
   } else if(act==='muscu'){
     const extraLabel = t('printColNat'), extraKey = 'nationality';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    const muscuMid = Math.ceil(S.muscuSlots.length/2);
-    h += sheet(S.muscuSlots.slice(0,muscuMid), extraLabel, extraKey);
+    const muscuMid = Math.ceil(muscuSlotsOf(dateK).length/2);
+    h += sheet(muscuSlotsOf(dateK).slice(0,muscuMid), extraLabel, extraKey);
     h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += sheet(S.muscuSlots.slice(muscuMid), extraLabel, extraKey);
+    h += sheet(muscuSlotsOf(dateK).slice(muscuMid), extraLabel, extraKey);
   } else {
     const extraLabel = t('printColDossard'), extraKey = 'dossard';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
@@ -2758,7 +2815,7 @@ function openMove(dateK,slot,idx,act='kayak'){
   document.getElementById('moveInfo').textContent=
     t('moveInfoTpl').replace('{name}',a.name).replace('{role}',roleDisplay(a.role)).replace('{slot}',slot).replace('{date}',dateK);
   const sel=document.getElementById('moveSlot');
-  const slotList = act==='muscu' ? muscuSlotsOf() : allSlots(dateK);
+  const slotList = act==='muscu' ? muscuSlotsOf(dateK) : allSlots(dateK);
   sel.innerHTML=slotList.map(s=>`<option value="${s}"${s===slot?' selected':''}>${s}</option>`).join('');
   document.getElementById('moveDate').value=dateK;
   document.getElementById('moveModal').classList.add('show');
@@ -3000,6 +3057,90 @@ function resetDefaultSchedule(){
   renderDefaultScheduleEditor();
   document.getElementById('dsMsg').style.color='#6b7280';
   document.getElementById('dsMsg').textContent = 'Modifications annulées.';
+}
+
+// ── Périodes d'horaires (semaine / week-end différents sur une plage de dates) ──
+const DOW_LABELS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']; // index = Date.getDay()
+
+function renderScheduleRulesEditor(){
+  const box = document.getElementById('srDaysBox');
+  if(box && !box.dataset.built){
+    box.innerHTML = DOW_LABELS.map((lbl,i)=>`
+      <label style="display:flex;align-items:center;gap:4px;font-size:.78rem;cursor:pointer">
+        <input type="checkbox" class="sr-day-cb" value="${i}"> ${lbl}
+      </label>`).join('');
+    box.dataset.built = '1';
+  }
+  const list = document.getElementById('scheduleRulesList');
+  if(!list) return;
+  if(!S.scheduleRules || !S.scheduleRules.length){
+    list.innerHTML = '<p style="font-size:.78rem;color:var(--text3)">Aucune période définie pour le moment — les horaires par défaut s\'appliquent partout.</p>';
+    return;
+  }
+  list.innerHTML = S.scheduleRules.map((r,i)=>{
+    const daysLabel = [...(r.days||[])].sort().map(d=>DOW_LABELS[d]).join(' ');
+    return `<div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="flex:1">${esc(r.label||'(sans nom)')}</b>
+        <span style="font-size:.72rem;color:var(--text3)">${esc(r.startDate)} → ${esc(r.endDate)}</span>
+        <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 6px;font-weight:700">${esc(daysLabel)}</span>
+        <button class="ath-btn mv" title="Monter (priorité plus haute)" onclick="moveScheduleRule(${i},-1)">↑</button>
+        <button class="ath-btn mv" title="Descendre" onclick="moveScheduleRule(${i},1)">↓</button>
+        <button class="ath-btn del" title="Supprimer cette période" onclick="deleteScheduleRule(${i})">✕</button>
+      </div>
+      <div style="font-size:.72rem;color:var(--text3);margin-top:4px">
+        🚣 Matin : ${(r.kayakMorning||[]).map(esc).join(', ')||'—'}<br>
+        🚣 Après-midi : ${(r.kayakAfternoon||[]).map(esc).join(', ')||'—'}<br>
+        🏋️ Muscu : ${(r.muscu||[]).map(esc).join(', ')||'—'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addScheduleRule(){
+  const label = document.getElementById('srLabel').value.trim();
+  const start = document.getElementById('srStart').value;
+  const end = document.getElementById('srEnd').value;
+  const days = [...document.querySelectorAll('.sr-day-cb:checked')].map(cb=>parseInt(cb.value));
+  const kM = document.getElementById('srKayakMorning').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const kA = document.getElementById('srKayakAfternoon').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const mu = document.getElementById('srMuscu').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const msg = document.getElementById('srMsg');
+  msg.style.color='var(--red)'; msg.textContent='';
+  if(!start || !end){ msg.textContent = 'Merci de choisir une date de début et de fin.'; return; }
+  if(start > end){ msg.textContent = 'La date de fin doit être après la date de début.'; return; }
+  if(!days.length){ msg.textContent = 'Coche au moins un jour de la semaine.'; return; }
+  if(!kM.length && !kA.length && !mu.length){ msg.textContent = 'Renseigne au moins un créneau (kayak matin/après-midi ou muscu).'; return; }
+  if(!S.scheduleRules) S.scheduleRules = [];
+  S.scheduleRules.push({
+    id: 'rule_'+Date.now(),
+    label: label || (start+' → '+end),
+    startDate: start, endDate: end, days,
+    kayakMorning: kM, kayakAfternoon: kA, muscu: mu
+  });
+  await saveConfig();
+  ['srLabel','srStart','srEnd','srKayakMorning','srKayakAfternoon','srMuscu'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.querySelectorAll('.sr-day-cb').forEach(cb=>cb.checked=false);
+  renderScheduleRulesEditor();
+  msg.style.color='#16a34a'; msg.textContent='✅ Période ajoutée.';
+  render();
+}
+
+async function deleteScheduleRule(i){
+  if(!confirm("Supprimer cette période d'horaires ?")) return;
+  S.scheduleRules.splice(i,1);
+  await saveConfig();
+  renderScheduleRulesEditor();
+  render();
+}
+
+async function moveScheduleRule(i,dir){
+  const ni = i+dir;
+  if(!S.scheduleRules || ni<0 || ni>=S.scheduleRules.length) return;
+  [S.scheduleRules[i],S.scheduleRules[ni]] = [S.scheduleRules[ni],S.scheduleRules[i]];
+  await saveConfig();
+  renderScheduleRulesEditor();
+  render();
 }
 
 let _csDate = null;
@@ -3571,7 +3712,7 @@ function renderRecap(start, days){
     dates.forEach(d=>{
       if(isClosed(d)) return;
       const k = dk(d);
-      const daySlots = act==='muscu' ? S.muscuSlots : allSlots(k);
+      const daySlots = act==='muscu' ? muscuSlotsOf(k) : allSlots(k);
       daySlots.forEach(slot=>{
         const aths = getSlot(k, slot, act);
         aths.forEach(a=>{
