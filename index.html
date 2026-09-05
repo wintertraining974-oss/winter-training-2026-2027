@@ -273,6 +273,40 @@ select.field { min-width: 110px; cursor: pointer; }
 .wa-join-card h3 { font-size: .95rem; margin-bottom: 4px; }
 .wa-join-sub { font-size: .8rem; color: var(--text3); margin-bottom: 14px; }
 .wa-join-qr { width: 190px; max-width: 60%; border-radius: 10px; display: block; margin: 0 auto; }
+/* ── Vue Planning grille ─────────────────────────────────── */
+.planning-wrap { overflow-x:auto;border-radius:var(--radius);box-shadow:var(--shadow); }
+.planning-grid { width:100%;border-collapse:collapse;background:var(--white); }
+.planning-grid th { background:var(--accent);color:white;padding:9px 6px;font-size:.72rem;font-weight:700;text-align:center;border-right:1px solid rgba(255,255,255,.15);white-space:nowrap; }
+.planning-grid th:first-child { background:#0f172a;width:82px;min-width:82px; }
+.planning-grid td { border:1px solid var(--border);padding:0;vertical-align:top; }
+.planning-grid td:first-child { background:#f8fafc;font-size:.7rem;font-weight:700;color:var(--text2);padding:6px 8px;text-align:right;white-space:nowrap;border-right:2px solid var(--border2);min-width:82px; }
+.pg-cell { min-height:52px;padding:4px 5px; }
+.pg-cell-kx { background:#fff7ed; }
+.pg-cell-blocked { background:#fef2f2; }
+.pg-cell-full { background:#fff0f0; }
+.pg-cell-CRRCK { background:#f5f3ff; }
+.pg-cell-CLUB { background:#f0fdfa; }
+.pg-cell-closed { background:#f9fafb;opacity:.5; }
+.pg-cell-today { background:#eff6ff; }
+.pg-count { font-size:.63rem;font-weight:700;padding:1px 5px;border-radius:4px;display:inline-block;margin-bottom:3px;white-space:nowrap; }
+.pg-count-open  { background:#dcfce7;color:#15803d; }
+.pg-count-mid   { background:#fef3c7;color:#92400e; }
+.pg-count-full  { background:#fee2e2;color:#991b1b; }
+.pg-count-block { background:#fee2e2;color:#991b1b; }
+.pg-ath { font-size:.61rem;color:var(--text2);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;display:block; }
+.pg-ath-kx::before { content:'🏄 ';font-size:.55rem; }
+.pg-ath-rental::after { content:' 🚣';font-size:.55rem; }
+.pg-more { font-size:.58rem;color:var(--text3);font-style:italic; }
+.pg-blocked-tag { font-size:.6rem;color:#dc2626;font-weight:700; }
+.pg-slot-lbl { font-size:.58rem;font-weight:700;padding:1px 4px;border-radius:3px;display:inline-block;margin-bottom:2px; }
+.pg-lbl-CRRCK { background:#ede9fe;color:#7c3aed; }
+.pg-lbl-CLUB { background:#ccfbf1;color:#0d9488; }
+.pg-empty { font-size:.6rem;color:#d1d5db;padding:4px 2px; }
+.pg-today-head { background:#1447bf!important; }
+.pg-act-toggle { display:flex;gap:6px;margin-bottom:10px; }
+.pg-act-btn { padding:5px 14px;border-radius:20px;border:1.5px solid var(--border2);background:white;font-size:.76rem;font-weight:600;cursor:pointer; }
+.pg-act-btn.active { background:var(--accent);color:white;border-color:var(--accent); }
+.pg-act-btn.muscu-act.active { background:#0d9488;border-color:#0d9488; }
 </style>
 </head>
 <body>
@@ -546,6 +580,7 @@ select.field { min-width: 110px; cursor: pointer; }
       <div class="view-toggle">
         <button class="view-btn" id="vbMonth" onclick="setView('month')">Mois</button>
         <button class="view-btn active" id="vbWeek" onclick="setView('week')">Semaine</button>
+        <button class="view-btn" id="vbPlanning" onclick="setView('planning')">📋 Planning</button>
       </div>
     </div>
     <button class="nav-btn" id="btnNext" onclick="navNext()">Suivant →</button>
@@ -914,7 +949,7 @@ const TR = {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mars 2027',
     adminBtn:'Admin', adminBtnExit:'Quitter Admin',
     prevBtn:'← Précédent', nextBtn:'Suivant →',
-    viewMonth:'Mois', viewWeek:'Semaine',
+    viewMonth:'Mois', viewWeek:'Semaine', viewPlanning:'📋 Planning',
     legAvail:'Places disponibles', legAlmost:'Presque plein', legFull:'Complet',
     aTitle:'Panneau Administrateur', aPrioLabel:'Activer la priorité des créneaux',
     aMorTitle:'Ordre créneaux — Matin', aAftTitle:'Ordre créneaux — Après-midi',
@@ -1020,7 +1055,7 @@ const TR = {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mar 2027',
     adminBtn:'Admin', adminBtnExit:'Exit Admin',
     prevBtn:'← Previous', nextBtn:'Next →',
-    viewMonth:'Month', viewWeek:'Week',
+    viewMonth:'Month', viewWeek:'Week', viewPlanning:'📋 Planning',
     legAvail:'Available spots', legAlmost:'Almost full', legFull:'Full',
     aTitle:'Admin Panel', aPrioLabel:'Enable slot priority rule',
     aMorTitle:'Slot order — Morning', aAftTitle:'Slot order — Afternoon',
@@ -1155,6 +1190,7 @@ function applyI18n(){
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
+  document.getElementById('vbPlanning').textContent = t('viewPlanning');
   document.getElementById('langBtn').textContent = LANG==='fr'?'EN':'FR';
   // Étape 2 (créneaux) : le libellé dépend de l'activité sélectionnée dans la carte d'inscription rapide
   const step2El = document.getElementById('qrStep2');
@@ -1580,7 +1616,18 @@ function render(){ renderCal(); renderDayPanel(); renderMuscuDayPanel(); renderA
 function renderCal(){
   document.getElementById('vbMonth').className='view-btn'+(S.view==='month'?' active':'');
   document.getElementById('vbWeek').className='view-btn'+(S.view==='week'?' active':'');
-  document.getElementById('calContainer').innerHTML=S.view==='month'?renderMonth():renderWeek();
+  document.getElementById('vbPlanning').className='view-btn'+(S.view==='planning'?' active':'');
+  const dayPanelEl = document.getElementById('dayPanel');
+  const muscuDayEl = document.getElementById('muscuDayPanel');
+  if(S.view==='planning'){
+    document.getElementById('calContainer').innerHTML='';
+    if(dayPanelEl) dayPanelEl.style.display='none';
+    if(muscuDayEl) muscuDayEl.style.display='none';
+    renderPlanningGrid();
+  } else {
+    document.getElementById('planningContainer')?.remove();
+    document.getElementById('calContainer').innerHTML=S.view==='month'?renderMonth():renderWeek();
+  }
 }
 
 function renderMonth(){
@@ -1963,14 +2010,216 @@ function selectDay(k){
   S.selectedDate=d; S.currentDate=d; render();
   setTimeout(()=>document.getElementById('dayPanel').scrollIntoView({behavior:'smooth',block:'start'}),60);
 }
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// VUE PLANNING GRILLE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let _pgActivity = 'kayak'; // 'kayak' | 'muscu'
+
+function renderPlanningGrid(){
+  // Créer ou recycler le conteneur
+  let wrap = document.getElementById('planningContainer');
+  if(!wrap){
+    wrap = document.createElement('div');
+    wrap.id = 'planningContainer';
+    const calEl = document.getElementById('calContainer');
+    calEl.parentNode.insertBefore(wrap, calEl.nextSibling);
+  }
+
+  // Calcul de la semaine courante
+  const ws = weekStart(S.currentDate);
+  const days = [];
+  for(let i=0;i<7;i++){
+    const d = new Date(ws); d.setDate(ws.getDate()+i);
+    days.push(d);
+  }
+
+  // Titre semaine dans la nav
+  const months = t('months');
+  const we = new Date(ws); we.setDate(ws.getDate()+6);
+  document.getElementById('calTitle').textContent =
+    `${ws.getDate()} ${months[ws.getMonth()]} – ${we.getDate()} ${months[we.getMonth()]} ${we.getFullYear()}`;
+
+  const isKayak = _pgActivity === 'kayak';
+  const today = dk(new Date());
+
+  // Slots selon l'activité
+  const getSlots = (dateK) => isKayak ? allSlots(dateK) : S.muscuSlots;
+
+  // Toutes les lignes (union de tous les créneaux de la semaine)
+  const allSlotLabels = new Set();
+  days.forEach(d=>{
+    const k=dk(d);
+    getSlots(k).forEach(s=>allSlotLabels.add(s));
+  });
+  // Trier les créneaux chronologiquement
+  const slotRows = [...allSlotLabels].sort((a,b)=>a.localeCompare(b));
+
+  // Toggle activité
+  let html = `<div class="pg-act-toggle">
+    <button class="pg-act-btn${_pgActivity==='kayak'?' active':''}" onclick="pgSetActivity('kayak')">🚣 Kayak</button>
+    <button class="pg-act-btn muscu-act${_pgActivity==='muscu'?' active':''}" onclick="pgSetActivity('muscu')">🏋️ Fitness</button>
+  </div>`;
+
+  // Bouton impression planning semaine
+  html += `<div style="margin-bottom:8px">
+    <button class="btn btn-sm" onclick="printPlanningGrid()">🖨️ Print week</button>
+  </div>`;
+
+  // Tableau
+  html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><table class="planning-grid">`;
+
+  // En-tête jours
+  html += '<thead><tr><th style="text-align:center;font-size:.65rem;color:#94a3b8">Slot</th>';
+  const dowLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  days.forEach((d,i)=>{
+    const k=dk(d);
+    const isToday=k===today;
+    const closed=isClosed(d)||outOfRange(d);
+    html+=`<th class="${isToday?'pg-today-head':''}${closed?' pg-day-closed':''}" style="min-width:120px">
+      ${dowLabels[i]}<br>
+      <span style="font-size:.65rem;font-weight:400;opacity:.9">${d.getDate()} ${months[d.getMonth()]}</span>
+    </th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  // Lignes créneaux
+  slotRows.forEach(slot=>{
+    html += '<tr>';
+    // Colonne heure
+    html += `<td style="text-align:center">${slot}</td>`;
+
+    days.forEach(d=>{
+      const k = dk(d);
+      const closed = isClosed(d)||outOfRange(d);
+      const slotExists = getSlots(k).includes(slot);
+
+      if(closed||!slotExists){
+        html+=`<td class="pg-cell${closed?' pg-cell-closed':''}"><div class="pg-cell"><span class="pg-empty">—</span></div></td>`;
+        return;
+      }
+
+      const isToday = k===today;
+      const aths = isKayak ? getSlot(k,slot) : getSlot(k,slot,'muscu');
+      const c = cap(slot,k, isKayak?'kayak':'muscu');
+      const kx = isKayak && isKayakCross(k,slot);
+      const slotCfg = !isKayak ? getMuscuSlotCfg(k,slot) : null;
+      const blocked = slotCfg?.blocked;
+      const label = kx ? 'KX' : (slotCfg?.label||'');
+
+      // Classe de la cellule
+      let cellClass = 'pg-cell';
+      if(isToday) cellClass += ' pg-cell-today';
+      if(blocked) cellClass += ' pg-cell-blocked';
+      else if(kx) cellClass += ' pg-cell-kx';
+      else if(label && label!=='KX') cellClass += ` pg-cell-${label}`;
+      else if(aths.length>=c) cellClass += ' pg-cell-full';
+
+      // Badge count
+      const pct = aths.length/c;
+      const countClass = blocked?'pg-count-block':pct>=1?'pg-count-full':pct>=0.6?'pg-count-mid':'pg-count-open';
+      const countTxt = blocked?'🚫':kx?`🏄 ${aths.length}/${c}`:`${aths.length}/${c}`;
+
+      let cellHtml = `<div class="${cellClass}">`;
+      // Label (KX, CRRCK, CLUB)
+      if(kx)  cellHtml+=`<span class="pg-slot-lbl" style="background:#fff7ed;color:#f97316">🏄 KX</span><br>`;
+      if(label&&label!=='KX') cellHtml+=`<span class="pg-slot-lbl pg-lbl-${label}">${label}</span><br>`;
+      if(blocked) cellHtml+=`<span class="pg-blocked-tag">🚫 Blocked</span>`;
+      else {
+        // Compteur
+        cellHtml+=`<span class="pg-count ${countClass}">${countTxt}</span>`;
+        // Athlètes (max 4 affichés)
+        const MAX_SHOW = 4;
+        aths.slice(0,MAX_SHOW).forEach(a=>{
+          const isKxAth = kx;
+          const hasRental = a.rental||a.kayakModel;
+          cellHtml+=`<span class="pg-ath${isKxAth?' pg-ath-kx':''}${hasRental?' pg-ath-rental':''}" title="${esc(a.name)}">${esc(a.name.split(' ')[0])} ${esc((a.name.split(' ')[1]||'').charAt(0)+'.')}</span>`;
+        });
+        if(aths.length>MAX_SHOW) cellHtml+=`<span class="pg-more">+${aths.length-MAX_SHOW} more</span>`;
+        if(!aths.length) cellHtml+=`<span class="pg-empty">Empty</span>`;
+      }
+      cellHtml+='</div>';
+      html+=`<td>${cellHtml}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+function pgSetActivity(act){
+  _pgActivity = act;
+  renderPlanningGrid();
+}
+
+function printPlanningGrid(){
+  const ws = weekStart(S.currentDate);
+  const months = t('months');
+  const we = new Date(ws); we.setDate(ws.getDate()+6);
+  const weekLabel = `${ws.getDate()} ${months[ws.getMonth()]} – ${we.getDate()} ${months[we.getMonth()]} ${we.getFullYear()}`;
+  const isKayak = _pgActivity==='kayak';
+  const days=[];
+  for(let i=0;i<7;i++){const d=new Date(ws);d.setDate(ws.getDate()+i);days.push(d);}
+  const getSlots=(k)=>isKayak?allSlots(k):S.muscuSlots;
+  const allSlotLabels=new Set();
+  days.forEach(d=>getSlots(dk(d)).forEach(s=>allSlotLabels.add(s)));
+  const slotRows=[...allSlotLabels].sort((a,b)=>a.localeCompare(b));
+  const dowLabels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  let html=`<html><head><title>Planning ${weekLabel}</title><style>
+  body{font-family:Arial,sans-serif;font-size:10px;margin:20px}
+  h2{font-size:13px;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th{background:${isKayak?'#1d4ed8':'#0d9488'};color:white;padding:5px 4px;font-size:9px;text-align:center}
+  th:first-child{background:#0f172a;width:70px}
+  td{border:1px solid #e5e7eb;padding:4px 5px;vertical-align:top;min-width:90px}
+  td:first-child{background:#f8fafc;font-weight:700;font-size:9px;text-align:right}
+  .name{display:block;font-size:8px;line-height:1.4;color:#374151}
+  .cnt{font-size:8px;font-weight:700;background:#dcfce7;color:#15803d;padding:1px 4px;border-radius:3px;display:inline-block;margin-bottom:2px}
+  .cnt-full{background:#fee2e2;color:#991b1b}
+  .cnt-mid{background:#fef3c7;color:#92400e}
+  .blocked{color:#dc2626;font-weight:700;font-size:8px}
+  .kx-lbl{font-size:8px;background:#fff7ed;color:#f97316;font-weight:700}
+  </style></head><body>
+  <h2>${isKayak?'🚣 Kayak':'🏋️ Fitness'} — Planning ${weekLabel}</h2>
+  <p style="font-size:9px;color:#6b7280">Printed ${new Date().toLocaleString('en-GB')}</p>
+  <table><thead><tr><th>Slot</th>`;
+  days.forEach((d,i)=>{html+=`<th>${dowLabels[i]}<br>${d.getDate()} ${months[d.getMonth()]}</th>`;});
+  html+=`</tr></thead><tbody>`;
+  slotRows.forEach(slot=>{
+    html+=`<tr><td>${slot}</td>`;
+    days.forEach(d=>{
+      const k=dk(d);
+      const closed=isClosed(d)||outOfRange(d);
+      if(closed||!getSlots(k).includes(slot)){html+='<td style="background:#f9fafb">—</td>';return;}
+      const aths=isKayak?getSlot(k,slot):getSlot(k,slot,'muscu');
+      const c=cap(slot,k,isKayak?'kayak':'muscu');
+      const kx=isKayak&&isKayakCross(k,slot);
+      const slotCfg=!isKayak?getMuscuSlotCfg(k,slot):null;
+      const blocked=slotCfg?.blocked;
+      const label=slotCfg?.label||'';
+      const pct=aths.length/c;
+      const cntCls=pct>=1?'cnt cnt-full':pct>=0.6?'cnt cnt-mid':'cnt';
+      html+=`<td>${kx?'<span class="kx-lbl">🏄 KX</span><br>':''}${label?`<span class="kx-lbl">${label}</span><br>`:''}`;
+      if(blocked){html+='<span class="blocked">🚫 Blocked</span>';}
+      else{html+=`<span class="${cntCls}">${aths.length}/${c}</span>`;
+        aths.forEach(a=>{html+=`<span class="name">${esc(a.name)}</span>`;});}
+      html+=`</td>`;
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table><p style="font-size:8px;color:#9ca3af;margin-top:12px">Kayak Winter Training — SEVI / CINOR</p></body></html>`;
+  const w=window.open('','_blank');w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
+}
+
 function setView(v){ S.view=v; render(); }
 function navPrev(){
-  if(S.view==='month') S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()-1,1);
+  if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()-1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()-7); S.currentDate=d; }
   render();
 }
 function navNext(){
-  if(S.view==='month') S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()+1,1);
+  if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()+1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()+7); S.currentDate=d; }
   render();
 }
