@@ -752,6 +752,15 @@ select.field { min-width: 110px; cursor: pointer; }
         <button class="btn btn-sm btn-primary" id="aTeamsCreateBtn" onclick="adminCreateTeamForUser()"></button>
       </div>
       <div id="adminTeamsMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+
+      <h5 id="aTeamsManagersTitle" style="font-size:.8rem;font-weight:700;margin-top:18px;margin-bottom:4px"></h5>
+      <p id="aTeamsManagersDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select class="field" id="adminManagerTeamSelect" style="flex:1;min-width:220px"></select>
+        <select class="field" id="adminManagerProfileSelect" style="flex:1;min-width:220px"></select>
+        <button class="btn btn-sm btn-primary" id="aTeamsAddManagerBtn" onclick="adminAddTeamManager()"></button>
+      </div>
+      <div id="adminManagerMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
     </div>
   </div>
 
@@ -1184,6 +1193,10 @@ const TR = {
     aTeamsCreateBtn:'✅ Créer / mettre à jour', aTeamsValidateBtn:'✅ Valider',
     aTeamsRejectBtn:'↩️ Refuser', aTeamsMembersLbl:'Athlètes', aTeamsNoMembers:'Aucun athlète pour le moment.',
     aTeamsOwnerLabel:'Groupe (compte)', aTeamsTeamCol:'Team',
+    aTeamsManagersCol:'Gestionnaires', aTeamsRemoveManagerBtn:'Retirer ce gestionnaire',
+    aTeamsManagersTitle:'👥 Gestionnaires additionnels d\u2019une team', 
+    aTeamsManagersDesc:'Associez un ou plusieurs comptes (emails validés) supplémentaires à une team existante : chacun pourra gérer les athlètes de cette team.',
+    aTeamsAddManagerBtn:'✅ Ajouter comme gestionnaire', teamManagerAdded:'Gestionnaire ajouté à la team.',
   },
   en: {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mar 2027',
@@ -1326,6 +1339,10 @@ const TR = {
     aTeamsCreateBtn:'✅ Create / update', aTeamsValidateBtn:'✅ Validate',
     aTeamsRejectBtn:'↩️ Reject', aTeamsMembersLbl:'Athletes', aTeamsNoMembers:'No athletes yet.',
     aTeamsOwnerLabel:'Group (account)', aTeamsTeamCol:'Team',
+    aTeamsManagersCol:'Managers', aTeamsRemoveManagerBtn:'Remove this manager',
+    aTeamsManagersTitle:'👥 Additional team managers',
+    aTeamsManagersDesc:'Link one or more extra validated accounts (emails) to an existing team: each will be able to manage that team\u2019s athletes.',
+    aTeamsAddManagerBtn:'✅ Add as manager', teamManagerAdded:'Manager added to the team.',
   }
 };
 function t(k){ return TR[LANG][k] || k; }
@@ -1476,13 +1493,27 @@ async function loadTeamsData(){
   if(e1){ console.warn('loadTeamsData/teams', e1.message); return; }
   const { data: memberRows, error: e2 } = await sb.from('team_members').select('*');
   if(e2){ console.warn('loadTeamsData/members', e2.message); return; }
+  const { data: managerRows, error: e3 } = await sb.from('team_managers').select('*');
+  if(e3){ console.warn('loadTeamsData/managers', e3.message); S.teamManagers = []; }
+  else { S.teamManagers = managerRows||[]; }
   const byTeam = {};
   (memberRows||[]).forEach(m=>{ (byTeam[m.team_id] = byTeam[m.team_id]||[]).push(m); });
+  const byTeamManagers = {};
+  (S.teamManagers||[]).forEach(mg=>{ (byTeamManagers[mg.team_id] = byTeamManagers[mg.team_id]||[]).push(mg); });
   S.teams = (teamsRows||[]).map(tm=>({
     ...tm,
-    members: (byTeam[tm.id]||[]).map(m=>({ ...m, athlete: S.athletes.find(a=>a.id===m.athlete_id) }))
+    members: (byTeam[tm.id]||[]).map(m=>({ ...m, athlete: S.athletes.find(a=>a.id===m.athlete_id) })),
+    managers: byTeamManagers[tm.id]||[]
   }));
-  S.myTeam = S.session ? (S.teams.find(tm=>tm.owner_user_id===S.session.user.id) || null) : null;
+  if(S.session){
+    const myId = S.session.user.id;
+    const myEmail = (S.session.user.email||'').toLowerCase();
+    S.myTeam = S.teams.find(tm=>tm.owner_user_id===myId) ||
+      S.teams.find(tm=> (tm.managers||[]).some(mg=> mg.status==='approved' && (mg.user_id===myId || (mg.email||'').toLowerCase()===myEmail))) ||
+      null;
+  } else {
+    S.myTeam = null;
+  }
 }
 
 async function refreshMyTeam(){
@@ -1725,6 +1756,50 @@ function ownerDisplayName(ownerId){
   return p ? (p.full_name || p.email) : ownerId;
 }
 
+// ── Admin : plusieurs gestionnaires (emails) validés sur une même team ──
+function populateManagerTeamSelect(){
+  const sel = document.getElementById('adminManagerTeamSelect');
+  if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = S.teams.map(tm=>`<option value="${tm.id}">${esc(tm.name)} — ${esc(ownerDisplayName(tm.owner_user_id))}</option>`).join('')
+    || `<option value="">—</option>`;
+  if(cur && S.teams.some(tm=>tm.id===cur)) sel.value = cur;
+}
+
+async function adminAddTeamManager(){
+  if(!S.isAdmin) return;
+  const teamId = document.getElementById('adminManagerTeamSelect').value;
+  const profileId = document.getElementById('adminManagerProfileSelect').value;
+  const msg = document.getElementById('adminManagerMsg');
+  if(!teamId || !profileId){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrAdminCreate'); } return; }
+  const profile = _approvedProfilesForTeams.find(p=>p.id===profileId);
+  if(!profile){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrAdminCreate'); } return; }
+  const { error } = await sb.from('team_managers').upsert({
+    team_id: teamId, user_id: profile.id, email: (profile.email||'').toLowerCase(),
+    status:'approved', added_by: S.session.user.id
+  }, { onConflict:'team_id,email' });
+  if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
+  if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamManagerAdded'); }
+  await loadTeamsData();
+  renderAdminTeams();
+}
+
+async function adminRemoveTeamManager(managerRowId){
+  if(!S.isAdmin) return;
+  const { error } = await sb.from('team_managers').delete().eq('id', managerRowId);
+  if(error){ toast(error.message,'error'); return; }
+  await loadTeamsData();
+  renderAdminTeams();
+}
+
+function teamManagersLabel(tm){
+  const names = (tm.managers||[]).map(mg=>{
+    const p = _approvedProfilesForTeams.find(pp=>pp.id===mg.user_id);
+    return p ? (p.full_name||p.email) : mg.email;
+  });
+  return names.length ? names.join(', ') : '';
+}
+
 function renderAdminTeams(){
   if(!S.isAdmin) return;
   document.getElementById('aTeamsDesc') && (document.getElementById('aTeamsDesc').textContent = t('aTeamsDesc'));
@@ -1768,17 +1843,35 @@ function renderAdminTeams(){
       <thead><tr>
         <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsTeamCol'))}</th>
         <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsOwnerLabel'))}</th>
+        <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsManagersCol'))}</th>
         <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsMembersLbl'))}</th>
         <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">Statut</th>
       </tr></thead>
       <tbody>${S.teams.map(tm=>`<tr>
         <td style="border:1px solid var(--border);padding:5px 8px">${esc(tm.name)}</td>
         <td style="border:1px solid var(--border);padding:5px 8px">${esc(ownerDisplayName(tm.owner_user_id))}</td>
+        <td style="border:1px solid var(--border);padding:5px 8px">${
+          (tm.managers||[]).length ? (tm.managers||[]).map(mg=>{
+            const p = _approvedProfilesForTeams.find(pp=>pp.id===mg.user_id);
+            const label = p ? (p.full_name||p.email) : mg.email;
+            return `<span class="slot-badge sb-open" style="margin:1px 3px 1px 0;cursor:pointer" title="${esc(t('aTeamsRemoveManagerBtn'))}" onclick="adminRemoveTeamManager('${mg.id}')">${esc(label)} ✕</span>`;
+          }).join('') : '<span style="color:var(--text3)">—</span>'
+        }</td>
         <td style="border:1px solid var(--border);padding:5px 8px">${tm.members.length}</td>
         <td style="border:1px solid var(--border);padding:5px 8px">${esc(teamStatusLabel(tm.status))}</td>
       </tr>`).join('')}</tbody>
     </table></div>` : `<p style="color:var(--text3);font-size:.85rem">${esc(t('aTeamsNonePending'))}</p>`;
   }
+
+  populateManagerTeamSelect();
+  const managerProfileSel = document.getElementById('adminManagerProfileSelect');
+  if(managerProfileSel){
+    managerProfileSel.innerHTML = _approvedProfilesForTeams.map(p=>`<option value="${p.id}">${esc(p.full_name||p.email)}</option>`).join('')
+      || `<option value="">—</option>`;
+  }
+  document.getElementById('aTeamsManagersTitle') && (document.getElementById('aTeamsManagersTitle').textContent = t('aTeamsManagersTitle'));
+  document.getElementById('aTeamsManagersDesc') && (document.getElementById('aTeamsManagersDesc').textContent = t('aTeamsManagersDesc'));
+  document.getElementById('aTeamsAddManagerBtn') && (document.getElementById('aTeamsAddManagerBtn').textContent = t('aTeamsAddManagerBtn'));
 }
 
 
@@ -1801,7 +1894,7 @@ function todayClamped(){
 
 let S = {
   page:'quickreg',
-  athletes:[], teams:[], myTeam:null,
+  athletes:[], teams:[], myTeam:null, teamManagers:[],
   view:'week', currentDate:todayClamped(), selectedDate:null,
   isAdmin:false, priorityOn:true,
   priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
