@@ -37,6 +37,10 @@ header { background: var(--white); border-bottom: 1px solid var(--border); paddi
 .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
 .cal-nav-center { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cal-title { font-size: 1.1rem; font-weight: 700; min-width: 220px; text-align: center; }
+.page-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.page-tab { flex: 1 1 160px; min-width: 140px; text-align: center; background: var(--white); border: 1.5px solid var(--border2); color: var(--text2); padding: 12px 16px; border-radius: var(--radius); font-size: .9rem; font-weight: 700; cursor: pointer; transition: all .15s; box-shadow: var(--shadow-sm); }
+.page-tab:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.page-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: var(--shadow); }
 .view-toggle { display: flex; border: 1.5px solid var(--border2); border-radius: var(--radius-sm); overflow: hidden; }
 .view-btn { padding: 6px 14px; background: var(--white); border: none; color: var(--text3); cursor: pointer; font-size: .8rem; font-weight: 600; transition: all .15s; }
 .view-btn.active { background: var(--accent); color: white; }
@@ -516,6 +520,13 @@ select.field { min-width: 110px; cursor: pointer; }
 </header>
 
 <div class="app-body" id="appBody" style="display:none">
+
+  <div class="page-tabs" id="pageTabs">
+    <button class="page-tab active" id="pbQuickReg" onclick="setPage('quickreg')">⚡ <span id="navQuickReg">Quick registration</span></button>
+    <button class="page-tab" id="pbTeam" onclick="setPage('team')">👥 <span id="navTeam">My team</span></button>
+    <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Planning</span></button>
+  </div>
+
   <div class="quick-reg-card" id="quickRegPanel">
     <h2 id="qrTitle">⚡ Quick registration</h2>
     <p class="qr-sub"><span id="qrSub"></span><a href="#calNavAnchor" class="qr-jump" id="qrJump" style="display:inline"></a></p>
@@ -572,6 +583,7 @@ select.field { min-width: 110px; cursor: pointer; }
     </div>
   </div>
 
+  <div id="planningPage" style="display:none">
   <a id="calNavAnchor"></a>
   <div class="cal-nav">
     <button class="nav-btn" id="btnPrev" onclick="navPrev()">← Précédent</button>
@@ -721,6 +733,17 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="btn btn-sm btn-primary" id="aGlobalPlanBtn" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
     </div>
   </div>
+
+  </div><!-- /planningPage -->
+
+  <div id="teamPage" style="display:none">
+    <div class="quick-reg-card">
+      <h2 id="teamTitle">👥 My team</h2>
+      <p class="qr-sub" id="teamSub"></p>
+      <div id="teamBody"></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Modal Vue planning global (accessible à tous les utilisateurs connectés) -->
@@ -1050,6 +1073,10 @@ const TR = {
     costDateCol:'Date', costNameCol:'Nom Prénom', costTypeCol:'Séance', costPriceCol:'Tarif',
     costGrandTotal:'Total général',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Musculation', typeWithRental:'+ location',
+    navQuickReg:'Inscription rapide', navTeam:'Mon équipe', navPlanning:'Planning',
+    teamTitle:'👥 Mon équipe', teamGroupLabel:'Groupe',
+    teamSub:'Retrouvez ici le nom, prénom et le groupe de chaque athlète que vous avez inscrit.',
+    teamEmpty:"Vous n'avez inscrit personne pour le moment. Utilisez l'inscription rapide ou le planning pour ajouter des athlètes.",
   },
   en: {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mar 2027',
@@ -1156,6 +1183,10 @@ const TR = {
     costDateCol:'Date', costNameCol:'Full name', costTypeCol:'Session', costPriceCol:'Price',
     costGrandTotal:'Grand total',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Weight room', typeWithRental:'+ rental',
+    navQuickReg:'Quick registration', navTeam:'My team', navPlanning:'Planning',
+    teamTitle:'👥 My team', teamGroupLabel:'Group',
+    teamSub:'Here you can find the name and the group of every athlete you have registered.',
+    teamEmpty:"You haven't registered anyone yet. Use quick registration or the planning to add athletes.",
   }
 };
 function t(k){ return TR[LANG][k] || k; }
@@ -1173,7 +1204,8 @@ function applyI18n(){
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
-    'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub'];
+    'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub',
+    'navQuickReg','navTeam','navPlanning','teamTitle','teamSub'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
     'mAdminTitle','mAdminDesc','mCodeLabel','mCancelBtn','mValidBtn',
@@ -1186,7 +1218,8 @@ function applyI18n(){
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
-    'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub'];
+    'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub',
+    'navQuickReg','navTeam','navPlanning','teamTitle','teamSub'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
   document.getElementById('vbWeek').textContent = t('viewWeek');
@@ -1203,6 +1236,78 @@ function applyI18n(){
   // Rafraîchir les vues dynamiques qui contiennent du texte traduit généré en JS
   renderDateCapSummary();
   renderDcMiniCal();
+  if(S.page==='team') renderMyTeam();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NAVIGATION PAR PAGES (Inscription rapide / Mon équipe / Planning)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function setPage(page){
+  S.page = page;
+  const qr = document.getElementById('quickRegPanel');
+  const team = document.getElementById('teamPage');
+  const plan = document.getElementById('planningPage');
+  if(qr)   qr.style.display   = page==='quickreg' ? 'block' : 'none';
+  if(team) team.style.display = page==='team'     ? 'block' : 'none';
+  if(plan) plan.style.display = page==='planning' ? 'block' : 'none';
+  const pbQ = document.getElementById('pbQuickReg');
+  const pbT = document.getElementById('pbTeam');
+  const pbP = document.getElementById('pbPlanning');
+  if(pbQ) pbQ.classList.toggle('active', page==='quickreg');
+  if(pbT) pbT.classList.toggle('active', page==='team');
+  if(pbP) pbP.classList.toggle('active', page==='planning');
+  if(page==='team') renderMyTeam();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Construit la liste "Mon équipe" : nom/prénom des athlètes inscrits par ce compte,
+// regroupés par groupe d'inscription (une inscription groupée = une équipe).
+function renderMyTeam(){
+  const subEl = document.getElementById('teamSub');
+  if(subEl) subEl.textContent = t('teamSub');
+  const body = document.getElementById('teamBody');
+  if(!body) return;
+  if(!S.session){
+    body.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamEmpty'))}</p>`;
+    return;
+  }
+  const myId = S.session.user.id;
+  const groups = {}; // group_id → { referent, members: Map(nom|role → {name,role}) }
+  [S.data, S.muscuData].forEach(src=>{
+    Object.keys(src||{}).forEach(dateK=>{
+      Object.keys(src[dateK]).forEach(slot=>{
+        (src[dateK][slot]||[]).forEach(a=>{
+          if(a.user_id !== myId) return;
+          const gid = a.group_id || ('solo_'+myId);
+          if(!groups[gid]) groups[gid] = { referent: a.referent || (S.profile?.full_name||''), members: new Map() };
+          const key = a.name+'|'+a.role;
+          if(!groups[gid].members.has(key)) groups[gid].members.set(key, {name:a.name, role:a.role});
+        });
+      });
+    });
+  });
+  const gids = Object.keys(groups);
+  if(!gids.length){
+    body.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamEmpty'))}</p>`;
+    return;
+  }
+  let h = '';
+  gids.forEach((gid,i)=>{
+    const g = groups[gid];
+    const members = [...g.members.values()].sort((a,b)=> a.name.localeCompare(b.name));
+    h += `<div class="slot-group">
+      <div class="slot-group-title">${esc(t('teamGroupLabel'))} ${i+1}${g.referent?' — '+esc(g.referent):''}</div>
+      <div class="athletes-list">`;
+    members.forEach((m,idx)=>{
+      h += `<div class="ath-row">
+        <span class="ath-num">${idx+1}.</span>
+        <span class="ath-name">${esc(m.name)}</span>
+        <span class="ath-role-badge ${m.role==='Encadrant'?'role-encadrant':'role-athlete'}">${esc(roleDisplay(m.role))}</span>
+      </div>`;
+    });
+    h += `</div></div>`;
+  });
+  body.innerHTML = h;
 }
 
 
@@ -1224,6 +1329,7 @@ function todayClamped(){
 }
 
 let S = {
+  page:'quickreg',
   view:'week', currentDate:todayClamped(), selectedDate:null,
   isAdmin:false, priorityOn:true,
   priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
@@ -1370,6 +1476,7 @@ async function onAuthed(session){
   // Accès autorisé
   document.getElementById('appHeader').style.display='flex';
   document.getElementById('appBody').style.display='block';
+  setPage('quickreg');
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
   document.getElementById('profileBtn').style.display='inline-block';
