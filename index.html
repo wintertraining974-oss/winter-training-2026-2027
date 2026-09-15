@@ -733,25 +733,44 @@ select.field { min-width: 110px; cursor: pointer; }
       <button class="btn btn-sm btn-primary" id="aGlobalPlanBtn" onclick="openGlobalPlanning()">📅 Ouvrir la vue planning global</button>
     </div>
 
-    <!-- Gestion des teams (validation par l'admin) -->
+    <!-- Base de données des athlètes (gérée uniquement par l'admin) -->
+    <div class="admin-card" id="adminAthletesCard" style="margin-top:16px">
+      <h4 id="adminAthDbTitle">📇 Base de données des athlètes</h4>
+      <p id="adminAthDbDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input class="field" id="adminAthFirst" placeholder="Prénom" style="flex:1;min-width:140px">
+        <input class="field" id="adminAthLast" placeholder="Nom" style="flex:1;min-width:140px">
+        <select class="field" id="adminAthRental" onchange="toggleAdminAthModelField()" style="min-width:140px">
+          <option value="no" id="adminAthRentalNoOpt"></option>
+          <option value="yes" id="adminAthRentalYesOpt"></option>
+        </select>
+        <select class="field" id="adminAthModel" style="display:none;min-width:140px">
+          <option value="Paname S">Paname S</option>
+          <option value="Paname M">Paname M</option>
+          <option value="Pyranha Rippr">Pyranha Rippr</option>
+        </select>
+        <button class="btn btn-sm btn-primary" id="adminAddAthBtn" onclick="adminAddAthlete()"></button>
+      </div>
+      <div id="adminAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+      <div id="adminAthleteDbList" style="margin-top:12px"></div>
+    </div>
+
+    <!-- Gestion des teams (création, composition, verrouillage — 100% admin) -->
     <div class="admin-card" id="adminTeamsCard" style="margin-top:16px">
       <h4 id="aTeamsTitle">🏳️ Gestion des teams</h4>
       <p id="aTeamsDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
       <button class="btn btn-sm" style="margin-bottom:12px" onclick="refreshTeamsAdmin()">🔄 <span id="aTeamsRefreshBtn"></span></button>
 
-      <h5 id="aTeamsPendingTitle" style="font-size:.8rem;font-weight:700;margin-bottom:8px"></h5>
-      <div id="adminPendingTeamsList" style="margin-bottom:18px"></div>
-
-      <h5 id="aTeamsAllTitle" style="font-size:.8rem;font-weight:700;margin-bottom:8px"></h5>
-      <div id="adminAllTeamsList" style="margin-bottom:18px"></div>
-
       <h5 id="aTeamsCreateTitle" style="font-size:.8rem;font-weight:700;margin-bottom:8px"></h5>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input class="field" id="adminTeamNameInput" placeholder="Nom de la team / du groupe" style="flex:1;min-width:180px">
         <select class="field" id="adminTeamOwnerSelect" style="flex:1;min-width:220px"></select>
-        <input class="field" id="adminTeamNameInput" placeholder="Nom de la team" style="flex:1;min-width:180px">
         <button class="btn btn-sm btn-primary" id="aTeamsCreateBtn" onclick="adminCreateTeamForUser()"></button>
       </div>
       <div id="adminTeamsMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+
+      <h5 id="aTeamsAllTitle" style="font-size:.8rem;font-weight:700;margin-top:18px;margin-bottom:8px"></h5>
+      <div id="adminAllTeamsList"></div>
 
       <h5 id="aTeamsManagersTitle" style="font-size:.8rem;font-weight:700;margin-top:18px;margin-bottom:4px"></h5>
       <p id="aTeamsManagersDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
@@ -764,59 +783,37 @@ select.field { min-width: 110px; cursor: pointer; }
     </div>
   </div>
 
+
   </div><!-- /planningPage -->
 
   <div id="teamPage" style="display:none">
 
-    <!-- Ma team : composition + validation admin -->
+    <!-- Ma team : lecture seule, composée uniquement par l'admin -->
     <div class="quick-reg-card" id="myTeamPanel">
       <h2 id="myTeamTitle">🏳️ Ma team</h2>
       <p class="qr-sub" id="myTeamDesc"></p>
 
       <div class="mdreg-section">
-        <h4 id="teamNameLabelH"></h4>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input class="field" id="teamNameInput" style="flex:1;min-width:200px">
-          <button class="btn btn-sm btn-primary" id="teamSaveNameBtn" onclick="saveTeamName()"></button>
-          <span id="teamStatusBadge" class="slot-badge"></span>
-          <button class="btn btn-sm" onclick="refreshMyTeam()">🔄</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+          <span id="teamNameReadonly" style="font-weight:700;font-size:1rem"></span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="teamStatusBadge" class="slot-badge"></span>
+            <button class="btn btn-sm" onclick="refreshMyTeam()">🔄</button>
+          </div>
         </div>
-        <p id="teamFrozenMsg" style="display:none;font-size:.78rem;color:var(--text3);margin-top:6px;font-style:italic"></p>
+        <p id="teamReadonlyMsg" style="font-size:.78rem;color:var(--text3);margin-top:6px;font-style:italic"></p>
       </div>
 
-      <div class="mdreg-section" id="teamAddExistingWrap">
+      <div class="mdreg-section">
         <h4 id="teamAddExistingLabelH"></h4>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select class="field" id="teamAddAthleteSelect" style="flex:1;min-width:220px"></select>
-          <button class="btn btn-sm" id="teamAddExistingBtnLbl" onclick="addAthleteToMyTeam(document.getElementById('teamAddAthleteSelect').value)"></button>
-        </div>
         <div class="athletes-list" id="teamMembersList" style="margin-top:10px"></div>
-      </div>
-
-      <div class="modal-actions" id="teamSubmitWrap">
-        <button class="btn btn-primary" id="teamSubmitBtn" onclick="submitMyTeamForValidation()"></button>
       </div>
     </div>
 
-    <!-- Base de données des athlètes -->
+    <!-- Base de données des athlètes (lecture seule — gérée par l'admin) -->
     <div class="quick-reg-card" id="athleteDbPanel" style="margin-top:16px">
       <h2 id="teamAthDbTitle">📇 Base de données des athlètes</h2>
       <p class="qr-sub" id="teamAthDbDesc"></p>
-      <div class="add-form" style="margin-top:0;padding-top:0;border-top:none">
-        <input class="field" id="newAthFirst">
-        <input class="field" id="newAthLast">
-        <select class="field" id="newAthRental" onchange="toggleAthModelField()">
-          <option value="no" id="newAthRentalNoOpt"></option>
-          <option value="yes" id="newAthRentalYesOpt"></option>
-        </select>
-        <select class="field" id="newAthModel" style="display:none">
-          <option value="Paname S">Paname S</option>
-          <option value="Paname M">Paname M</option>
-          <option value="Pyranha Rippr">Pyranha Rippr</option>
-        </select>
-        <button class="btn btn-sm btn-primary" id="teamAddAthBtn" onclick="addAthleteToDB()"></button>
-      </div>
-      <div id="newAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
       <div id="athleteDbList" style="margin-top:12px"></div>
     </div>
 
@@ -1162,41 +1159,46 @@ const TR = {
     teamSub:'Retrouvez ici le nom, prénom et le groupe de chaque athlète que vous avez inscrit sur le planning.',
     teamEmpty:"Vous n'avez inscrit personne pour le moment. Utilisez l'inscription rapide ou le planning pour ajouter des athlètes.",
     myTeamTitle:'🏳️ Ma team',
-    myTeamDesc:"Composez votre team à partir des athlètes déjà enregistrés dans la base ci-dessous, donnez-lui un nom, puis soumettez-la pour validation par l'administrateur. Une fois validée, la team est figée et ne peut plus être modifiée.",
-    teamNameLabel:'Nom de la team', teamSaveNameBtn:'💾 Enregistrer le nom',
-    teamAddExistingLabel:'Ajouter un athlète déjà référencé à ma team', teamAddExistingBtn:'+ Ajouter à ma team',
-    teamSubmitBtn:'📨 Soumettre ma team pour validation',
-    teamStatusDraft:'📝 Brouillon (non soumise)', teamStatusPending:'⏳ En attente de validation admin',
+    myTeamDesc:"Votre team est composée par l'administrateur : consultez ici son nom et la liste des athlètes qui y ont été inscrits.",
+    teamNoneAssigned:'Aucune team ne vous est encore attribuée.',
+    teamNoneAssignedMsg:"L'administrateur n'a pas encore créé ou assigné de team pour votre compte.",
+    teamReadonlyMsg:"Cette liste est gérée par l'administrateur : contactez-le pour ajouter, retirer ou modifier un athlète.",
+    teamAddExistingLabel:'Athlètes de ma team',
+    teamStatusDraft:'📝 Brouillon', teamStatusPending:'⏳ En attente',
     teamStatusValidated:'✅ Validée — figée',
-    teamFrozenMsg:"Cette team a été validée par l'administrateur : elle est figée et ne peut plus être modifiée.",
     teamAthDbTitle:'📇 Base de données des athlètes',
-    teamAthDbDesc:"Ajoutez ici un nouvel athlète (nom, prénom, location de kayak cross). Une fois enregistré, il pourra être ajouté à n'importe quelle team, même par un autre groupe.",
+    teamAthDbDesc:"Liste de tous les athlètes déjà enregistrés dans le logiciel (gérée par l'administrateur).",
     teamAthFirstPH:'Prénom', teamAthLastPH:'Nom',
     teamRentalNo:'Pas de location', teamRentalYes:'Location kayak cross',
     teamModelPaS:'Paname S', teamModelPaM:'Paname M', teamModelPyr:'Pyranha Rippr',
     teamAddAthBtn:'+ Ajouter à la base', teamNoAthletesInDb:'Aucun athlète pour le moment.',
     teamRemoveBtn:'Retirer',
     teamErrName:'Merci de renseigner le nom et le prénom.',
-    teamErrEmpty:'Ajoutez au moins un athlète avant de soumettre votre team.',
-    teamAlreadyIn:'Cet athlète est déjà dans votre team.',
     teamAthAdded:'✅ Athlète ajouté à la base.',
+    teamAthDeleted:'🗑 Athlète supprimé.',
     teamSaved:'✅ Nom de la team enregistré.',
-    teamSubmitted:'✅ Team soumise pour validation.',
-    teamValidated:'✅ Team validée.',
-    teamRejected:'↩️ Team renvoyée en brouillon.',
-    teamCreatedForGroup:'✅ Team créée/assignée pour ce groupe.',
-    teamErrAdminCreate:'Sélectionnez un groupe et indiquez un nom de team.',
+    teamValidated:'✅ Team verrouillée.',
+    teamRejected:'🔓 Team déverrouillée.',
+    teamDeleted:'🗑 Team supprimée.',
+    teamCreatedForGroup:'✅ Team créée.',
+    teamErrAdminCreate:'Indiquez au moins un nom de team.',
+    teamManagerAdded:'✅ Gestionnaire ajouté à la team.',
     aTeamsTitle:'🏳️ Gestion des teams', aTeamsRefreshBtn:'Actualiser les teams',
-    aTeamsDesc:"Validez les teams soumises par les groupes, ou créez/assignez directement une team à un groupe. Une team validée est figée côté groupe.",
-    aTeamsPendingTitle:'Teams en attente de validation', aTeamsNonePending:'Aucune team en attente.',
-    aTeamsAllTitle:'Toutes les teams', aTeamsCreateTitle:'Créer / assigner une team à un groupe',
-    aTeamsCreateBtn:'✅ Créer / mettre à jour', aTeamsValidateBtn:'✅ Valider',
-    aTeamsRejectBtn:'↩️ Refuser', aTeamsMembersLbl:'Athlètes', aTeamsNoMembers:'Aucun athlète pour le moment.',
-    aTeamsOwnerLabel:'Groupe (compte)', aTeamsTeamCol:'Team',
+    aTeamsDesc:"Créez les teams, inscrivez leurs athlètes, renommez, verrouillez ou supprimez — tout est géré ici par l'administrateur.",
+    aTeamsAllTitle:'Toutes les teams', aTeamsCreateTitle:'Créer une nouvelle team',
+    aTeamsCreateBtn:'✅ Créer la team',
+    aTeamsMembersLbl:'Athlètes', aTeamsNoMembers:'Aucun athlète pour le moment.',
+    aTeamsNoTeams:'Aucune team pour le moment. Créez-en une ci-dessous.',
+    aTeamsOwnerLabel:'Compte associé', aTeamsOwnerNone:'— aucun —',
+    aTeamsRenameBtn:'💾 Renommer', aTeamsLockBtn:'🔒 Verrouiller', aTeamsUnlockBtn:'🔓 Déverrouiller',
+    aTeamsDeleteTeamBtn:'🗑 Supprimer la team', aTeamsAddAthleteToTeamBtn:'➕ Ajouter à cette team',
+    aTeamsConfirmDeleteTeam:'Supprimer définitivement cette team et sa composition ?',
+    aTeamsConfirmDeleteAthlete:'Supprimer définitivement cet athlète (et le retirer de toutes les teams) ?',
+    adminAthDbTitle:'📇 Base de données des athlètes', adminAthDbDesc:"Ajoutez ou supprimez les athlètes. Ils pourront ensuite être affectés à une team ci-dessous.",
     aTeamsManagersCol:'Gestionnaires', aTeamsRemoveManagerBtn:'Retirer ce gestionnaire',
     aTeamsManagersTitle:'👥 Gestionnaires additionnels d\u2019une team', 
-    aTeamsManagersDesc:'Associez un ou plusieurs comptes (emails validés) supplémentaires à une team existante : chacun pourra gérer les athlètes de cette team.',
-    aTeamsAddManagerBtn:'✅ Ajouter comme gestionnaire', teamManagerAdded:'Gestionnaire ajouté à la team.',
+    aTeamsManagersDesc:'Associez un ou plusieurs comptes (emails validés) supplémentaires à une team existante : chacun pourra consulter les athlètes de cette team.',
+    aTeamsAddManagerBtn:'✅ Ajouter comme gestionnaire',
   },
   en: {
     appTitle:'WINTER TRAINING Réunion Island 2026 - 2027', appSub:'Nov 2026 – Mar 2027',
@@ -1308,37 +1310,46 @@ const TR = {
     teamSub:'Here you can find the name and the group of every athlete you have registered on the planning.',
     teamEmpty:"You haven't registered anyone yet. Use quick registration or the planning to add athletes.",
     myTeamTitle:'🏳️ My team',
-    myTeamDesc:"Build your team from athletes already saved in the database below, give it a name, then submit it for admin validation. Once validated, the team is frozen and can no longer be edited.",
-    teamNameLabel:'Team name', teamSaveNameBtn:'💾 Save name',
-    teamAddExistingLabel:'Add an already registered athlete to my team', teamAddExistingBtn:'+ Add to my team',
-    teamSubmitBtn:'📨 Submit my team for validation',
-    teamStatusDraft:'📝 Draft (not submitted)', teamStatusPending:'⏳ Awaiting admin validation',
+    myTeamDesc:"Your team is set up by the administrator: here you can see its name and the athletes registered in it.",
+    teamNoneAssigned:'No team has been assigned to you yet.',
+    teamNoneAssignedMsg:"The administrator hasn't created or assigned a team for your account yet.",
+    teamReadonlyMsg:"This list is managed by the administrator: contact them to add, remove or change an athlete.",
+    teamAddExistingLabel:'Athletes on my team',
+    teamStatusDraft:'📝 Draft', teamStatusPending:'⏳ Pending',
     teamStatusValidated:'✅ Validated — frozen',
-    teamFrozenMsg:"This team has been validated by the administrator: it is frozen and can no longer be edited.",
     teamAthDbTitle:'📇 Athletes database',
-    teamAthDbDesc:"Add a new athlete here (first name, last name, kayak cross rental). Once saved, they can be added to any team, even by another group.",
+    teamAthDbDesc:"List of all athletes already saved in the software (managed by the administrator).",
     teamAthFirstPH:'First name', teamAthLastPH:'Last name',
     teamRentalNo:'No rental', teamRentalYes:'Kayak cross rental',
     teamModelPaS:'Paname S', teamModelPaM:'Paname M', teamModelPyr:'Pyranha Rippr',
     teamAddAthBtn:'+ Add to database', teamNoAthletesInDb:'No athletes yet.',
     teamRemoveBtn:'Remove',
     teamErrName:'Please enter a first and last name.',
-    teamErrEmpty:'Add at least one athlete before submitting your team.',
-    teamAlreadyIn:'This athlete is already in your team.',
     teamAthAdded:'✅ Athlete added to the database.',
+    teamAthDeleted:'🗑 Athlete deleted.',
     teamSaved:'✅ Team name saved.',
-    teamSubmitted:'✅ Team submitted for validation.',
-    teamValidated:'✅ Team validated.',
-    teamRejected:'↩️ Team sent back to draft.',
-    teamCreatedForGroup:'✅ Team created/assigned for this group.',
-    teamErrAdminCreate:'Select a group and enter a team name.',
+    teamValidated:'✅ Team locked.',
+    teamRejected:'🔓 Team unlocked.',
+    teamDeleted:'🗑 Team deleted.',
+    teamCreatedForGroup:'✅ Team created.',
+    teamErrAdminCreate:'Enter at least a team name.',
+    teamManagerAdded:'✅ Manager added to the team.',
     aTeamsTitle:'🏳️ Teams management', aTeamsRefreshBtn:'Refresh teams',
-    aTeamsDesc:"Validate teams submitted by groups, or directly create/assign a team to a group. A validated team is frozen on the group side.",
-    aTeamsPendingTitle:'Teams awaiting validation', aTeamsNonePending:'No team awaiting validation.',
-    aTeamsAllTitle:'All teams', aTeamsCreateTitle:'Create / assign a team to a group',
-    aTeamsCreateBtn:'✅ Create / update', aTeamsValidateBtn:'✅ Validate',
-    aTeamsRejectBtn:'↩️ Reject', aTeamsMembersLbl:'Athletes', aTeamsNoMembers:'No athletes yet.',
-    aTeamsOwnerLabel:'Group (account)', aTeamsTeamCol:'Team',
+    aTeamsDesc:"Create teams, register their athletes, rename, lock or delete — everything is managed here by the administrator.",
+    aTeamsAllTitle:'All teams', aTeamsCreateTitle:'Create a new team',
+    aTeamsCreateBtn:'✅ Create team',
+    aTeamsMembersLbl:'Athletes', aTeamsNoMembers:'No athletes yet.',
+    aTeamsNoTeams:'No team yet. Create one below.',
+    aTeamsOwnerLabel:'Linked account', aTeamsOwnerNone:'— none —',
+    aTeamsRenameBtn:'💾 Rename', aTeamsLockBtn:'🔒 Lock', aTeamsUnlockBtn:'🔓 Unlock',
+    aTeamsDeleteTeamBtn:'🗑 Delete team', aTeamsAddAthleteToTeamBtn:'➕ Add to this team',
+    aTeamsConfirmDeleteTeam:'Permanently delete this team and its roster?',
+    aTeamsConfirmDeleteAthlete:'Permanently delete this athlete (and remove them from all teams)?',
+    adminAthDbTitle:'📇 Athletes database', adminAthDbDesc:"Add or delete athletes. They can then be assigned to a team below.",
+    aTeamsManagersCol:'Managers', aTeamsRemoveManagerBtn:'Remove this manager',
+    aTeamsManagersTitle:'👥 Additional team managers',
+    aTeamsManagersDesc:'Link one or more extra validated accounts (emails) to an existing team: each will be able to view that team\u2019s athletes.',
+    aTeamsAddManagerBtn:'✅ Add as manager',
     aTeamsManagersCol:'Managers', aTeamsRemoveManagerBtn:'Remove this manager',
     aTeamsManagersTitle:'👥 Additional team managers',
     aTeamsManagersDesc:'Link one or more extra validated accounts (emails) to an existing team: each will be able to manage that team\u2019s athletes.',
@@ -1545,17 +1556,18 @@ function athleteLabel(a){
   return `${a.last_name||''} ${a.first_name||''}`.trim() + (a.kayak_rental ? ` (🚣 ${esc(a.kayak_model||'')})` : '');
 }
 
-function toggleAthModelField(){
-  const rental = document.getElementById('newAthRental').value;
-  document.getElementById('newAthModel').style.display = rental==='yes' ? 'inline-block' : 'none';
+function toggleAdminAthModelField(){
+  const rental = document.getElementById('adminAthRental').value;
+  document.getElementById('adminAthModel').style.display = rental==='yes' ? 'inline-block' : 'none';
 }
 
-async function addAthleteToDB(){
-  const first = document.getElementById('newAthFirst').value.trim();
-  const last  = document.getElementById('newAthLast').value.trim();
-  const rental = document.getElementById('newAthRental').value === 'yes';
-  const model  = rental ? document.getElementById('newAthModel').value : null;
-  const msg = document.getElementById('newAthMsg');
+async function adminAddAthlete(){
+  if(!S.isAdmin) return;
+  const first = document.getElementById('adminAthFirst').value.trim();
+  const last  = document.getElementById('adminAthLast').value.trim();
+  const rental = document.getElementById('adminAthRental').value === 'yes';
+  const model  = rental ? document.getElementById('adminAthModel').value : null;
+  const msg = document.getElementById('adminAthMsg');
   if(!first || !last){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrName'); } return; }
   const { error } = await sb.from('athletes').insert({
     first_name: first, last_name: last, kayak_rental: rental, kayak_model: model,
@@ -1563,13 +1575,42 @@ async function addAthleteToDB(){
   });
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
   if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamAthAdded'); }
-  document.getElementById('newAthFirst').value='';
-  document.getElementById('newAthLast').value='';
-  document.getElementById('newAthRental').value='no';
-  toggleAthModelField();
+  document.getElementById('adminAthFirst').value='';
+  document.getElementById('adminAthLast').value='';
+  document.getElementById('adminAthRental').value='no';
+  toggleAdminAthModelField();
   await loadAthletes();
   await loadTeamsData();
+  renderAdminTeams();
   renderTeamPage();
+}
+
+async function adminDeleteAthlete(athleteId){
+  if(!S.isAdmin) return;
+  if(!confirm(t('aTeamsConfirmDeleteAthlete'))) return;
+  const { error: e1 } = await sb.from('team_members').delete().eq('athlete_id', athleteId);
+  if(e1){ toast(e1.message,'error'); return; }
+  const { error } = await sb.from('athletes').delete().eq('id', athleteId);
+  if(error){ toast(error.message,'error'); return; }
+  toast(t('teamAthDeleted'));
+  await loadAthletes();
+  await loadTeamsData();
+  renderAdminTeams();
+  renderTeamPage();
+}
+
+function renderAdminAthleteDbList(){
+  const el = document.getElementById('adminAthleteDbList');
+  if(!el) return;
+  if(!S.athletes.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamNoAthletesInDb'))}</p>`; return; }
+  const sorted = [...S.athletes].sort((a,b)=> (a.last_name||'').localeCompare(b.last_name||''));
+  el.innerHTML = `<div class="athletes-list">` + sorted.map((a,i)=>`
+    <div class="ath-row">
+      <span class="ath-num">${i+1}.</span>
+      <span class="ath-name">${esc(a.last_name)} ${esc(a.first_name)}</span>
+      ${a.kayak_rental ? `<span class="slot-badge sb-mid">🚣 ${esc(a.kayak_model||'')}</span>` : ''}
+      <div class="ath-actions"><button class="ath-btn del" title="${esc(t('teamRemoveBtn'))}" onclick="adminDeleteAthlete('${a.id}')">✕</button></div>
+    </div>`).join('') + `</div>`;
 }
 
 function renderAthleteDbList(){
@@ -1585,71 +1626,6 @@ function renderAthleteDbList(){
     </div>`).join('') + `</div>`;
 }
 
-function populateTeamAddAthleteSelect(){
-  const sel = document.getElementById('teamAddAthleteSelect');
-  if(!sel) return;
-  const inTeamIds = new Set((S.myTeam?.members||[]).map(m=>m.athlete_id));
-  const options = [...S.athletes]
-    .filter(a=>!inTeamIds.has(a.id))
-    .sort((a,b)=> (a.last_name||'').localeCompare(b.last_name||''));
-  sel.innerHTML = options.map(a=>`<option value="${a.id}">${esc(athleteLabel(a))}</option>`).join('')
-    || `<option value="">${esc(t('teamNoAthletesInDb'))}</option>`;
-}
-
-async function ensureMyTeamDraft(){
-  if(S.myTeam) return S.myTeam;
-  if(!S.session) return null;
-  const { error } = await sb.from('teams').insert({
-    name: (S.profile?.full_name || S.session.user.email || 'Team'),
-    owner_user_id: S.session.user.id, status:'draft'
-  });
-  if(error){ console.warn('ensureMyTeamDraft', error.message); return null; }
-  await loadTeamsData();
-  return S.myTeam;
-}
-
-async function saveTeamName(){
-  const input = document.getElementById('teamNameInput');
-  const val = input ? input.value.trim() : '';
-  if(!S.myTeam) await ensureMyTeamDraft();
-  if(!S.myTeam || S.myTeam.status==='validated') return;
-  const { error } = await sb.from('teams').update({ name: val || t('myTeamTitle') }).eq('id', S.myTeam.id);
-  if(error){ toast(error.message,'error'); return; }
-  toast(t('teamSaved'));
-  await loadTeamsData();
-  renderTeamPage();
-}
-
-async function addAthleteToMyTeam(athleteId){
-  if(!athleteId) return;
-  if(!S.myTeam) await ensureMyTeamDraft();
-  if(!S.myTeam || S.myTeam.status==='validated') return;
-  if(S.myTeam.members.some(m=>m.athlete_id===athleteId)){ toast(t('teamAlreadyIn'),'error'); return; }
-  const { error } = await sb.from('team_members').insert({ team_id:S.myTeam.id, athlete_id:athleteId, added_by:S.session.user.id });
-  if(error){ toast(error.message,'error'); return; }
-  await loadTeamsData();
-  renderTeamPage();
-}
-
-async function removeAthleteFromMyTeam(memberRowId){
-  if(!S.myTeam || S.myTeam.status==='validated') return;
-  const { error } = await sb.from('team_members').delete().eq('id', memberRowId);
-  if(error){ toast(error.message,'error'); return; }
-  await loadTeamsData();
-  renderTeamPage();
-}
-
-async function submitMyTeamForValidation(){
-  if(!S.myTeam){ await ensureMyTeamDraft(); }
-  if(!S.myTeam) return;
-  if(!S.myTeam.members.length){ toast(t('teamErrEmpty'),'error'); return; }
-  const { error } = await sb.from('teams').update({ status:'pending' }).eq('id', S.myTeam.id);
-  if(error){ toast(error.message,'error'); return; }
-  toast(t('teamSubmitted'));
-  await loadTeamsData();
-  renderTeamPage();
-}
-
 function teamStatusLabel(status){
   if(status==='pending')   return t('teamStatusPending');
   if(status==='validated') return t('teamStatusValidated');
@@ -1662,31 +1638,20 @@ function teamStatusBadgeClass(status){
 }
 
 function renderMyTeamPanel(){
-  const nameInput = document.getElementById('teamNameInput');
+  const nameEl = document.getElementById('teamNameReadonly');
   const badge = document.getElementById('teamStatusBadge');
-  const frozenMsg = document.getElementById('teamFrozenMsg');
+  const msgEl = document.getElementById('teamReadonlyMsg');
   const membersList = document.getElementById('teamMembersList');
-  const addWrap = document.getElementById('teamAddExistingWrap');
-  const submitWrap = document.getElementById('teamSubmitWrap');
-  if(!nameInput) return;
+  if(!nameEl) return;
 
   const team = S.myTeam;
-  const frozen = !!(team && team.status==='validated');
-
-  nameInput.value = team ? (team.name||'') : (S.profile?.full_name || '');
-  nameInput.disabled = frozen;
-  document.getElementById('teamSaveNameBtn').disabled = frozen;
-
+  nameEl.textContent = team ? (team.name||'') : t('teamNoneAssigned');
   if(badge){
     badge.textContent = teamStatusLabel(team ? team.status : 'draft');
     badge.className = 'slot-badge ' + teamStatusBadgeClass(team ? team.status : 'draft');
+    badge.style.display = team ? 'inline-block' : 'none';
   }
-  if(frozenMsg) frozenMsg.style.display = frozen ? 'block' : 'none';
-  if(frozenMsg) frozenMsg.textContent = t('teamFrozenMsg');
-  if(addWrap) addWrap.style.display = frozen ? 'none' : 'block';
-  if(submitWrap) submitWrap.style.display = frozen ? 'none' : 'flex';
-
-  populateTeamAddAthleteSelect();
+  if(msgEl) msgEl.textContent = team ? t('teamReadonlyMsg') : t('teamNoneAssignedMsg');
 
   if(membersList){
     const members = team ? team.members : [];
@@ -1697,7 +1662,6 @@ function renderMyTeamPanel(){
         <div class="ath-row">
           <span class="ath-num">${i+1}.</span>
           <span class="ath-name">${esc(athleteLabel(m.athlete))}</span>
-          ${!frozen ? `<div class="ath-actions"><button class="ath-btn del" title="${esc(t('teamRemoveBtn'))}" onclick="removeAthleteFromMyTeam('${m.id}')">✕</button></div>` : ''}
         </div>`).join('');
     }
   }
@@ -1705,45 +1669,20 @@ function renderMyTeamPanel(){
 
 function renderTeamPage(){
   document.getElementById('myTeamDesc') && (document.getElementById('myTeamDesc').textContent = t('myTeamDesc'));
-  document.getElementById('teamNameLabelH') && (document.getElementById('teamNameLabelH').textContent = t('teamNameLabel'));
-  document.getElementById('teamSaveNameBtn') && (document.getElementById('teamSaveNameBtn').textContent = t('teamSaveNameBtn'));
   document.getElementById('teamAddExistingLabelH') && (document.getElementById('teamAddExistingLabelH').textContent = t('teamAddExistingLabel'));
-  document.getElementById('teamAddExistingBtnLbl') && (document.getElementById('teamAddExistingBtnLbl').textContent = t('teamAddExistingBtn'));
-  document.getElementById('teamSubmitBtn') && (document.getElementById('teamSubmitBtn').textContent = t('teamSubmitBtn'));
   document.getElementById('teamAthDbDesc') && (document.getElementById('teamAthDbDesc').textContent = t('teamAthDbDesc'));
-  document.getElementById('newAthFirst') && (document.getElementById('newAthFirst').placeholder = t('teamAthFirstPH'));
-  document.getElementById('newAthLast') && (document.getElementById('newAthLast').placeholder = t('teamAthLastPH'));
-  document.getElementById('newAthRentalNoOpt') && (document.getElementById('newAthRentalNoOpt').textContent = t('teamRentalNo'));
-  document.getElementById('newAthRentalYesOpt') && (document.getElementById('newAthRentalYesOpt').textContent = t('teamRentalYes'));
-  document.getElementById('teamAddAthBtn') && (document.getElementById('teamAddAthBtn').textContent = t('teamAddAthBtn'));
   renderMyTeamPanel();
   renderAthleteDbList();
 }
 
-// ── Admin : validation des teams ────────────────────────────────────
-async function adminValidateTeam(teamId, approve){
-  if(!S.isAdmin) return;
-  const patch = approve
-    ? { status:'validated', validated_by: S.session.user.id, validated_at: new Date().toISOString() }
-    : { status:'draft' };
-  const { error } = await sb.from('teams').update(patch).eq('id', teamId);
-  if(error){ toast(error.message,'error'); return; }
-  toast(approve ? t('teamValidated') : t('teamRejected'));
-  await loadTeamsData();
-  renderAdminTeams();
-  if(S.page==='team') renderTeamPage();
-}
-
+// ── Admin : gestion complète des teams (création, renommage, verrouillage, suppression, composition) ──
 async function adminCreateTeamForUser(){
   if(!S.isAdmin) return;
-  const ownerId = document.getElementById('adminTeamOwnerSelect').value;
+  const ownerId = document.getElementById('adminTeamOwnerSelect').value || null;
   const name = document.getElementById('adminTeamNameInput').value.trim();
   const msg = document.getElementById('adminTeamsMsg');
-  if(!ownerId || !name){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrAdminCreate'); } return; }
-  const { error } = await sb.from('teams').upsert(
-    { owner_user_id: ownerId, name, status:'draft' },
-    { onConflict:'owner_user_id' }
-  );
+  if(!name){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrAdminCreate'); } return; }
+  const { error } = await sb.from('teams').insert({ owner_user_id: ownerId, name, status:'draft' });
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
   if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamCreatedForGroup'); }
   document.getElementById('adminTeamNameInput').value='';
@@ -1751,9 +1690,76 @@ async function adminCreateTeamForUser(){
   renderAdminTeams();
 }
 
+async function adminRenameTeam(teamId){
+  if(!S.isAdmin) return;
+  const input = document.getElementById('teamNameEdit_'+teamId);
+  if(!input) return;
+  const name = input.value.trim();
+  if(!name) return;
+  const { error } = await sb.from('teams').update({ name }).eq('id', teamId);
+  if(error){ toast(error.message,'error'); return; }
+  toast(t('teamSaved'));
+  await loadTeamsData();
+  renderAdminTeams();
+}
+
+async function adminToggleTeamLock(teamId, lock){
+  if(!S.isAdmin) return;
+  const patch = lock
+    ? { status:'validated', validated_by: S.session.user.id, validated_at: new Date().toISOString() }
+    : { status:'draft' };
+  const { error } = await sb.from('teams').update(patch).eq('id', teamId);
+  if(error){ toast(error.message,'error'); return; }
+  toast(lock ? t('teamValidated') : t('teamRejected'));
+  await loadTeamsData();
+  renderAdminTeams();
+  if(S.page==='team') renderTeamPage();
+}
+
+async function adminDeleteTeam(teamId){
+  if(!S.isAdmin) return;
+  if(!confirm(t('aTeamsConfirmDeleteTeam'))) return;
+  await sb.from('team_managers').delete().eq('team_id', teamId);
+  await sb.from('team_members').delete().eq('team_id', teamId);
+  const { error } = await sb.from('teams').delete().eq('id', teamId);
+  if(error){ toast(error.message,'error'); return; }
+  toast(t('teamDeleted'));
+  await loadTeamsData();
+  renderAdminTeams();
+  if(S.page==='team') renderTeamPage();
+}
+
+async function adminAddAthleteToTeam(teamId){
+  if(!S.isAdmin) return;
+  const sel = document.getElementById('teamAddAthSel_'+teamId);
+  if(!sel || !sel.value) return;
+  const { error } = await sb.from('team_members').insert({ team_id:teamId, athlete_id:sel.value, added_by:S.session.user.id });
+  if(error){ toast(error.message,'error'); return; }
+  await loadTeamsData();
+  renderAdminTeams();
+  if(S.page==='team') renderTeamPage();
+}
+
+async function adminRemoveAthleteFromTeam(memberRowId){
+  if(!S.isAdmin) return;
+  const { error } = await sb.from('team_members').delete().eq('id', memberRowId);
+  if(error){ toast(error.message,'error'); return; }
+  await loadTeamsData();
+  renderAdminTeams();
+  if(S.page==='team') renderTeamPage();
+}
+
 function ownerDisplayName(ownerId){
+  if(!ownerId) return t('aTeamsOwnerNone');
   const p = _approvedProfilesForTeams.find(p=>p.id===ownerId);
   return p ? (p.full_name || p.email) : ownerId;
+}
+
+function athleteOptionsForTeam(team){
+  const inTeamIds = new Set((team.members||[]).map(m=>m.athlete_id));
+  const avail = [...S.athletes].filter(a=>!inTeamIds.has(a.id)).sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||''));
+  return avail.map(a=>`<option value="${a.id}">${esc(athleteLabel(a))}</option>`).join('')
+    || `<option value="">${esc(t('teamNoAthletesInDb'))}</option>`;
 }
 
 // ── Admin : plusieurs gestionnaires (emails) validés sur une même team ──
@@ -1802,65 +1808,67 @@ function teamManagersLabel(tm){
 
 function renderAdminTeams(){
   if(!S.isAdmin) return;
+
   document.getElementById('aTeamsDesc') && (document.getElementById('aTeamsDesc').textContent = t('aTeamsDesc'));
   document.getElementById('aTeamsRefreshBtn') && (document.getElementById('aTeamsRefreshBtn').textContent = t('aTeamsRefreshBtn'));
-  document.getElementById('aTeamsPendingTitle') && (document.getElementById('aTeamsPendingTitle').textContent = t('aTeamsPendingTitle'));
   document.getElementById('aTeamsAllTitle') && (document.getElementById('aTeamsAllTitle').textContent = t('aTeamsAllTitle'));
   document.getElementById('aTeamsCreateTitle') && (document.getElementById('aTeamsCreateTitle').textContent = t('aTeamsCreateTitle'));
   document.getElementById('aTeamsCreateBtn') && (document.getElementById('aTeamsCreateBtn').textContent = t('aTeamsCreateBtn'));
+  document.getElementById('adminAthDbTitle') && (document.getElementById('adminAthDbTitle').textContent = t('adminAthDbTitle'));
+  document.getElementById('adminAthDbDesc') && (document.getElementById('adminAthDbDesc').textContent = t('adminAthDbDesc'));
+  document.getElementById('adminAthFirst') && (document.getElementById('adminAthFirst').placeholder = t('teamAthFirstPH'));
+  document.getElementById('adminAthLast') && (document.getElementById('adminAthLast').placeholder = t('teamAthLastPH'));
+  document.getElementById('adminAthRentalNoOpt') && (document.getElementById('adminAthRentalNoOpt').textContent = t('teamRentalNo'));
+  document.getElementById('adminAthRentalYesOpt') && (document.getElementById('adminAthRentalYesOpt').textContent = t('teamRentalYes'));
+  document.getElementById('adminAddAthBtn') && (document.getElementById('adminAddAthBtn').textContent = t('teamAddAthBtn'));
 
   const ownerSel = document.getElementById('adminTeamOwnerSelect');
   if(ownerSel){
-    ownerSel.innerHTML = _approvedProfilesForTeams.map(p=>`<option value="${p.id}">${esc(p.full_name||p.email)}</option>`).join('')
-      || `<option value="">—</option>`;
-  }
-
-  const pending = S.teams.filter(tm=>tm.status==='pending');
-  const pendingEl = document.getElementById('adminPendingTeamsList');
-  if(pendingEl){
-    pendingEl.innerHTML = pending.length ? pending.map(tm=>`
-      <div class="slot-card s-mid" style="margin-bottom:8px">
-        <div class="slot-header" style="cursor:default">
-          <span class="slot-time">${esc(tm.name)}</span>
-          <span class="slot-count-text">${esc(ownerDisplayName(tm.owner_user_id))} — ${tm.members.length} ${esc(t('aTeamsMembersLbl')).toLowerCase()}</span>
-        </div>
-        <div class="slot-body" style="display:block">
-          <div class="athletes-list">${tm.members.length ? tm.members.map((m,i)=>`
-            <div class="ath-row"><span class="ath-num">${i+1}.</span><span class="ath-name">${esc(athleteLabel(m.athlete))}</span></div>`).join('')
-            : `<div class="empty-slot">${esc(t('aTeamsNoMembers'))}</div>`}
-          </div>
-          <div style="display:flex;gap:6px;margin-top:8px">
-            <button class="btn btn-sm btn-primary" onclick="adminValidateTeam('${tm.id}', true)">${esc(t('aTeamsValidateBtn'))}</button>
-            <button class="btn btn-sm" style="color:var(--red)" onclick="adminValidateTeam('${tm.id}', false)">${esc(t('aTeamsRejectBtn'))}</button>
-          </div>
-        </div>
-      </div>`).join('') : `<p style="color:var(--text3);font-size:.85rem">${esc(t('aTeamsNonePending'))}</p>`;
+    const cur = ownerSel.value;
+    ownerSel.innerHTML = `<option value="">${esc(t('aTeamsOwnerNone'))}</option>` +
+      _approvedProfilesForTeams.map(p=>`<option value="${p.id}">${esc(p.full_name||p.email)}</option>`).join('');
+    if(cur) ownerSel.value = cur;
   }
 
   const allEl = document.getElementById('adminAllTeamsList');
   if(allEl){
-    allEl.innerHTML = S.teams.length ? `<div style="overflow:auto"><table style="border-collapse:collapse;width:100%;font-size:.78rem">
-      <thead><tr>
-        <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsTeamCol'))}</th>
-        <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsOwnerLabel'))}</th>
-        <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsManagersCol'))}</th>
-        <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">${esc(t('aTeamsMembersLbl'))}</th>
-        <th style="border:1px solid var(--border);padding:5px 8px;text-align:left;background:#f5f5f5">Statut</th>
-      </tr></thead>
-      <tbody>${S.teams.map(tm=>`<tr>
-        <td style="border:1px solid var(--border);padding:5px 8px">${esc(tm.name)}</td>
-        <td style="border:1px solid var(--border);padding:5px 8px">${esc(ownerDisplayName(tm.owner_user_id))}</td>
-        <td style="border:1px solid var(--border);padding:5px 8px">${
-          (tm.managers||[]).length ? (tm.managers||[]).map(mg=>{
-            const p = _approvedProfilesForTeams.find(pp=>pp.id===mg.user_id);
-            const label = p ? (p.full_name||p.email) : mg.email;
-            return `<span class="slot-badge sb-open" style="margin:1px 3px 1px 0;cursor:pointer" title="${esc(t('aTeamsRemoveManagerBtn'))}" onclick="adminRemoveTeamManager('${mg.id}')">${esc(label)} ✕</span>`;
-          }).join('') : '<span style="color:var(--text3)">—</span>'
-        }</td>
-        <td style="border:1px solid var(--border);padding:5px 8px">${tm.members.length}</td>
-        <td style="border:1px solid var(--border);padding:5px 8px">${esc(teamStatusLabel(tm.status))}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>` : `<p style="color:var(--text3);font-size:.85rem">${esc(t('aTeamsNonePending'))}</p>`;
+    allEl.innerHTML = S.teams.length ? S.teams.map(tm=>{
+      const locked = tm.status==='validated';
+      return `
+      <div class="slot-card ${locked?'s-locked':'s-open'}" style="margin-bottom:10px">
+        <div class="slot-body" style="display:block;padding-top:12px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+            <input class="field" id="teamNameEdit_${tm.id}" value="${esc(tm.name)}" style="flex:1;min-width:160px">
+            <button class="btn btn-sm" onclick="adminRenameTeam('${tm.id}')">${esc(t('aTeamsRenameBtn'))}</button>
+            <span class="slot-badge ${teamStatusBadgeClass(tm.status)}">${esc(teamStatusLabel(tm.status))}</span>
+            ${locked
+              ? `<button class="btn btn-sm" onclick="adminToggleTeamLock('${tm.id}', false)">${esc(t('aTeamsUnlockBtn'))}</button>`
+              : `<button class="btn btn-sm" onclick="adminToggleTeamLock('${tm.id}', true)">${esc(t('aTeamsLockBtn'))}</button>`}
+            <button class="btn btn-sm" style="color:var(--red)" onclick="adminDeleteTeam('${tm.id}')">${esc(t('aTeamsDeleteTeamBtn'))}</button>
+          </div>
+          <div style="font-size:.78rem;color:var(--text3);margin-bottom:8px">
+            ${esc(t('aTeamsOwnerLabel'))}: ${esc(ownerDisplayName(tm.owner_user_id))}
+            ${(tm.managers||[]).length ? ' · ' + esc(t('aTeamsManagersCol')) + ': ' + (tm.managers||[]).map(mg=>{
+              const p = _approvedProfilesForTeams.find(pp=>pp.id===mg.user_id);
+              const label = p ? (p.full_name||p.email) : mg.email;
+              return `<span class="slot-badge sb-open" style="margin:1px 3px;cursor:pointer" title="${esc(t('aTeamsRemoveManagerBtn'))}" onclick="adminRemoveTeamManager('${mg.id}')">${esc(label)} ✕</span>`;
+            }).join('') : ''}
+          </div>
+          <div class="athletes-list">${tm.members.length ? tm.members.map((m,i)=>`
+            <div class="ath-row">
+              <span class="ath-num">${i+1}.</span>
+              <span class="ath-name">${esc(athleteLabel(m.athlete))}</span>
+              <div class="ath-actions"><button class="ath-btn del" title="${esc(t('teamRemoveBtn'))}" onclick="adminRemoveAthleteFromTeam('${m.id}')">✕</button></div>
+            </div>`).join('')
+            : `<div class="empty-slot">${esc(t('aTeamsNoMembers'))}</div>`}
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">
+            <select class="field" id="teamAddAthSel_${tm.id}" style="flex:1;min-width:200px">${athleteOptionsForTeam(tm)}</select>
+            <button class="btn btn-sm btn-primary" onclick="adminAddAthleteToTeam('${tm.id}')">${esc(t('aTeamsAddAthleteToTeamBtn'))}</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('') : `<p style="color:var(--text3);font-size:.85rem">${esc(t('aTeamsNoTeams'))}</p>`;
   }
 
   populateManagerTeamSelect();
@@ -1872,6 +1880,8 @@ function renderAdminTeams(){
   document.getElementById('aTeamsManagersTitle') && (document.getElementById('aTeamsManagersTitle').textContent = t('aTeamsManagersTitle'));
   document.getElementById('aTeamsManagersDesc') && (document.getElementById('aTeamsManagersDesc').textContent = t('aTeamsManagersDesc'));
   document.getElementById('aTeamsAddManagerBtn') && (document.getElementById('aTeamsAddManagerBtn').textContent = t('aTeamsAddManagerBtn'));
+
+  renderAdminAthleteDbList();
 }
 
 
