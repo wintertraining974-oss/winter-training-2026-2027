@@ -738,17 +738,8 @@ select.field { min-width: 110px; cursor: pointer; }
       <h4 id="adminAthDbTitle">📇 Base de données des athlètes</h4>
       <p id="adminAthDbDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <input class="field" id="adminAthFirst" placeholder="Prénom" style="flex:1;min-width:140px">
-        <input class="field" id="adminAthLast" placeholder="Nom" style="flex:1;min-width:140px">
-        <select class="field" id="adminAthRental" onchange="toggleAdminAthModelField()" style="min-width:140px">
-          <option value="no" id="adminAthRentalNoOpt"></option>
-          <option value="yes" id="adminAthRentalYesOpt"></option>
-        </select>
-        <select class="field" id="adminAthModel" style="display:none;min-width:140px">
-          <option value="Paname S">Paname S</option>
-          <option value="Paname M">Paname M</option>
-          <option value="Pyranha Rippr">Pyranha Rippr</option>
-        </select>
+        <input class="field" id="adminAthFullName" placeholder="Nom complet" style="flex:1;min-width:200px">
+        <input class="field" id="adminAthRole" placeholder="Rôle (ex: Athlète)" style="flex:1;min-width:160px">
         <button class="btn btn-sm btn-primary" id="adminAddAthBtn" onclick="adminAddAthlete()"></button>
       </div>
       <div id="adminAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
@@ -1168,8 +1159,7 @@ const TR = {
     teamStatusValidated:'✅ Validée — figée',
     teamAthDbTitle:'📇 Base de données des athlètes',
     teamAthDbDesc:"Liste de tous les athlètes déjà enregistrés dans le logiciel (gérée par l'administrateur).",
-    teamAthFirstPH:'Prénom', teamAthLastPH:'Nom',
-    teamRentalNo:'Pas de location', teamRentalYes:'Location kayak cross',
+    teamAthFullNamePH:'Nom complet', teamAthRolePH:'Rôle (ex: Athlète)',
     teamModelPaS:'Paname S', teamModelPaM:'Paname M', teamModelPyr:'Pyranha Rippr',
     teamAddAthBtn:'+ Ajouter à la base', teamNoAthletesInDb:'Aucun athlète pour le moment.',
     teamRemoveBtn:'Retirer',
@@ -1319,8 +1309,7 @@ const TR = {
     teamStatusValidated:'✅ Validated — frozen',
     teamAthDbTitle:'📇 Athletes database',
     teamAthDbDesc:"List of all athletes already saved in the software (managed by the administrator).",
-    teamAthFirstPH:'First name', teamAthLastPH:'Last name',
-    teamRentalNo:'No rental', teamRentalYes:'Kayak cross rental',
+    teamAthFullNamePH:'Full name', teamAthRolePH:'Role (e.g. Athlete)',
     teamModelPaS:'Paname S', teamModelPaM:'Paname M', teamModelPyr:'Pyranha Rippr',
     teamAddAthBtn:'+ Add to database', teamNoAthletesInDb:'No athletes yet.',
     teamRemoveBtn:'Remove',
@@ -1494,7 +1483,7 @@ function renderMyTeam(){
 // Nécessite 2 tables Supabase : "athletes" et "teams" + "team_members" (voir SQL fourni).
 
 async function loadAthletes(){
-  const { data, error } = await sb.from('athletes').select('*').order('last_name',{ascending:true});
+  const { data, error } = await sb.from('athletes').select('*').order('full_name',{ascending:true});
   if(error){ console.warn('loadAthletes', error.message); S.athletes = S.athletes||[]; return; }
   S.athletes = data||[];
 }
@@ -1553,32 +1542,24 @@ async function loadApprovedProfilesForAdmin(){
 
 function athleteLabel(a){
   if(!a) return '—';
-  return `${a.last_name||''} ${a.first_name||''}`.trim() + (a.kayak_rental ? ` (🚣 ${esc(a.kayak_model||'')})` : '');
-}
-
-function toggleAdminAthModelField(){
-  const rental = document.getElementById('adminAthRental').value;
-  document.getElementById('adminAthModel').style.display = rental==='yes' ? 'inline-block' : 'none';
+  const role = a.role && a.role!=='Athlète' ? ` (${esc(a.role)})` : '';
+  return `${a.full_name||''}`.trim() + role;
 }
 
 async function adminAddAthlete(){
   if(!S.isAdmin) return;
-  const first = document.getElementById('adminAthFirst').value.trim();
-  const last  = document.getElementById('adminAthLast').value.trim();
-  const rental = document.getElementById('adminAthRental').value === 'yes';
-  const model  = rental ? document.getElementById('adminAthModel').value : null;
+  const fullName = document.getElementById('adminAthFullName').value.trim();
+  const role = document.getElementById('adminAthRole').value.trim();
   const msg = document.getElementById('adminAthMsg');
-  if(!first || !last){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrName'); } return; }
+  if(!fullName){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrName'); } return; }
   const { error } = await sb.from('athletes').insert({
-    first_name: first, last_name: last, kayak_rental: rental, kayak_model: model,
+    full_name: fullName, role: role || 'Athlète',
     created_by: S.session ? S.session.user.id : null
   });
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
   if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamAthAdded'); }
-  document.getElementById('adminAthFirst').value='';
-  document.getElementById('adminAthLast').value='';
-  document.getElementById('adminAthRental').value='no';
-  toggleAdminAthModelField();
+  document.getElementById('adminAthFullName').value='';
+  document.getElementById('adminAthRole').value='';
   await loadAthletes();
   await loadTeamsData();
   renderAdminTeams();
@@ -1603,12 +1584,12 @@ function renderAdminAthleteDbList(){
   const el = document.getElementById('adminAthleteDbList');
   if(!el) return;
   if(!S.athletes.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamNoAthletesInDb'))}</p>`; return; }
-  const sorted = [...S.athletes].sort((a,b)=> (a.last_name||'').localeCompare(b.last_name||''));
+  const sorted = [...S.athletes].sort((a,b)=> (a.full_name||'').localeCompare(b.full_name||''));
   el.innerHTML = `<div class="athletes-list">` + sorted.map((a,i)=>`
     <div class="ath-row">
       <span class="ath-num">${i+1}.</span>
-      <span class="ath-name">${esc(a.last_name)} ${esc(a.first_name)}</span>
-      ${a.kayak_rental ? `<span class="slot-badge sb-mid">🚣 ${esc(a.kayak_model||'')}</span>` : ''}
+      <span class="ath-name">${esc(a.full_name)}</span>
+      ${a.role && a.role!=='Athlète' ? `<span class="slot-badge sb-mid">${esc(a.role)}</span>` : ''}
       <div class="ath-actions"><button class="ath-btn del" title="${esc(t('teamRemoveBtn'))}" onclick="adminDeleteAthlete('${a.id}')">✕</button></div>
     </div>`).join('') + `</div>`;
 }
@@ -1617,12 +1598,12 @@ function renderAthleteDbList(){
   const el = document.getElementById('athleteDbList');
   if(!el) return;
   if(!S.athletes.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamNoAthletesInDb'))}</p>`; return; }
-  const sorted = [...S.athletes].sort((a,b)=> (a.last_name||'').localeCompare(b.last_name||''));
+  const sorted = [...S.athletes].sort((a,b)=> (a.full_name||'').localeCompare(b.full_name||''));
   el.innerHTML = `<div class="athletes-list">` + sorted.map((a,i)=>`
     <div class="ath-row">
       <span class="ath-num">${i+1}.</span>
-      <span class="ath-name">${esc(a.last_name)} ${esc(a.first_name)}</span>
-      ${a.kayak_rental ? `<span class="slot-badge sb-mid">🚣 ${esc(a.kayak_model||'')}</span>` : ''}
+      <span class="ath-name">${esc(a.full_name)}</span>
+      ${a.role && a.role!=='Athlète' ? `<span class="slot-badge sb-mid">${esc(a.role)}</span>` : ''}
     </div>`).join('') + `</div>`;
 }
 
@@ -1757,7 +1738,7 @@ function ownerDisplayName(ownerId){
 
 function athleteOptionsForTeam(team){
   const inTeamIds = new Set((team.members||[]).map(m=>m.athlete_id));
-  const avail = [...S.athletes].filter(a=>!inTeamIds.has(a.id)).sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||''));
+  const avail = [...S.athletes].filter(a=>!inTeamIds.has(a.id)).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||''));
   return avail.map(a=>`<option value="${a.id}">${esc(athleteLabel(a))}</option>`).join('')
     || `<option value="">${esc(t('teamNoAthletesInDb'))}</option>`;
 }
@@ -1816,10 +1797,8 @@ function renderAdminTeams(){
   document.getElementById('aTeamsCreateBtn') && (document.getElementById('aTeamsCreateBtn').textContent = t('aTeamsCreateBtn'));
   document.getElementById('adminAthDbTitle') && (document.getElementById('adminAthDbTitle').textContent = t('adminAthDbTitle'));
   document.getElementById('adminAthDbDesc') && (document.getElementById('adminAthDbDesc').textContent = t('adminAthDbDesc'));
-  document.getElementById('adminAthFirst') && (document.getElementById('adminAthFirst').placeholder = t('teamAthFirstPH'));
-  document.getElementById('adminAthLast') && (document.getElementById('adminAthLast').placeholder = t('teamAthLastPH'));
-  document.getElementById('adminAthRentalNoOpt') && (document.getElementById('adminAthRentalNoOpt').textContent = t('teamRentalNo'));
-  document.getElementById('adminAthRentalYesOpt') && (document.getElementById('adminAthRentalYesOpt').textContent = t('teamRentalYes'));
+  document.getElementById('adminAthFullName') && (document.getElementById('adminAthFullName').placeholder = t('teamAthFullNamePH'));
+  document.getElementById('adminAthRole') && (document.getElementById('adminAthRole').placeholder = t('teamAthRolePH'));
   document.getElementById('adminAddAthBtn') && (document.getElementById('adminAddAthBtn').textContent = t('teamAddAthBtn'));
 
   const ownerSel = document.getElementById('adminTeamOwnerSelect');
