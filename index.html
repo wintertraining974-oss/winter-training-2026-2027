@@ -242,11 +242,13 @@ select.field { min-width: 110px; cursor: pointer; }
 .mdreg-section { margin-bottom: 14px; }
 .mdreg-section h4 { font-size: .78rem; font-weight: 700; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
 .mdreg-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
-.mdreg-day { padding: 5px 2px; border-radius: 6px; border: 1.5px solid var(--border); text-align: center; cursor: pointer; font-size: .68rem; transition: all .15s; user-select: none; }
+.mdreg-day { position:relative; padding: 5px 2px; border-radius: 6px; border: 1.5px solid var(--border); text-align: center; cursor: pointer; font-size: .68rem; transition: all .15s; user-select: none; }
 .mdreg-day:hover:not(.mdreg-day-closed) { border-color: var(--accent); background: #eff6ff; }
-.mdreg-day.mdreg-selected { background: var(--accent); color: white; border-color: var(--accent); }
+.mdreg-day.mdreg-has-slots { border-color: var(--accent); background: #eff6ff; }
+.mdreg-day.mdreg-active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 0 2px #93c5fd; }
 .mdreg-day.mdreg-day-closed { opacity:.35; cursor:not-allowed; }
 .mdreg-day b { display: block; font-size: .82rem; }
+.mdreg-day-count { position:absolute; top:-5px; right:-5px; background:#f97316; color:white; border-radius:10px; min-width:15px; height:15px; font-size:.6rem; line-height:15px; font-weight:700; }
 .mdreg-slots { display: flex; flex-wrap: wrap; gap: 6px; }
 .mdreg-slot-btn { padding: 5px 11px; border-radius: 20px; border: 1.5px solid var(--border); font-size: .75rem; cursor: pointer; background: white; transition: all .15s; }
 .mdreg-slot-btn:hover { border-color: var(--accent); }
@@ -552,11 +554,13 @@ select.field { min-width: 110px; cursor: pointer; }
       </div>
       <div class="mdreg-days" id="mdregDaysGrid"></div>
       <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrStep1Hint"></p>
+      <div id="mdregDaysRecap" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
     </div>
 
-    <!-- Étape 2 : Sélection des créneaux -->
+    <!-- Étape 2 : Sélection des créneaux (pour le jour actif) -->
     <div class="mdreg-section">
       <h4 id="qrStep2"></h4>
+      <p style="font-size:.78rem;font-weight:600;color:var(--accent);margin-bottom:8px" id="mdregActiveDayLabel"></p>
       <div id="qrKayakSlots">
         <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 <span id="qrMorningLbl"></span></div>
         <div class="mdreg-slots" id="mdregMorningSlots"></div>
@@ -1100,6 +1104,7 @@ const TR = {
     dowFull:['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'],
     months:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
     calHeads:['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'],
+    calHeadsFull:['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'],
     dowOpen:'Ouvert', dowClosed:'Fermé',
     moveInfoTpl:'Participant : {name} ({role}) — sur {slot} le {date}',
     aDateCapTitle:'🔢 Capacité personnalisée par date',
@@ -1145,6 +1150,8 @@ const TR = {
     qrSummary:'Résumé', qrSummaryDefault:'Sélectionnez des jours, créneaux et participants ci-dessus.',
     qrResetBtn:'↺ Réinitialiser la sélection', qrSubmitBtn:'⚡ Tout inscrire',
     qrDaysLbl:'📅 Jours', qrSessionsLbl:'🕐 Créneaux', qrParticipantsLbl:'👤 Participants',
+    qrEditingDayTpl:'✏️ Créneaux pour : {day}', qrEditDayTitle:'Modifier les créneaux de ce jour',
+    qrRemoveDayTitle:'Retirer ce jour', qrSlotsLbl:'créneaux', qrSlotLbl:'créneau',
     qrRegCountTpl:'→ {n} inscription(s) à créer',
     qrNoMembers:'Aucun participant précédent trouvé. Ajoutez des personnes ci-dessous.',
     qrLockedTitle:'Verrouillé par la priorité — créneau précédent non complet',
@@ -1261,6 +1268,7 @@ const TR = {
     dowFull:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
     months:['January','February','March','April','May','June','July','August','September','October','November','December'],
     calHeads:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    calHeadsFull:['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
     dowOpen:'Open', dowClosed:'Closed',
     moveInfoTpl:'Participant: {name} ({role}) — on {slot} on {date}',
     aDateCapTitle:'🔢 Custom capacity per date',
@@ -1306,6 +1314,8 @@ const TR = {
     qrSummary:'Summary', qrSummaryDefault:'Select days, sessions and participants above.',
     qrResetBtn:'↺ Reset selection', qrSubmitBtn:'⚡ Register all',
     qrDaysLbl:'📅 Days', qrSessionsLbl:'🕐 Sessions', qrParticipantsLbl:'👤 Participants',
+    qrEditingDayTpl:'✏️ Slots for: {day}', qrEditDayTitle:'Edit this day\u2019s slots',
+    qrRemoveDayTitle:'Remove this day', qrSlotsLbl:'slots', qrSlotLbl:'slot',
     qrRegCountTpl:'→ {n} registration(s) to create',
     qrNoMembers:'No previous participants found. Add people below.',
     qrLockedTitle:'Locked by priority — previous slot not full',
@@ -3023,8 +3033,8 @@ function toggleSlot(dateK,slot,act='kayak'){
 let MR = {
   activity: 'kayak',  // 'kayak' | 'muscu' — activité sélectionnée dans la carte d'inscription rapide
   weekStart: null,   // Date début de semaine affichée
-  selectedDays: new Set(),   // Set de dateK sélectionnés
-  selectedSlots: new Set(),  // Set de slots sélectionnés
+  activeDay: null,   // dateK actuellement édité dans le panneau créneaux
+  daySlots: {},      // { dateK: Set<slot> } — un jour n'existe ici que s'il a ≥1 créneau choisi
   selectedMembers: new Set(),// Set de noms sélectionnés
   customCounter: 0,
   knownMembers: [],  // Membres connus depuis les inscriptions passées
@@ -3038,15 +3048,15 @@ function mrSetExtra(pid, field, val){
 function openMultiReg(preDate, preSlot, act){
   if(!S.session){ toast(t('qrLoginToRegister'),'error'); return; }
   if(act) MR.activity = act;
-  MR.selectedDays.clear();
-  MR.selectedSlots.clear();
+  MR.activeDay = null;
+  MR.daySlots = {};
   MR.selectedMembers.clear();
   MR.customCounter = 0;
   MR.extras = {};
 
   // Pré-sélectionner le jour et le créneau si fournis
   if(preDate){
-    MR.selectedDays.add(preDate);
+    MR.activeDay = preDate;
     // Semaine du jour cliqué
     const dt = new Date(preDate+'T12:00:00');
     MR.weekStart = new Date(dt);
@@ -3057,7 +3067,7 @@ function openMultiReg(preDate, preSlot, act){
     const d = MR.weekStart.getDay();
     MR.weekStart.setDate(MR.weekStart.getDate()-(d===0?6:d-1));
   }
-  if(preSlot) MR.selectedSlots.add(preSlot);
+  if(preDate && preSlot) MR.daySlots[preDate] = new Set([preSlot]);
 
   // Collecter les membres connus depuis les inscriptions passées (kayak + muscu)
   const seen = new Set();
@@ -3101,14 +3111,16 @@ function mrSwitchActivity(act){
 function mdregPrevWeek(){
   MR.weekStart = new Date(MR.weekStart);
   MR.weekStart.setDate(MR.weekStart.getDate()-7);
-  MR.selectedDays.clear();
-  renderMdregWeek(); updateMdregSummary();
+  MR.activeDay = null;
+  MR.daySlots = {};
+  renderMdregWeek(); renderMdregSlots(); renderMdregMembers(); updateMdregSummary();
 }
 function mdregNextWeek(){
   MR.weekStart = new Date(MR.weekStart);
   MR.weekStart.setDate(MR.weekStart.getDate()+7);
-  MR.selectedDays.clear();
-  renderMdregWeek(); updateMdregSummary();
+  MR.activeDay = null;
+  MR.daySlots = {};
+  renderMdregWeek(); renderMdregSlots(); renderMdregMembers(); updateMdregSummary();
 }
 
 function renderMdregWeek(){
@@ -3132,22 +3144,37 @@ function renderMdregWeek(){
       outOfStage = k < S.profile.arrival_date || k > S.profile.departure_date;
     }
     const disabled = closed || outOfStage;
-    const sel = MR.selectedDays.has(k);
+    const active = MR.activeDay===k;
+    const count = MR.daySlots[k] ? MR.daySlots[k].size : 0;
     const dow = t('calHeads')[i];
-    h += `<div class="mdreg-day${sel?' mdreg-selected':''}${disabled?' mdreg-day-closed':''}"
+    h += `<div class="mdreg-day${active?' mdreg-active':(count>0?' mdreg-has-slots':'')}${disabled?' mdreg-day-closed':''}"
       ${disabled?'':`onclick="mdregToggleDay('${k}')"`}>
+      ${count>0?`<span class="mdreg-day-count">${count}</span>`:''}
       <span style="font-size:.65rem;opacity:.75">${dow}</span>
       <b>${dt.getDate()}</b>
     </div>`;
   }
   grid.innerHTML = h;
+
+  // Récap des jours déjà configurés (chips avec leurs créneaux + bouton pour retirer)
+  const recap = document.getElementById('mdregDaysRecap');
+  if(recap){
+    const days = Object.keys(MR.daySlots).sort();
+    recap.innerHTML = days.map(dstr=>{
+      const slots = [...MR.daySlots[dstr]];
+      const dLabel = dstr.slice(8,10)+'/'+dstr.slice(5,7);
+      return `<span class="slot-badge sb-open" style="cursor:pointer" onclick="mdregToggleDay('${dstr}')" title="${esc(t('qrEditDayTitle'))}">
+        📅 ${dLabel} · ${slots.length} ${slots.length>1?t('qrSlotsLbl'):t('qrSlotLbl')}
+        <span onclick="event.stopPropagation();mdregClearDay('${dstr}')" style="margin-left:4px;font-weight:700" title="${esc(t('qrRemoveDayTitle'))}">✕</span>
+      </span>`;
+    }).join('');
+  }
 }
 
 function mdregToggleDay(k){
-  if(MR.selectedDays.has(k)) MR.selectedDays.delete(k);
-  else MR.selectedDays.add(k);
+  MR.activeDay = k;
   renderMdregWeek();
-  renderMdregSlots(k); // recalculer créneaux disponibles selon les jours sélectionnés
+  renderMdregSlots(k);
   renderMdregMembers();
   updateMdregSummary();
   // Synchroniser le calendrier du bas sur la date cliquée
@@ -3158,31 +3185,43 @@ function mdregToggleDay(k){
   }
 }
 
+function mdregClearDay(k){
+  delete MR.daySlots[k];
+  if(MR.activeDay===k) MR.activeDay = Object.keys(MR.daySlots)[0] || null;
+  renderMdregWeek();
+  renderMdregSlots();
+  renderMdregMembers();
+  updateMdregSummary();
+}
+
 function renderMdregSlots(refDay){
-  // Référence : premier jour sélectionné, sinon jour courant
-  if(!refDay) refDay = MR.selectedDays.size>0 ? [...MR.selectedDays].sort()[0] : dk(S.selectedDate||S.currentDate);
+  // Jour actif : celui en cours d'édition, sinon un jour déjà configuré, sinon le jour du calendrier
+  if(!refDay) refDay = MR.activeDay || Object.keys(MR.daySlots)[0] || dk(S.selectedDate||S.currentDate);
+  MR.activeDay = refDay;
+
+  const lbl = document.getElementById('mdregActiveDayLabel');
+  if(lbl){
+    const d = parseDate(refDay);
+    const dowName = t('calHeadsFull') ? t('calHeadsFull')[(d.getDay()+6)%7] : '';
+    lbl.textContent = t('qrEditingDayTpl').replace('{day}', `${dowName} ${d.getDate()} ${t('months')[d.getMonth()]}`.trim());
+  }
+
+  const daySet = MR.daySlots[refDay] || new Set();
 
   if(MR.activity==='muscu'){
     const el = document.getElementById('mdregMuscuSlots');
     function slotBtnMuscu(slot){
-      const sel = MR.selectedSlots.has(slot);
-      const fullOnAll = MR.selectedDays.size>0
-        ? [...MR.selectedDays].every(d=> cap(slot,d,'muscu')<=getSlot(d,slot,'muscu').length)
-        : false;
-      // Vérifier si le créneau est bloqué sur au moins un jour sélectionné
-      const blockedOnAny = MR.selectedDays.size>0
-        ? [...MR.selectedDays].some(d=>getMuscuSlotCfg(d,slot).blocked)
-        : false;
-      const labelOnAny = MR.selectedDays.size>0
-        ? (getMuscuSlotCfg([...MR.selectedDays][0],slot).label||'')
-        : '';
-      const disabled = fullOnAll || blockedOnAny;
-      const labelTxt = blockedOnAny ? ' 🚫' : (labelOnAny ? ` [${labelOnAny}]` : '');
-      const labelColor = labelOnAny==='CRRCK'?'#7c3aed':labelOnAny==='CLUB'?'#0d9488':'';
+      const sel = daySet.has(slot);
+      const full = cap(slot,refDay,'muscu')<=getSlot(refDay,slot,'muscu').length;
+      const blocked = getMuscuSlotCfg(refDay,slot).blocked;
+      const label = getMuscuSlotCfg(refDay,slot).label||'';
+      const disabled = full || blocked;
+      const labelTxt = blocked ? ' 🚫' : (label ? ` [${label}]` : '');
+      const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':'';
       return `<button class="mdreg-slot-btn${sel&&!disabled?' mdreg-selected':''}"
         style="${disabled?'opacity:.4;cursor:not-allowed;':''} ${labelColor?'border-color:'+labelColor+';color:'+labelColor+';':''}"
         ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-        title="${blockedOnAny?'Slot blocked by admin':fullOnAll?t('qrFullTitle'):''}">
+        title="${blocked?'Slot blocked by admin':full?t('qrFullTitle'):''}">
         ${slot}${labelTxt}
       </button>`;
     }
@@ -3197,21 +3236,16 @@ function renderMdregSlots(refDay){
 
   function slotBtn(slot){
     const kx = isKayakCross(refDay, slot);
-    const sel = MR.selectedSlots.has(slot);
-    // Vérifier si bloqué par priorité (au moins sur un jour sélectionné)
-    const lockedOnAny = MR.selectedDays.size>0
-      ? [...MR.selectedDays].some(d=>!S.isAdmin && isLocked(d,slot))
-      : (!S.isAdmin && isLocked(refDay, slot));
-    const fullOnAll = MR.selectedDays.size>0
-      ? [...MR.selectedDays].every(d=> cap(slot,d)<=getSlot(d,slot).length)
-      : false;
-    const disabled = (lockedOnAny && !kx) || fullOnAll;
-    const lockIcon = lockedOnAny && !kx ? ' 🔒' : '';
-    const fullLabel = fullOnAll ? t('qrFullLabel') : '';
+    const sel = daySet.has(slot);
+    const locked = !S.isAdmin && isLocked(refDay, slot);
+    const full = cap(slot,refDay)<=getSlot(refDay,slot).length;
+    const disabled = (locked && !kx) || full;
+    const lockIcon = locked && !kx ? ' 🔒' : '';
+    const fullLabel = full ? t('qrFullLabel') : '';
     return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
       style="${disabled?'opacity:.4;cursor:not-allowed;':''}"
       ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-      title="${disabled?(lockedOnAny?t('qrLockedTitle'):t('qrFullTitle')):''}">
+      title="${disabled?(locked?t('qrLockedTitle'):t('qrFullTitle')):''}">
       ${slot}${kx?' 🏄':''}${lockIcon}${fullLabel}
     </button>`;
   }
@@ -3221,18 +3255,21 @@ function renderMdregSlots(refDay){
 }
 
 function mdregToggleSlot(slot){
-  if(MR.selectedSlots.has(slot)) MR.selectedSlots.delete(slot);
-  else MR.selectedSlots.add(slot);
-  renderMdregSlots();
+  const refDay = MR.activeDay || dk(S.selectedDate||S.currentDate);
+  MR.activeDay = refDay;
+  if(!MR.daySlots[refDay]) MR.daySlots[refDay] = new Set();
+  if(MR.daySlots[refDay].has(slot)) MR.daySlots[refDay].delete(slot);
+  else MR.daySlots[refDay].add(slot);
+  if(MR.daySlots[refDay].size===0) delete MR.daySlots[refDay];
+  renderMdregWeek();
+  renderMdregSlots(refDay);
   renderMdregMembers();
   updateMdregSummary();
 }
 
 function mrHasKayakCrossSelected(){
   if(MR.activity!=='kayak') return false;
-  const days=[...MR.selectedDays], slots=[...MR.selectedSlots];
-  if(!days.length || !slots.length) return false;
-  return days.some(d=>slots.some(s=>isKayakCross(d,s)));
+  return Object.keys(MR.daySlots).some(d => [...MR.daySlots[d]].some(s=>isKayakCross(d,s)));
 }
 
 // ── Inscription par team : liste des teams auxquelles l'utilisateur a accès ──
@@ -3339,8 +3376,7 @@ function mdregAddCustom(){
 }
 
 function updateMdregSummary(){
-  const days = [...MR.selectedDays].sort();
-  const slots = [...MR.selectedSlots];
+  const days = Object.keys(MR.daySlots).sort();
   // Membres depuis la liste connue
   const members = [...MR.selectedMembers];
   // Membres custom
@@ -3351,24 +3387,26 @@ function updateMdregSummary(){
 
   const el = document.getElementById('mdregSummary');
   if(!el) return;
-  if(!days.length && !slots.length && !members.length){
+  if(!days.length && !members.length){
     el.textContent = t('qrSummaryDefault'); return;
   }
-  const total = days.length * slots.length * members.length;
+  const total = days.reduce((sum,d)=>sum + MR.daySlots[d].size, 0) * members.length;
+  const daysDetail = days.map(d=>{
+    const dLabel = d.slice(8,10)+'/'+d.slice(5,7);
+    return `<div style="margin-left:8px;font-size:.78rem">📅 ${dLabel} : ${[...MR.daySlots[d]].join(', ')}</div>`;
+  }).join('');
   el.innerHTML = `
-    <div style="margin-bottom:4px"><b>${t('qrDaysLbl')} (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
-    <div style="margin-bottom:4px"><b>${t('qrSessionsLbl')} (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
-    <div style="margin-bottom:4px"><b>${t('qrParticipantsLbl')} (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>${t('qrDaysLbl')} (${days.length}):</b></div>
+    ${daysDetail || '<div style="margin-left:8px;color:var(--text3)">—</div>'}
+    <div style="margin:6px 0 4px"><b>${t('qrParticipantsLbl')} (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
     <div style="margin-top:6px;font-weight:700;color:var(--accent)">${t('qrRegCountTpl').replace('{n}',total)}</div>`;
 }
 
 async function submitMultiReg(){
   if(!S.session) return;
   const act = MR.activity;
-  const days = [...MR.selectedDays].sort();
-  const slots = [...MR.selectedSlots];
+  const days = Object.keys(MR.daySlots).sort();
   if(!days.length){ toast(t('qrErrDay'),'error'); return; }
-  if(!slots.length){ toast(t('qrErrSlot'),'error'); return; }
 
   // Construire la liste des participants
   // Dossard : jamais collecté en ligne (rempli au stylo sur la feuille imprimée au moment du retrait).
@@ -3395,8 +3433,9 @@ async function submitMultiReg(){
   let created = 0, skipped = 0;
   const errors = [];
 
-  // Itérer sur chaque combinaison jour × créneau × participant
+  // Itérer sur chaque jour, avec SES créneaux propres (peut différer d'un jour à l'autre)
   for(const dateK of days){
+    const slots = [...MR.daySlots[dateK]];
     for(const slot of slots){
       // Vérifier période de stage
       if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
