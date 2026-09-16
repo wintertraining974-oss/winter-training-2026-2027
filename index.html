@@ -572,6 +572,13 @@ select.field { min-width: 110px; cursor: pointer; }
     <!-- Étape 3 : Sélection des membres du groupe -->
     <div class="mdreg-section">
       <h4 id="qrStep3"></h4>
+      <div id="qrTeamLoader" style="display:none;margin-bottom:12px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm)">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select class="field" id="qrTeamSelect" style="flex:1;min-width:200px"></select>
+          <button class="btn btn-sm btn-primary" id="qrLoadTeamBtn" onclick="mrLoadTeamMembers()"></button>
+        </div>
+        <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrTeamHint"></p>
+      </div>
       <div id="mdregMembers"></div>
       <button class="btn btn-sm" style="margin-top:6px" id="qrAddPerson" onclick="mdregAddCustom()"></button>
       <div id="mdregCustoms"></div>
@@ -1131,6 +1138,10 @@ const TR = {
     qrStep2Hint:'Les créneaux verrouillés ou indisponibles sont automatiquement ignorés. 🏄 = Kayak Cross.',
     qrStep2HintMuscu:'Les créneaux complets sont automatiquement ignorés.',
     qrStep3:'③ Sélectionner les participants', qrAddPerson:'+ Ajouter une autre personne',
+    qrLoadTeamBtn:'👥 Charger les athlètes de la team',
+    qrTeamHint:"Les athlètes de la team choisie seront ajoutés et cochés automatiquement ci-dessous. Vous pourrez décocher ceux qui ne participent pas à cette séance.",
+    qrTeamEmptyMsg:"Cette team n'a aucun athlète pour le moment.",
+    qrTeamLoadedMsg:'✅ {n} athlète(s) de "{team}" ajouté(s) à la liste.',
     qrSummary:'Résumé', qrSummaryDefault:'Sélectionnez des jours, créneaux et participants ci-dessus.',
     qrResetBtn:'↺ Réinitialiser la sélection', qrSubmitBtn:'⚡ Tout inscrire',
     qrDaysLbl:'📅 Jours', qrSessionsLbl:'🕐 Créneaux', qrParticipantsLbl:'👤 Participants',
@@ -1288,6 +1299,10 @@ const TR = {
     qrStep2Hint:'Locked or unavailable slots are automatically skipped. 🏄 = Kayak Cross.',
     qrStep2HintMuscu:'Full slots are automatically skipped.',
     qrStep3:'③ Select participants', qrAddPerson:'+ Add another person',
+    qrLoadTeamBtn:'👥 Load team athletes',
+    qrTeamHint:"The chosen team's athletes will be added and checked automatically below. You can uncheck anyone not taking part in this session.",
+    qrTeamEmptyMsg:'This team has no athletes yet.',
+    qrTeamLoadedMsg:'✅ {n} athlete(s) from "{team}" added to the list.',
     qrSummary:'Summary', qrSummaryDefault:'Select days, sessions and participants above.',
     qrResetBtn:'↺ Reset selection', qrSubmitBtn:'⚡ Register all',
     qrDaysLbl:'📅 Days', qrSessionsLbl:'🕐 Sessions', qrParticipantsLbl:'👤 Participants',
@@ -1389,7 +1404,7 @@ function applyI18n(){
     'whoRegisteredBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
     'gpDays7Opt','gpDays14Opt','gpDays30Opt',
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
-    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
+    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary','qrLoadTeamBtn','qrTeamHint',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub',
     'navQuickReg','navTeam','navPlanning','teamTitle','teamSub',
@@ -1404,7 +1419,7 @@ function applyI18n(){
     'whoRegBtn','gpModalTitle','gpModalSub','gpRefreshBtn',
     'gpDays7','gpDays14','gpDays30',
     'qrTitle','qrSub','qrJump','qrTabKayak','qrTabMuscu','qrStep1','qrStep1Hint',
-    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary',
+    'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary','qrLoadTeamBtn','qrTeamHint',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub',
     'navQuickReg','navTeam','navPlanning','teamTitle','teamSub',
@@ -3072,6 +3087,7 @@ function openMultiReg(preDate, preSlot, act){
   renderMdregSlots(preDate);
   renderMdregMembers();
   updateMdregSummary();
+  populateQrTeamSelect();
   applyI18n();
 }
 function resetMultiReg(){
@@ -3217,6 +3233,52 @@ function mrHasKayakCrossSelected(){
   const days=[...MR.selectedDays], slots=[...MR.selectedSlots];
   if(!days.length || !slots.length) return false;
   return days.some(d=>slots.some(s=>isKayakCross(d,s)));
+}
+
+// ── Inscription par team : liste des teams auxquelles l'utilisateur a accès ──
+// Admin → toutes les teams. Utilisateur normal → uniquement sa team (S.myTeam).
+function teamsAvailableForQuickReg(){
+  if(S.isAdmin) return S.teams||[];
+  return S.myTeam ? [S.myTeam] : [];
+}
+
+function populateQrTeamSelect(){
+  const wrap = document.getElementById('qrTeamLoader');
+  const sel = document.getElementById('qrTeamSelect');
+  if(!wrap || !sel) return;
+  const teams = teamsAvailableForQuickReg();
+  document.getElementById('qrLoadTeamBtn') && (document.getElementById('qrLoadTeamBtn').textContent = t('qrLoadTeamBtn'));
+  document.getElementById('qrTeamHint') && (document.getElementById('qrTeamHint').textContent = t('qrTeamHint'));
+  if(!teams.length){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  const cur = sel.value;
+  sel.innerHTML = teams.map(tm=>`<option value="${tm.id}">${esc(tm.name)} (${(tm.members||[]).length})</option>`).join('');
+  if(cur && teams.some(tm=>tm.id===cur)) sel.value = cur;
+}
+
+// Charge tous les athlètes de la team choisie dans la liste des participants,
+// et les coche automatiquement. Si le créneau est du Kayak Cross, le menu de
+// location de kayak (déjà présent pour les inscriptions manuelles) s'affiche
+// aussi pour chacun d'eux, exactement comme avant.
+function mrLoadTeamMembers(){
+  const sel = document.getElementById('qrTeamSelect');
+  if(!sel || !sel.value) return;
+  const teams = teamsAvailableForQuickReg();
+  const team = teams.find(tm=>tm.id===sel.value);
+  if(!team) return;
+  const members = (team.members||[]).filter(m=>m.athlete);
+  if(!members.length){ toast(t('qrTeamEmptyMsg'),'error'); return; }
+  let added = 0;
+  members.forEach(m=>{
+    const a = m.athlete;
+    const already = MR.knownMembers.some(km=>km.name===a.full_name);
+    if(!already){ MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète' }); }
+    if(!MR.selectedMembers.has(a.full_name)) added++;
+    MR.selectedMembers.add(a.full_name);
+  });
+  renderMdregMembers();
+  updateMdregSummary();
+  toast(t('qrTeamLoadedMsg').replace('{team}', team.name).replace('{n}', added));
 }
 
 function renderMdregMembers(){
@@ -4499,5 +4561,3 @@ function renderRecap(start, days){
 </script>
 </body>
 </html>
-
-        
