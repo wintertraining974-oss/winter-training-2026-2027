@@ -242,13 +242,11 @@ select.field { min-width: 110px; cursor: pointer; }
 .mdreg-section { margin-bottom: 14px; }
 .mdreg-section h4 { font-size: .78rem; font-weight: 700; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
 .mdreg-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
-.mdreg-day { position:relative; padding: 5px 2px; border-radius: 6px; border: 1.5px solid var(--border); text-align: center; cursor: pointer; font-size: .68rem; transition: all .15s; user-select: none; }
+.mdreg-day { padding: 5px 2px; border-radius: 6px; border: 1.5px solid var(--border); text-align: center; cursor: pointer; font-size: .68rem; transition: all .15s; user-select: none; }
 .mdreg-day:hover:not(.mdreg-day-closed) { border-color: var(--accent); background: #eff6ff; }
-.mdreg-day.mdreg-has-slots { border-color: var(--accent); background: #eff6ff; }
-.mdreg-day.mdreg-active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 0 2px #93c5fd; }
+.mdreg-day.mdreg-selected { background: var(--accent); color: white; border-color: var(--accent); }
 .mdreg-day.mdreg-day-closed { opacity:.35; cursor:not-allowed; }
 .mdreg-day b { display: block; font-size: .82rem; }
-.mdreg-day-count { position:absolute; top:-5px; right:-5px; background:#f97316; color:white; border-radius:10px; min-width:15px; height:15px; font-size:.6rem; line-height:15px; font-weight:700; }
 .mdreg-slots { display: flex; flex-wrap: wrap; gap: 6px; }
 .mdreg-slot-btn { padding: 5px 11px; border-radius: 20px; border: 1.5px solid var(--border); font-size: .75rem; cursor: pointer; background: white; transition: all .15s; }
 .mdreg-slot-btn:hover { border-color: var(--accent); }
@@ -554,13 +552,11 @@ select.field { min-width: 110px; cursor: pointer; }
       </div>
       <div class="mdreg-days" id="mdregDaysGrid"></div>
       <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrStep1Hint"></p>
-      <div id="mdregDaysRecap" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
     </div>
 
-    <!-- Étape 2 : Sélection des créneaux (pour le jour actif) -->
+    <!-- Étape 2 : Sélection des créneaux -->
     <div class="mdreg-section">
       <h4 id="qrStep2"></h4>
-      <p style="font-size:.78rem;font-weight:600;color:var(--accent);margin-bottom:8px" id="mdregActiveDayLabel"></p>
       <div id="qrKayakSlots">
         <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 <span id="qrMorningLbl"></span></div>
         <div class="mdreg-slots" id="mdregMorningSlots"></div>
@@ -648,6 +644,12 @@ select.field { min-width: 110px; cursor: pointer; }
       <div class="admin-card">
         <h4 id="aCapTitle">Capacité / Capacity per slot</h4>
         <div id="adminCap"></div>
+        <!-- Blocage / étiquette CRRCK-CLUB créneaux eaux vives -->
+        <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+          <h4 style="margin-bottom:8px;font-size:.82rem;font-weight:700">🚣 Blocage & étiquette (CRRCK / CLUB) — Eaux vives</h4>
+          <p style="font-size:.75rem;color:var(--text3);margin-bottom:10px">Sélectionne un jour dans le calendrier, puis bloque un créneau ou attribue-lui un label CRRCK / CLUB. Applicable immédiatement.</p>
+          <div id="adminKayakSlotParams"></div>
+        </div>
       </div>
       <div class="admin-card">
         <h4 id="aMuscuCapTitle">🏋️ Capacité par créneau — Salle de musculation</h4>
@@ -681,14 +683,25 @@ select.field { min-width: 110px; cursor: pointer; }
     <div class="admin-card" style="margin-top:16px">
       <h4>🕐 Horaires personnalisés par date</h4>
       <p style="font-size:.78rem;color:var(--text3);margin-bottom:10px">
-        Définis des créneaux spécifiques pour un jour précis. Laisse vide = horaires par défaut.
+        Clique sur un jour ci-dessous pour modifier ses horaires (comme dans l'inscription rapide). Laisse vide = horaires par défaut.
+        La priorité des inscriptions reste basée sur le nombre d'inscrits déjà présents sur chaque créneau — changer les horaires ne l'affecte pas.
+      </p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <button class="btn btn-sm" onclick="csWeekNav(-1)">←</button>
+        <b id="csWeekLabel" style="font-size:.85rem"></b>
+        <button class="btn btn-sm" onclick="csWeekNav(1)">→</button>
+      </div>
+      <div id="csDaysGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px"></div>
+      <p style="font-size:.7rem;color:var(--text3);margin-bottom:10px">
+        <span style="color:#2563eb;font-weight:700">●</span> = jour avec horaires personnalisés déjà définis.
       </p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <input type="date" class="field" id="customSlotDate" style="width:160px"
           min="2026-07-06" max="2027-03-31">
-        <button class="btn btn-sm btn-primary" onclick="loadCustomSlotEditor()">Modifier les horaires</button>
+        <button class="btn btn-sm" onclick="csJumpToDate()">Aller à cette date</button>
       </div>
       <div id="customSlotEditor" style="display:none">
+        <div id="csEditorDateLabel" style="font-size:.8rem;font-weight:700;margin-bottom:8px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
           <div>
             <b style="font-size:.8rem;display:block;margin-bottom:6px">🌅 Matin</b>
@@ -771,20 +784,8 @@ select.field { min-width: 110px; cursor: pointer; }
         <h4 id="adminAthDbTitle">📇 Base de données des athlètes</h4>
         <p id="adminAthDbDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input class="field" id="adminAthFirstName" placeholder="Prénom" style="flex:1;min-width:160px">
-          <input class="field" id="adminAthLastName" placeholder="Nom" style="flex:1;min-width:160px">
+          <input class="field" id="adminAthFullName" placeholder="Nom complet" style="flex:1;min-width:200px">
           <input class="field" id="adminAthRole" placeholder="Rôle (ex: Athlète)" style="flex:1;min-width:160px">
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
-          <select class="field" id="adminAthRental" onchange="toggleAdminAthModelField()" style="min-width:160px">
-            <option value="no" id="adminAthRentalNoOpt"></option>
-            <option value="yes" id="adminAthRentalYesOpt"></option>
-          </select>
-          <select class="field" id="adminAthModel" style="display:none;min-width:160px">
-            <option value="Pyranha Rippr">Pyranha Rippr</option>
-            <option value="Paname S">Paname S</option>
-            <option value="Paname M">Paname M</option>
-          </select>
           <button class="btn btn-sm btn-primary" id="adminAddAthBtn" onclick="adminAddAthlete()"></button>
         </div>
         <div id="adminAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
@@ -801,23 +802,8 @@ select.field { min-width: 110px; cursor: pointer; }
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input class="field" id="adminTeamNameInput" placeholder="Nom de la team / du groupe" style="flex:1;min-width:180px">
           <select class="field" id="adminTeamOwnerSelect" style="flex:1;min-width:220px"></select>
+          <button class="btn btn-sm btn-primary" id="aTeamsCreateBtn" onclick="adminCreateTeamForUser()"></button>
         </div>
-        <div style="margin-top:10px">
-          <button type="button" class="btn btn-sm" id="aTeamsContactToggleBtn" onclick="toggleCreateTeamContact()"></button>
-          <div id="createTeamContactFields" style="display:none;margin-top:8px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm)">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <input class="field" id="ctcLastName" placeholder="Nom (référent)">
-              <input class="field" id="ctcFirstName" placeholder="Prénom (référent)">
-              <input class="field" id="ctcAdresse" placeholder="Adresse" style="grid-column:1/-1">
-              <input class="field" id="ctcCodePostal" placeholder="Code Postal">
-              <input class="field" id="ctcVille" placeholder="Ville">
-              <input class="field" id="ctcPays" placeholder="Pays">
-              <input class="field" id="ctcTelephone" placeholder="Numéro de téléphone" type="tel">
-              <input class="field" id="ctcEmail" placeholder="Email" type="email" style="grid-column:1/-1">
-            </div>
-          </div>
-        </div>
-        <button class="btn btn-sm btn-primary" id="aTeamsCreateBtn" onclick="adminCreateTeamForUser()" style="margin-top:10px"></button>
         <div id="adminTeamsMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
 
         <h5 id="aTeamsAllTitle" style="font-size:.8rem;font-weight:700;margin-top:18px;margin-bottom:8px"></h5>
@@ -835,19 +821,6 @@ select.field { min-width: 110px; cursor: pointer; }
           <select class="field" id="adminManagerProfileSelect" style="flex:1;min-width:220px"></select>
         </div>
         <div id="adminManagerMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
-      </div>
-
-      <!-- Récapitulatif financier par groupe -->
-      <div class="admin-card" id="financialRecapCard" style="margin-top:16px">
-        <h4 id="recapTitle">💰 Récapitulatif financier</h4>
-        <p id="recapDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select class="field" id="recapTeamSelect" style="flex:1;min-width:220px"></select>
-          <input class="field" type="date" id="recapStartDate" style="min-width:150px">
-          <input class="field" type="date" id="recapEndDate" style="min-width:150px">
-          <button class="btn btn-sm btn-primary" id="recapGenerateBtn" onclick="generateTeamFinancialRecap()"></button>
-        </div>
-        <div id="financialRecapOutput" style="margin-top:14px"></div>
       </div>
     </div>
 
@@ -1144,7 +1117,6 @@ const TR = {
     dowFull:['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'],
     months:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
     calHeads:['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'],
-    calHeadsFull:['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'],
     dowOpen:'Ouvert', dowClosed:'Fermé',
     moveInfoTpl:'Participant : {name} ({role}) — sur {slot} le {date}',
     aDateCapTitle:'🔢 Capacité personnalisée par date',
@@ -1190,8 +1162,6 @@ const TR = {
     qrSummary:'Résumé', qrSummaryDefault:'Sélectionnez des jours, créneaux et participants ci-dessus.',
     qrResetBtn:'↺ Réinitialiser la sélection', qrSubmitBtn:'⚡ Tout inscrire',
     qrDaysLbl:'📅 Jours', qrSessionsLbl:'🕐 Créneaux', qrParticipantsLbl:'👤 Participants',
-    qrEditingDayTpl:'✏️ Créneaux pour : {day}', qrEditDayTitle:'Modifier les créneaux de ce jour',
-    qrRemoveDayTitle:'Retirer ce jour', qrSlotsLbl:'créneaux', qrSlotLbl:'créneau',
     qrRegCountTpl:'→ {n} inscription(s) à créer',
     qrNoMembers:'Aucun participant précédent trouvé. Ajoutez des personnes ci-dessous.',
     qrLockedTitle:'Verrouillé par la priorité — créneau précédent non complet',
@@ -1239,8 +1209,6 @@ const TR = {
     teamAthDbTitle:'📇 Base de données des athlètes',
     teamAthDbDesc:"Liste de tous les athlètes déjà enregistrés dans le logiciel (gérée par l'administrateur).",
     teamAthFullNamePH:'Nom complet', teamAthRolePH:'Rôle (ex: Athlète)',
-    teamAthFirstNamePH:'Prénom', teamAthLastNamePH:'Nom',
-    teamRentalNo:'Pas de location', teamRentalYes:'Location kayak cross',
     teamModelPaS:'Paname S', teamModelPaM:'Paname M', teamModelPyr:'Pyranha Rippr',
     teamAddAthBtn:'+ Ajouter à la base', teamNoAthletesInDb:'Aucun athlète pour le moment.',
     teamRemoveBtn:'Retirer',
@@ -1252,21 +1220,6 @@ const TR = {
     teamRejected:'🔓 Team déverrouillée.',
     teamDeleted:'🗑 Team supprimée.',
     teamCreatedForGroup:'✅ Team créée.',
-    aTeamsContactToggleBtn:'📋 Coordonnées du groupe (optionnel)',
-    aTeamsContactBtn:'✏️ Coordonnées', aTeamsSaveContactBtn:'💾 Enregistrer les coordonnées',
-    teamContactSaved:'✅ Coordonnées enregistrées.',
-    tcLastNamePH:'Nom (référent)', tcFirstNamePH:'Prénom (référent)', tcAdressePH:'Adresse',
-    tcCodePostalPH:'Code Postal', tcVillePH:'Ville', tcPaysPH:'Pays',
-    tcTelephonePH:'Numéro de téléphone', tcEmailPH:'Email',
-    recapTitle:'💰 Récapitulatif financier', recapDesc:"Sélectionnez une team et une période pour générer le détail des séances et le total à facturer.",
-    recapGenerateBtn:'📊 Générer', recapChooseTeam:'— Choisir une team —',
-    recapErrTeam:'Sélectionnez une team.', recapErrDates:'Sélectionnez une date de début et de fin.',
-    recapErrNoAthletes:'Cette team n\u2019a aucun athlète inscrit.',
-    recapNoSessions:'Aucune séance trouvée sur cette période pour cette team.',
-    recapAthleteCol:'Athlète', recapDetailCol:'Détail', recapSubtotalCol:'Sous-total',
-    recapKxSession:'Séance de kayak cross', recapKxRental:'Location de kayak cross',
-    recapSlalomSession:'Séance de slalom', recapMuscuSession:'Séance de musculation',
-    recapGrandTotal:'TOTAL GÉNÉRAL', recapPrintBtn:'Imprimer / PDF',
     teamErrAdminCreate:'Indiquez au moins un nom de team.',
     teamManagerAdded:'✅ Gestionnaire ajouté à la team.',
     aTeamsTitle:'🏳️ Gestion des teams', aTeamsRefreshBtn:'Actualiser les teams',
@@ -1325,7 +1278,6 @@ const TR = {
     dowFull:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
     months:['January','February','March','April','May','June','July','August','September','October','November','December'],
     calHeads:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
-    calHeadsFull:['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
     dowOpen:'Open', dowClosed:'Closed',
     moveInfoTpl:'Participant: {name} ({role}) — on {slot} on {date}',
     aDateCapTitle:'🔢 Custom capacity per date',
@@ -1371,8 +1323,6 @@ const TR = {
     qrSummary:'Summary', qrSummaryDefault:'Select days, sessions and participants above.',
     qrResetBtn:'↺ Reset selection', qrSubmitBtn:'⚡ Register all',
     qrDaysLbl:'📅 Days', qrSessionsLbl:'🕐 Sessions', qrParticipantsLbl:'👤 Participants',
-    qrEditingDayTpl:'✏️ Slots for: {day}', qrEditDayTitle:'Edit this day\u2019s slots',
-    qrRemoveDayTitle:'Remove this day', qrSlotsLbl:'slots', qrSlotLbl:'slot',
     qrRegCountTpl:'→ {n} registration(s) to create',
     qrNoMembers:'No previous participants found. Add people below.',
     qrLockedTitle:'Locked by priority — previous slot not full',
@@ -1420,8 +1370,6 @@ const TR = {
     teamAthDbTitle:'📇 Athletes database',
     teamAthDbDesc:"List of all athletes already saved in the software (managed by the administrator).",
     teamAthFullNamePH:'Full name', teamAthRolePH:'Role (e.g. Athlete)',
-    teamAthFirstNamePH:'First name', teamAthLastNamePH:'Last name',
-    teamRentalNo:'No rental', teamRentalYes:'Kayak cross rental',
     teamModelPaS:'Paname S', teamModelPaM:'Paname M', teamModelPyr:'Pyranha Rippr',
     teamAddAthBtn:'+ Add to database', teamNoAthletesInDb:'No athletes yet.',
     teamRemoveBtn:'Remove',
@@ -1433,21 +1381,6 @@ const TR = {
     teamRejected:'🔓 Team unlocked.',
     teamDeleted:'🗑 Team deleted.',
     teamCreatedForGroup:'✅ Team created.',
-    aTeamsContactToggleBtn:'📋 Group contact details (optional)',
-    aTeamsContactBtn:'✏️ Contact details', aTeamsSaveContactBtn:'💾 Save contact details',
-    teamContactSaved:'✅ Contact details saved.',
-    tcLastNamePH:'Last name (contact)', tcFirstNamePH:'First name (contact)', tcAdressePH:'Address',
-    tcCodePostalPH:'Postal Code', tcVillePH:'City', tcPaysPH:'Country',
-    tcTelephonePH:'Phone number', tcEmailPH:'Email',
-    recapTitle:'💰 Financial recap', recapDesc:"Select a team and a period to generate the session breakdown and the amount to invoice.",
-    recapGenerateBtn:'📊 Generate', recapChooseTeam:'— Choose a team —',
-    recapErrTeam:'Select a team.', recapErrDates:'Select a start and end date.',
-    recapErrNoAthletes:'This team has no registered athletes.',
-    recapNoSessions:'No sessions found for this team over this period.',
-    recapAthleteCol:'Athlete', recapDetailCol:'Detail', recapSubtotalCol:'Subtotal',
-    recapKxSession:'Kayak cross session', recapKxRental:'Kayak cross rental',
-    recapSlalomSession:'Slalom session', recapMuscuSession:'Gym / strength session',
-    recapGrandTotal:'GRAND TOTAL', recapPrintBtn:'Print / PDF',
     teamErrAdminCreate:'Enter at least a team name.',
     teamManagerAdded:'✅ Manager added to the team.',
     aTeamsTitle:'🏳️ Teams management', aTeamsRefreshBtn:'Refresh teams',
@@ -1673,37 +1606,23 @@ async function loadApprovedProfilesForAdmin(){
 function athleteLabel(a){
   if(!a) return '—';
   const role = a.role && a.role!=='Athlète' ? ` (${esc(a.role)})` : '';
-  const rental = a.kayak_rental ? ` 🚣 ${esc(a.kayak_model||'')}` : '';
-  const base = (a.last_name || a.first_name) ? `${a.last_name||''} ${a.first_name||''}`.trim() : (a.full_name||'');
-  return base + role + rental;
-}
-
-function toggleAdminAthModelField(){
-  const rental = document.getElementById('adminAthRental').value;
-  document.getElementById('adminAthModel').style.display = rental==='yes' ? 'inline-block' : 'none';
+  return `${a.full_name||''}`.trim() + role;
 }
 
 async function adminAddAthlete(){
   if(!S.isAdmin) return;
-  const first = document.getElementById('adminAthFirstName').value.trim();
-  const last = document.getElementById('adminAthLastName').value.trim();
+  const fullName = document.getElementById('adminAthFullName').value.trim();
   const role = document.getElementById('adminAthRole').value.trim();
-  const rental = document.getElementById('adminAthRental').value === 'yes';
-  const model = rental ? document.getElementById('adminAthModel').value : null;
   const msg = document.getElementById('adminAthMsg');
-  if(!first || !last){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrName'); } return; }
+  if(!fullName){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrName'); } return; }
   const { error } = await sb.from('athletes').insert({
-    first_name: first, last_name: last, full_name: `${first} ${last}`.trim(),
-    role: role || 'Athlète', kayak_rental: rental, kayak_model: model,
+    full_name: fullName, role: role || 'Athlète',
     created_by: S.session ? S.session.user.id : null
   });
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
   if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamAthAdded'); }
-  document.getElementById('adminAthFirstName').value='';
-  document.getElementById('adminAthLastName').value='';
+  document.getElementById('adminAthFullName').value='';
   document.getElementById('adminAthRole').value='';
-  document.getElementById('adminAthRental').value='no';
-  toggleAdminAthModelField();
   await loadAthletes();
   await loadTeamsData();
   renderAdminTeams();
@@ -1728,13 +1647,12 @@ function renderAdminAthleteDbList(){
   const el = document.getElementById('adminAthleteDbList');
   if(!el) return;
   if(!S.athletes.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamNoAthletesInDb'))}</p>`; return; }
-  const sorted = [...S.athletes].sort((a,b)=> (a.last_name||a.full_name||'').localeCompare(b.last_name||b.full_name||''));
+  const sorted = [...S.athletes].sort((a,b)=> (a.full_name||'').localeCompare(b.full_name||''));
   el.innerHTML = `<div class="athletes-list">` + sorted.map((a,i)=>`
     <div class="ath-row">
       <span class="ath-num">${i+1}.</span>
-      <span class="ath-name">${esc(a.last_name||'')} ${esc(a.first_name||a.full_name||'')}</span>
+      <span class="ath-name">${esc(a.full_name)}</span>
       ${a.role && a.role!=='Athlète' ? `<span class="slot-badge sb-mid">${esc(a.role)}</span>` : ''}
-      ${a.kayak_rental ? `<span class="slot-badge sb-open">🚣 ${esc(a.kayak_model||'')}</span>` : ''}
       <div class="ath-actions"><button class="ath-btn del" title="${esc(t('teamRemoveBtn'))}" onclick="adminDeleteAthlete('${a.id}')">✕</button></div>
     </div>`).join('') + `</div>`;
 }
@@ -1743,13 +1661,12 @@ function renderAthleteDbList(){
   const el = document.getElementById('athleteDbList');
   if(!el) return;
   if(!S.athletes.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamNoAthletesInDb'))}</p>`; return; }
-  const sorted = [...S.athletes].sort((a,b)=> (a.last_name||a.full_name||'').localeCompare(b.last_name||b.full_name||''));
+  const sorted = [...S.athletes].sort((a,b)=> (a.full_name||'').localeCompare(b.full_name||''));
   el.innerHTML = `<div class="athletes-list">` + sorted.map((a,i)=>`
     <div class="ath-row">
       <span class="ath-num">${i+1}.</span>
-      <span class="ath-name">${esc(a.last_name||'')} ${esc(a.first_name||a.full_name||'')}</span>
+      <span class="ath-name">${esc(a.full_name)}</span>
       ${a.role && a.role!=='Athlète' ? `<span class="slot-badge sb-mid">${esc(a.role)}</span>` : ''}
-      ${a.kayak_rental ? `<span class="slot-badge sb-open">🚣 ${esc(a.kayak_model||'')}</span>` : ''}
     </div>`).join('') + `</div>`;
 }
 
@@ -1815,54 +1732,10 @@ async function adminCreateTeamForUser(){
   const name = document.getElementById('adminTeamNameInput').value.trim();
   const msg = document.getElementById('adminTeamsMsg');
   if(!name){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrAdminCreate'); } return; }
-  const payload = {
-    owner_user_id: ownerId, name, status:'draft',
-    contact_last_name: document.getElementById('ctcLastName').value.trim() || null,
-    contact_first_name: document.getElementById('ctcFirstName').value.trim() || null,
-    adresse: document.getElementById('ctcAdresse').value.trim() || null,
-    code_postal: document.getElementById('ctcCodePostal').value.trim() || null,
-    ville: document.getElementById('ctcVille').value.trim() || null,
-    pays: document.getElementById('ctcPays').value.trim() || null,
-    telephone: document.getElementById('ctcTelephone').value.trim() || null,
-    contact_email: document.getElementById('ctcEmail').value.trim() || null,
-  };
-  const { error } = await sb.from('teams').insert(payload);
+  const { error } = await sb.from('teams').insert({ owner_user_id: ownerId, name, status:'draft' });
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
   if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamCreatedForGroup'); }
   document.getElementById('adminTeamNameInput').value='';
-  ['ctcLastName','ctcFirstName','ctcAdresse','ctcCodePostal','ctcVille','ctcPays','ctcTelephone','ctcEmail'].forEach(id=>{
-    const el = document.getElementById(id); if(el) el.value='';
-  });
-  await loadTeamsData();
-  renderAdminTeams();
-}
-
-function toggleCreateTeamContact(){
-  const el = document.getElementById('createTeamContactFields');
-  if(!el) return;
-  el.style.display = el.style.display==='block' ? 'none' : 'block';
-}
-
-function toggleTeamContactEdit(teamId){
-  document.querySelectorAll('.team-contact-panel').forEach(el=>{
-    if(el.id !== 'teamContact_'+teamId) el.style.display='none';
-  });
-  const panel = document.getElementById('teamContact_'+teamId);
-  if(!panel) return;
-  panel.style.display = (panel.style.display==='block') ? 'none' : 'block';
-}
-
-async function adminSaveTeamContact(teamId){
-  if(!S.isAdmin) return;
-  const g = (id)=> (document.getElementById(id+'_'+teamId)?.value || '').trim() || null;
-  const payload = {
-    contact_last_name: g('tcLastName'), contact_first_name: g('tcFirstName'),
-    adresse: g('tcAdresse'), code_postal: g('tcCodePostal'), ville: g('tcVille'),
-    pays: g('tcPays'), telephone: g('tcTelephone'), contact_email: g('tcEmail'),
-  };
-  const { error } = await sb.from('teams').update(payload).eq('id', teamId);
-  if(error){ toast(error.message,'error'); return; }
-  toast(t('teamContactSaved'));
   await loadTeamsData();
   renderAdminTeams();
 }
@@ -2049,135 +1922,6 @@ function teamManagersLabel(tm){
   return names.length ? names.join(', ') : '';
 }
 
-// ── Récapitulatif financier par groupe ──
-const RECAP_PRICES = { kx:12, kxRental:10, slalom:12, muscu:7 };
-
-function recapFormatDate(dateK){
-  const d = parseDate(dateK);
-  const dow = t('calHeadsFull') ? t('calHeadsFull')[(d.getDay()+6)%7] : '';
-  return `${dow} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`.trim();
-}
-
-function generateTeamFinancialRecap(){
-  if(!S.isAdmin) return;
-  const teamId = document.getElementById('recapTeamSelect').value;
-  const startStr = document.getElementById('recapStartDate').value;
-  const endStr = document.getElementById('recapEndDate').value;
-  const out = document.getElementById('financialRecapOutput');
-  if(!out) return;
-  if(!teamId){ out.innerHTML = `<p style="color:var(--red);font-size:.85rem">${esc(t('recapErrTeam'))}</p>`; return; }
-  if(!startStr || !endStr){ out.innerHTML = `<p style="color:var(--red);font-size:.85rem">${esc(t('recapErrDates'))}</p>`; return; }
-  const team = S.teams.find(tm=>tm.id===teamId);
-  if(!team) return;
-  const athletes = (team.members||[]).map(m=>m.athlete).filter(Boolean);
-  if(!athletes.length){ out.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('recapErrNoAthletes'))}</p>`; return; }
-
-  const dates = [];
-  let cur = parseDate(startStr);
-  const end = parseDate(endStr);
-  while(cur <= end){ dates.push(dk(cur)); cur = new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1); }
-
-  let grandTotal = 0;
-  const grandCounts = { kx:0, kxRental:0, slalom:0, muscu:0 };
-  const dayBlocks = [];
-
-  dates.forEach(dateK=>{
-    let dayTotal = 0;
-    const athleteRows = [];
-    athletes.forEach(a=>{
-      const items = [];
-      const nameKey = (a.full_name||'').trim().toLowerCase();
-      Object.keys(S.data[dateK]||{}).forEach(slot=>{
-        (S.data[dateK][slot]||[]).forEach(entry=>{
-          if((entry.name||'').trim().toLowerCase() !== nameKey) return;
-          const kx = isKayakCross(dateK, slot);
-          if(kx){
-            items.push({label:t('recapKxSession'), price:RECAP_PRICES.kx});
-            grandCounts.kx++; dayTotal += RECAP_PRICES.kx;
-            if(entry.rental){
-              items.push({label:t('recapKxRental'), price:RECAP_PRICES.kxRental});
-              grandCounts.kxRental++; dayTotal += RECAP_PRICES.kxRental;
-            }
-          } else {
-            items.push({label:t('recapSlalomSession'), price:RECAP_PRICES.slalom});
-            grandCounts.slalom++; dayTotal += RECAP_PRICES.slalom;
-          }
-        });
-      });
-      Object.keys(S.muscuData[dateK]||{}).forEach(slot=>{
-        (S.muscuData[dateK][slot]||[]).forEach(entry=>{
-          if((entry.name||'').trim().toLowerCase() !== nameKey) return;
-          items.push({label:t('recapMuscuSession'), price:RECAP_PRICES.muscu});
-          grandCounts.muscu++; dayTotal += RECAP_PRICES.muscu;
-        });
-      });
-      if(items.length){
-        athleteRows.push({ athlete:a, items, subtotal: items.reduce((s,it)=>s+it.price,0) });
-      }
-    });
-    if(athleteRows.length){
-      dayBlocks.push({ dateK, athleteRows, dayTotal });
-      grandTotal += dayTotal;
-    }
-  });
-
-  const contactLines = [
-    [team.contact_first_name, team.contact_last_name].filter(Boolean).join(' '),
-    team.adresse,
-    [team.code_postal, team.ville].filter(Boolean).join(' '),
-    team.pays,
-    team.telephone ? '☎ '+team.telephone : '',
-    team.contact_email ? '✉ '+team.contact_email : ''
-  ].filter(Boolean);
-
-  let html = `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;background:var(--surface2)">
-    <b style="font-size:.95rem">${esc(team.name)}</b><br>
-    ${contactLines.map(l=>`<span style="font-size:.8rem;color:var(--text3)">${esc(l)}</span>`).join('<br>')}
-    <div style="font-size:.75rem;color:var(--text3);margin-top:6px">${esc(recapFormatDate(startStr))} → ${esc(recapFormatDate(endStr))}</div>
-  </div>`;
-
-  if(!dayBlocks.length){
-    html += `<p style="color:var(--text3);font-size:.85rem">${esc(t('recapNoSessions'))}</p>`;
-  } else {
-    dayBlocks.forEach(day=>{
-      html += `<div style="margin-bottom:14px">
-        <div style="font-weight:700;font-size:.85rem;margin-bottom:6px">📅 ${esc(recapFormatDate(day.dateK))} — <span style="color:var(--accent)">${day.dayTotal} €</span></div>
-        <div style="overflow:auto"><table style="border-collapse:collapse;width:100%;font-size:.78rem">
-          <thead><tr>
-            <th style="border:1px solid var(--border);padding:4px 6px;text-align:left;background:#f5f5f5">${esc(t('recapAthleteCol'))}</th>
-            <th style="border:1px solid var(--border);padding:4px 6px;text-align:left;background:#f5f5f5">${esc(t('recapDetailCol'))}</th>
-            <th style="border:1px solid var(--border);padding:4px 6px;text-align:right;background:#f5f5f5">${esc(t('recapSubtotalCol'))}</th>
-          </tr></thead>
-          <tbody>${day.athleteRows.map(r=>`<tr>
-            <td style="border:1px solid var(--border);padding:4px 6px">${esc(athleteLabel(r.athlete))}</td>
-            <td style="border:1px solid var(--border);padding:4px 6px">${r.items.map(it=>`${esc(it.label)} (${it.price}€)`).join(', ')}</td>
-            <td style="border:1px solid var(--border);padding:4px 6px;text-align:right;font-weight:600">${r.subtotal} €</td>
-          </tr>`).join('')}</tbody>
-        </table></div>
-      </div>`;
-    });
-  }
-
-  html += `<div style="border-top:2px solid var(--accent);padding-top:10px;margin-top:10px">
-    <div style="font-size:.8rem;color:var(--text3);margin-bottom:4px">
-      ${grandCounts.kx} × ${esc(t('recapKxSession'))} (${RECAP_PRICES.kx}€) · ${grandCounts.kxRental} × ${esc(t('recapKxRental'))} (${RECAP_PRICES.kxRental}€) · ${grandCounts.slalom} × ${esc(t('recapSlalomSession'))} (${RECAP_PRICES.slalom}€) · ${grandCounts.muscu} × ${esc(t('recapMuscuSession'))} (${RECAP_PRICES.muscu}€)
-    </div>
-    <div style="font-size:1.05rem;font-weight:700;color:var(--accent)">${esc(t('recapGrandTotal'))}: ${grandTotal} €</div>
-  </div>
-  <button class="btn btn-sm" style="margin-top:12px" onclick="window.print()">🖨️ ${esc(t('recapPrintBtn'))}</button>`;
-
-  out.innerHTML = html;
-}
-
-function populateRecapTeamSelect(){
-  const sel = document.getElementById('recapTeamSelect');
-  if(!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = `<option value="">${esc(t('recapChooseTeam'))}</option>` +
-    S.teams.map(tm=>`<option value="${tm.id}">${esc(tm.name)}</option>`).join('');
-  if(cur && S.teams.some(tm=>tm.id===cur)) sel.value = cur;
-}
-
 function renderAdminTeams(){
   if(!S.isAdmin) return;
 
@@ -2186,14 +1930,10 @@ function renderAdminTeams(){
   document.getElementById('aTeamsAllTitle') && (document.getElementById('aTeamsAllTitle').textContent = t('aTeamsAllTitle'));
   document.getElementById('aTeamsCreateTitle') && (document.getElementById('aTeamsCreateTitle').textContent = t('aTeamsCreateTitle'));
   document.getElementById('aTeamsCreateBtn') && (document.getElementById('aTeamsCreateBtn').textContent = t('aTeamsCreateBtn'));
-  document.getElementById('aTeamsContactToggleBtn') && (document.getElementById('aTeamsContactToggleBtn').textContent = t('aTeamsContactToggleBtn'));
   document.getElementById('adminAthDbTitle') && (document.getElementById('adminAthDbTitle').textContent = t('adminAthDbTitle'));
   document.getElementById('adminAthDbDesc') && (document.getElementById('adminAthDbDesc').textContent = t('adminAthDbDesc'));
-  document.getElementById('adminAthFirstName') && (document.getElementById('adminAthFirstName').placeholder = t('teamAthFirstNamePH'));
-  document.getElementById('adminAthLastName') && (document.getElementById('adminAthLastName').placeholder = t('teamAthLastNamePH'));
+  document.getElementById('adminAthFullName') && (document.getElementById('adminAthFullName').placeholder = t('teamAthFullNamePH'));
   document.getElementById('adminAthRole') && (document.getElementById('adminAthRole').placeholder = t('teamAthRolePH'));
-  document.getElementById('adminAthRentalNoOpt') && (document.getElementById('adminAthRentalNoOpt').textContent = t('teamRentalNo'));
-  document.getElementById('adminAthRentalYesOpt') && (document.getElementById('adminAthRentalYesOpt').textContent = t('teamRentalYes'));
   document.getElementById('adminAddAthBtn') && (document.getElementById('adminAddAthBtn').textContent = t('teamAddAthBtn'));
 
   const ownerSel = document.getElementById('adminTeamOwnerSelect');
@@ -2228,27 +1968,6 @@ function renderAdminTeams(){
               return `<span class="slot-badge sb-open" style="margin:1px 3px;cursor:pointer" title="${esc(t('aTeamsRemoveManagerBtn'))}" onclick="adminRemoveTeamManager('${mg.id}')">${esc(label)} ✕</span>`;
             }).join('') : ''}
           </div>
-          <div style="margin-bottom:8px">
-            <button type="button" class="btn btn-sm" onclick="toggleTeamContactEdit('${tm.id}')">${esc(t('aTeamsContactBtn'))}</button>
-            ${(tm.contact_last_name||tm.contact_first_name||tm.adresse||tm.ville||tm.telephone||tm.contact_email) ? `
-              <span style="font-size:.75rem;color:var(--text3);margin-left:6px">
-                ${esc([tm.contact_first_name,tm.contact_last_name].filter(Boolean).join(' '))}
-                ${tm.ville?' · '+esc(tm.ville):''}${tm.telephone?' · ☎ '+esc(tm.telephone):''}${tm.contact_email?' · ✉ '+esc(tm.contact_email):''}
-              </span>` : ''}
-            <div class="team-contact-panel" id="teamContact_${tm.id}" style="display:none;margin-top:8px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm)">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <input class="field" id="tcLastName_${tm.id}" placeholder="${esc(t('tcLastNamePH'))}" value="${esc(tm.contact_last_name||'')}">
-                <input class="field" id="tcFirstName_${tm.id}" placeholder="${esc(t('tcFirstNamePH'))}" value="${esc(tm.contact_first_name||'')}">
-                <input class="field" id="tcAdresse_${tm.id}" placeholder="${esc(t('tcAdressePH'))}" value="${esc(tm.adresse||'')}" style="grid-column:1/-1">
-                <input class="field" id="tcCodePostal_${tm.id}" placeholder="${esc(t('tcCodePostalPH'))}" value="${esc(tm.code_postal||'')}">
-                <input class="field" id="tcVille_${tm.id}" placeholder="${esc(t('tcVillePH'))}" value="${esc(tm.ville||'')}">
-                <input class="field" id="tcPays_${tm.id}" placeholder="${esc(t('tcPaysPH'))}" value="${esc(tm.pays||'')}">
-                <input class="field" id="tcTelephone_${tm.id}" placeholder="${esc(t('tcTelephonePH'))}" type="tel" value="${esc(tm.telephone||'')}">
-                <input class="field" id="tcEmail_${tm.id}" placeholder="${esc(t('tcEmailPH'))}" type="email" value="${esc(tm.contact_email||'')}" style="grid-column:1/-1">
-              </div>
-              <button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="adminSaveTeamContact('${tm.id}')">${esc(t('aTeamsSaveContactBtn'))}</button>
-            </div>
-          </div>
           <div class="athletes-list">${tm.members.length ? tm.members.map((m,i)=>`
             <div class="ath-row">
               <span class="ath-num">${i+1}.</span>
@@ -2278,10 +1997,6 @@ function renderAdminTeams(){
   document.getElementById('aTeamsAddManagerBtn') && (document.getElementById('aTeamsAddManagerBtn').textContent = t('aTeamsAddManagerBtn'));
 
   renderAdminAthleteDbList();
-  populateRecapTeamSelect();
-  document.getElementById('recapTitle') && (document.getElementById('recapTitle').textContent = t('recapTitle'));
-  document.getElementById('recapDesc') && (document.getElementById('recapDesc').textContent = t('recapDesc'));
-  document.getElementById('recapGenerateBtn') && (document.getElementById('recapGenerateBtn').textContent = t('recapGenerateBtn'));
 }
 
 
@@ -2316,6 +2031,8 @@ let S = {
   customClosed:{},
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
+  // Paramètres par créneau kayak (eaux vives) : { "2026-07-07": { "9h-10h": { blocked:false, label:'' } } }
+  kayakSlotConfig:{},
   data:{}, expanded:{}, movePending:null,
   // ── Salle de musculation (activité parallèle) ──────────────────────
   muscuSlots:['7h30-9h00','9h00-10h30','10h30-12h00','12h00-13h30','13h30-15h00','15h00-16h30','16h30-18h00'],
@@ -2521,6 +2238,7 @@ async function saveConfig() {
     dateCapacity:   S.dateCapacity,
     muscuCapacity:   S.muscuCapacity,
     muscuSlotConfig: S.muscuSlotConfig,
+    kayakSlotConfig: S.kayakSlotConfig,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -2543,6 +2261,7 @@ async function loadConfig() {
   if (cfg.dateCapacity   !== undefined) S.dateCapacity   = cfg.dateCapacity;
   if (cfg.muscuCapacity   !== undefined) S.muscuCapacity   = cfg.muscuCapacity;
   if (cfg.muscuSlotConfig !== undefined) S.muscuSlotConfig = cfg.muscuSlotConfig;
+  if (cfg.kayakSlotConfig !== undefined) S.kayakSlotConfig = cfg.kayakSlotConfig;
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -2818,12 +2537,46 @@ function renderDayPanel(){
   } else {
     h+=`<div class="slots-body">
       <div class="slot-group"><div class="slot-group-title">🌅 ${t('morning')}</div>`;
-    morningSlots(k).forEach(slot=>h+=renderSlot(k,slot));
+    morningSlots(k).forEach(slot=>h+=renderKayakSlotBlock(k,slot));
     h+=`</div><div class="slot-group"><div class="slot-group-title">🌇 ${t('afternoon')}</div>`;
-    afternoonSlots(k).forEach(slot=>h+=renderSlot(k,slot));
+    afternoonSlots(k).forEach(slot=>h+=renderKayakSlotBlock(k,slot));
     h+=`</div></div>`;
   }
   h+='</div>'; el.innerHTML=h;
+}
+
+// Affiche un créneau kayak en tenant compte du blocage / label admin (CRRCK / CLUB)
+function renderKayakSlotBlock(k,slot){
+  const cfg = getKayakSlotCfg(k, slot);
+  const isBlocked = cfg.blocked;
+  const label = cfg.label || '';
+  if(isBlocked){
+    return `<div class="slot-card" style="border-left:4px solid #dc2626;opacity:.85">
+      <div class="slot-header" style="cursor:default">
+        <div class="slot-time">${slot}</div>
+        <span style="flex:1;font-size:.78rem;font-weight:700;color:#dc2626">🚫 ${label?'['+label+'] ':''} Bloqué</span>
+        ${S.isAdmin?`<div style="display:flex;gap:6px;align-items:center">
+          ${renderKayakLabelSelect(k,slot,label)}
+          <button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.72rem" onclick="toggleKayakBlock('${k}','${slot}')">🔓 Débloquer</button>
+        </div>`:''}
+      </div>
+    </div>`;
+  }
+  let h = `<div style="position:relative">`;
+  if(label){
+    const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':'#6b7280';
+    h+=`<div style="background:${labelColor};color:white;font-size:.68rem;font-weight:700;padding:2px 10px;border-radius:4px 4px 0 0;display:inline-block;margin-bottom:-1px;letter-spacing:.06em">${label}</div>`;
+  }
+  h+=renderSlot(k,slot);
+  if(S.isAdmin){
+    h+=`<div style="display:flex;gap:6px;align-items:center;padding:4px 10px 8px;flex-wrap:wrap">
+      <span style="font-size:.72rem;color:var(--text3)">Admin:</span>
+      ${renderKayakLabelSelect(k,slot,label)}
+      <button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.72rem" onclick="toggleKayakBlock('${k}','${slot}')">🚫 Bloquer</button>
+    </div>`;
+  }
+  h+=`</div>`;
+  return h;
 }
 
 function renderSlot(dateK,slot,act='kayak'){
@@ -2983,6 +2736,87 @@ async function setMuscuLabel(dateK, slot, label){
   renderMuscuDayPanel();
 }
 
+// ── Blocage / étiquette CRRCK-CLUB pour les créneaux Kayak (eaux vives) ──
+
+// Helper : renvoie la config d'un créneau kayak (jamais null)
+function getKayakSlotCfg(dateK, slot){
+  if(!S.kayakSlotConfig[dateK]) S.kayakSlotConfig[dateK]={};
+  if(!S.kayakSlotConfig[dateK][slot]) S.kayakSlotConfig[dateK][slot]={ blocked:false, label:'' };
+  return S.kayakSlotConfig[dateK][slot];
+}
+
+// Helper : renvoie le HTML du select label pour un créneau kayak
+function renderKayakLabelSelect(dateK, slot, currentLabel){
+  return `<select class="field" style="width:100px;font-size:.72rem;padding:3px 6px"
+    onchange="setKayakLabel('${dateK}','${slot}',this.value)">
+    <option value="" ${!currentLabel?'selected':''}>— Label</option>
+    <option value="CRRCK" ${currentLabel==='CRRCK'?'selected':''}>CRRCK</option>
+    <option value="CLUB"  ${currentLabel==='CLUB'?'selected':''}>CLUB</option>
+  </select>`;
+}
+
+// Bloquer / débloquer un créneau kayak
+async function toggleKayakBlock(dateK, slot){
+  const cfg = getKayakSlotCfg(dateK, slot);
+  cfg.blocked = !cfg.blocked;
+  await saveConfig();
+  renderDayPanel();
+  renderKayakSlotParams();
+  toast(cfg.blocked ? `🚫 ${slot} blocked` : `✅ ${slot} unblocked`, 'success');
+}
+
+// Changer le label d'un créneau kayak
+async function setKayakLabel(dateK, slot, label){
+  const cfg = getKayakSlotCfg(dateK, slot);
+  cfg.label = label;
+  await saveConfig();
+  renderDayPanel();
+  renderKayakSlotParams();
+}
+
+// Affiche les paramètres admin de chaque créneau kayak (eaux vives) pour le jour sélectionné
+function renderKayakSlotParams(){
+  const el = document.getElementById('adminKayakSlotParams');
+  if(!el) return;
+  if(!S.selectedDate){ el.innerHTML='<p style="font-size:.78rem;color:var(--text3)">Sélectionne un jour dans le calendrier.</p>'; return; }
+  const k = dk(S.selectedDate);
+  const d = S.selectedDate;
+  if(isClosed(d)){ el.innerHTML='<p style="font-size:.78rem;color:var(--text3)">Ce jour est fermé.</p>'; return; }
+  const dateLabel = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  let h = `<div style="font-size:.78rem;font-weight:600;color:var(--text2);margin-bottom:8px">📅 ${dateLabel}</div>`;
+  const daySlots = allSlots(k);
+  daySlots.forEach(slot=>{
+    const cfg = getKayakSlotCfg(k, slot);
+    const isBlocked = cfg.blocked;
+    const label = cfg.label||'';
+    const kx = isKayakCross(k,slot);
+    const used = getSlot(k,slot,'kayak').length;
+    const total = cap(slot,k,'kayak');
+    const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':'var(--text3)';
+    h+=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;border:1.5px solid ${isBlocked?'#dc2626':'var(--border)'};margin-bottom:6px;background:${isBlocked?'#fef2f2':label?'#f5f3ff':'white'}">
+      <div style="flex:1;min-width:100px">
+        <b style="font-size:.82rem">${slot}</b>${kx?' <span style="font-size:.65rem;color:#f97316;font-weight:700">🏄 KX</span>':''}
+        <span style="font-size:.72rem;color:var(--text3);margin-left:6px">${used}/${total} inscrits</span>
+        ${label?`<span style="font-size:.68rem;font-weight:700;color:${labelColor};margin-left:6px">[${label}]</span>`:''}
+        ${isBlocked?'<span style="font-size:.68rem;font-weight:700;color:#dc2626;margin-left:6px">🚫 BLOQUÉ</span>':''}
+      </div>
+      <!-- Label -->
+      <select class="field" style="width:105px;font-size:.75rem;padding:4px 6px"
+        onchange="setKayakLabel('${k}','${slot}',this.value)">
+        <option value="" ${!label?'selected':''}>— Aucun label</option>
+        <option value="CRRCK" ${label==='CRRCK'?'selected':''} style="color:#7c3aed;font-weight:700">CRRCK</option>
+        <option value="CLUB"  ${label==='CLUB' ?'selected':''} style="color:#0d9488;font-weight:700">CLUB</option>
+      </select>
+      <!-- Block/Unblock -->
+      <button class="btn btn-sm" style="background:${isBlocked?'#16a34a':'#dc2626'};color:white;font-size:.72rem;white-space:nowrap"
+        onclick="toggleKayakBlock('${k}','${slot}')">
+        ${isBlocked?'🔓 Débloquer':'🚫 Bloquer'}
+      </button>
+    </div>`;
+  });
+  el.innerHTML = h || '<p style="font-size:.78rem;color:var(--text3)">Aucun créneau ce jour.</p>';
+}
+
 // Affiche les paramètres admin de chaque créneau muscu pour le jour sélectionné
 function renderMuscuSlotParams(){
   const el = document.getElementById('adminMuscuSlotParams');
@@ -3071,6 +2905,7 @@ function renderAdmin(){
   });
   document.getElementById('adminMuscuCap').innerHTML=mch;
   renderMuscuSlotParams();
+  renderKayakSlotParams();
 
   // DOW buttons (0=dim..6=sam)
   let dh='';
@@ -3088,6 +2923,7 @@ function renderAdmin(){
     ?t('adminClosedPfx')+keys.join(', ')
     :t('adminNoneClosed');
   renderCustomSlotSummary();
+  renderCsWeek();
   renderDateCapSummary();
   renderDcMiniCal();
 }
@@ -3193,7 +3029,7 @@ function renderPlanningGrid(){
       const aths = isKayak ? getSlot(k,slot) : getSlot(k,slot,'muscu');
       const c = cap(slot,k, isKayak?'kayak':'muscu');
       const kx = isKayak && isKayakCross(k,slot);
-      const slotCfg = !isKayak ? getMuscuSlotCfg(k,slot) : null;
+      const slotCfg = isKayak ? getKayakSlotCfg(k,slot) : getMuscuSlotCfg(k,slot);
       const blocked = slotCfg?.blocked;
       const label = kx ? 'KX' : (slotCfg?.label||'');
 
@@ -3286,9 +3122,9 @@ function printPlanningGrid(){
       const aths=isKayak?getSlot(k,slot):getSlot(k,slot,'muscu');
       const c=cap(slot,k,isKayak?'kayak':'muscu');
       const kx=isKayak&&isKayakCross(k,slot);
-      const slotCfg=!isKayak?getMuscuSlotCfg(k,slot):null;
+      const slotCfg=isKayak?getKayakSlotCfg(k,slot):getMuscuSlotCfg(k,slot);
       const blocked=slotCfg?.blocked;
-      const label=slotCfg?.label||'';
+      const label=kx?'':(slotCfg?.label||'');
       const pct=aths.length/c;
       const cntCls=pct>=1?'cnt cnt-full':pct>=0.6?'cnt cnt-mid':'cnt';
       html+=`<td>${kx?'<span class="kx-lbl">🏄 KX</span><br>':''}${label?`<span class="kx-lbl">${label}</span><br>`:''}`;
@@ -3325,8 +3161,8 @@ function toggleSlot(dateK,slot,act='kayak'){
 let MR = {
   activity: 'kayak',  // 'kayak' | 'muscu' — activité sélectionnée dans la carte d'inscription rapide
   weekStart: null,   // Date début de semaine affichée
-  activeDay: null,   // dateK actuellement édité dans le panneau créneaux
-  daySlots: {},      // { dateK: Set<slot> } — un jour n'existe ici que s'il a ≥1 créneau choisi
+  selectedDays: new Set(),   // Set de dateK sélectionnés
+  selectedSlots: new Set(),  // Set de slots sélectionnés
   selectedMembers: new Set(),// Set de noms sélectionnés
   customCounter: 0,
   knownMembers: [],  // Membres connus depuis les inscriptions passées
@@ -3340,15 +3176,15 @@ function mrSetExtra(pid, field, val){
 function openMultiReg(preDate, preSlot, act){
   if(!S.session){ toast(t('qrLoginToRegister'),'error'); return; }
   if(act) MR.activity = act;
-  MR.activeDay = null;
-  MR.daySlots = {};
+  MR.selectedDays.clear();
+  MR.selectedSlots.clear();
   MR.selectedMembers.clear();
   MR.customCounter = 0;
   MR.extras = {};
 
   // Pré-sélectionner le jour et le créneau si fournis
   if(preDate){
-    MR.activeDay = preDate;
+    MR.selectedDays.add(preDate);
     // Semaine du jour cliqué
     const dt = new Date(preDate+'T12:00:00');
     MR.weekStart = new Date(dt);
@@ -3359,7 +3195,7 @@ function openMultiReg(preDate, preSlot, act){
     const d = MR.weekStart.getDay();
     MR.weekStart.setDate(MR.weekStart.getDate()-(d===0?6:d-1));
   }
-  if(preDate && preSlot) MR.daySlots[preDate] = new Set([preSlot]);
+  if(preSlot) MR.selectedSlots.add(preSlot);
 
   // Collecter les membres connus depuis les inscriptions passées (kayak + muscu)
   const seen = new Set();
@@ -3403,16 +3239,14 @@ function mrSwitchActivity(act){
 function mdregPrevWeek(){
   MR.weekStart = new Date(MR.weekStart);
   MR.weekStart.setDate(MR.weekStart.getDate()-7);
-  MR.activeDay = null;
-  MR.daySlots = {};
-  renderMdregWeek(); renderMdregSlots(); renderMdregMembers(); updateMdregSummary();
+  MR.selectedDays.clear();
+  renderMdregWeek(); updateMdregSummary();
 }
 function mdregNextWeek(){
   MR.weekStart = new Date(MR.weekStart);
   MR.weekStart.setDate(MR.weekStart.getDate()+7);
-  MR.activeDay = null;
-  MR.daySlots = {};
-  renderMdregWeek(); renderMdregSlots(); renderMdregMembers(); updateMdregSummary();
+  MR.selectedDays.clear();
+  renderMdregWeek(); updateMdregSummary();
 }
 
 function renderMdregWeek(){
@@ -3436,37 +3270,22 @@ function renderMdregWeek(){
       outOfStage = k < S.profile.arrival_date || k > S.profile.departure_date;
     }
     const disabled = closed || outOfStage;
-    const active = MR.activeDay===k;
-    const count = MR.daySlots[k] ? MR.daySlots[k].size : 0;
+    const sel = MR.selectedDays.has(k);
     const dow = t('calHeads')[i];
-    h += `<div class="mdreg-day${active?' mdreg-active':(count>0?' mdreg-has-slots':'')}${disabled?' mdreg-day-closed':''}"
+    h += `<div class="mdreg-day${sel?' mdreg-selected':''}${disabled?' mdreg-day-closed':''}"
       ${disabled?'':`onclick="mdregToggleDay('${k}')"`}>
-      ${count>0?`<span class="mdreg-day-count">${count}</span>`:''}
       <span style="font-size:.65rem;opacity:.75">${dow}</span>
       <b>${dt.getDate()}</b>
     </div>`;
   }
   grid.innerHTML = h;
-
-  // Récap des jours déjà configurés (chips avec leurs créneaux + bouton pour retirer)
-  const recap = document.getElementById('mdregDaysRecap');
-  if(recap){
-    const days = Object.keys(MR.daySlots).sort();
-    recap.innerHTML = days.map(dstr=>{
-      const slots = [...MR.daySlots[dstr]];
-      const dLabel = dstr.slice(8,10)+'/'+dstr.slice(5,7);
-      return `<span class="slot-badge sb-open" style="cursor:pointer" onclick="mdregToggleDay('${dstr}')" title="${esc(t('qrEditDayTitle'))}">
-        📅 ${dLabel} · ${slots.length} ${slots.length>1?t('qrSlotsLbl'):t('qrSlotLbl')}
-        <span onclick="event.stopPropagation();mdregClearDay('${dstr}')" style="margin-left:4px;font-weight:700" title="${esc(t('qrRemoveDayTitle'))}">✕</span>
-      </span>`;
-    }).join('');
-  }
 }
 
 function mdregToggleDay(k){
-  MR.activeDay = k;
+  if(MR.selectedDays.has(k)) MR.selectedDays.delete(k);
+  else MR.selectedDays.add(k);
   renderMdregWeek();
-  renderMdregSlots(k);
+  renderMdregSlots(k); // recalculer créneaux disponibles selon les jours sélectionnés
   renderMdregMembers();
   updateMdregSummary();
   // Synchroniser le calendrier du bas sur la date cliquée
@@ -3477,43 +3296,31 @@ function mdregToggleDay(k){
   }
 }
 
-function mdregClearDay(k){
-  delete MR.daySlots[k];
-  if(MR.activeDay===k) MR.activeDay = Object.keys(MR.daySlots)[0] || null;
-  renderMdregWeek();
-  renderMdregSlots();
-  renderMdregMembers();
-  updateMdregSummary();
-}
-
 function renderMdregSlots(refDay){
-  // Jour actif : celui en cours d'édition, sinon un jour déjà configuré, sinon le jour du calendrier
-  if(!refDay) refDay = MR.activeDay || Object.keys(MR.daySlots)[0] || dk(S.selectedDate||S.currentDate);
-  MR.activeDay = refDay;
-
-  const lbl = document.getElementById('mdregActiveDayLabel');
-  if(lbl){
-    const d = parseDate(refDay);
-    const dowName = t('calHeadsFull') ? t('calHeadsFull')[(d.getDay()+6)%7] : '';
-    lbl.textContent = t('qrEditingDayTpl').replace('{day}', `${dowName} ${d.getDate()} ${t('months')[d.getMonth()]}`.trim());
-  }
-
-  const daySet = MR.daySlots[refDay] || new Set();
+  // Référence : premier jour sélectionné, sinon jour courant
+  if(!refDay) refDay = MR.selectedDays.size>0 ? [...MR.selectedDays].sort()[0] : dk(S.selectedDate||S.currentDate);
 
   if(MR.activity==='muscu'){
     const el = document.getElementById('mdregMuscuSlots');
     function slotBtnMuscu(slot){
-      const sel = daySet.has(slot);
-      const full = cap(slot,refDay,'muscu')<=getSlot(refDay,slot,'muscu').length;
-      const blocked = getMuscuSlotCfg(refDay,slot).blocked;
-      const label = getMuscuSlotCfg(refDay,slot).label||'';
-      const disabled = full || blocked;
-      const labelTxt = blocked ? ' 🚫' : (label ? ` [${label}]` : '');
-      const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':'';
+      const sel = MR.selectedSlots.has(slot);
+      const fullOnAll = MR.selectedDays.size>0
+        ? [...MR.selectedDays].every(d=> cap(slot,d,'muscu')<=getSlot(d,slot,'muscu').length)
+        : false;
+      // Vérifier si le créneau est bloqué sur au moins un jour sélectionné
+      const blockedOnAny = MR.selectedDays.size>0
+        ? [...MR.selectedDays].some(d=>getMuscuSlotCfg(d,slot).blocked)
+        : false;
+      const labelOnAny = MR.selectedDays.size>0
+        ? (getMuscuSlotCfg([...MR.selectedDays][0],slot).label||'')
+        : '';
+      const disabled = fullOnAll || blockedOnAny;
+      const labelTxt = blockedOnAny ? ' 🚫' : (labelOnAny ? ` [${labelOnAny}]` : '');
+      const labelColor = labelOnAny==='CRRCK'?'#7c3aed':labelOnAny==='CLUB'?'#0d9488':'';
       return `<button class="mdreg-slot-btn${sel&&!disabled?' mdreg-selected':''}"
         style="${disabled?'opacity:.4;cursor:not-allowed;':''} ${labelColor?'border-color:'+labelColor+';color:'+labelColor+';':''}"
         ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-        title="${blocked?'Slot blocked by admin':full?t('qrFullTitle'):''}">
+        title="${blockedOnAny?'Slot blocked by admin':fullOnAll?t('qrFullTitle'):''}">
         ${slot}${labelTxt}
       </button>`;
     }
@@ -3528,17 +3335,31 @@ function renderMdregSlots(refDay){
 
   function slotBtn(slot){
     const kx = isKayakCross(refDay, slot);
-    const sel = daySet.has(slot);
-    const locked = !S.isAdmin && isLocked(refDay, slot);
-    const full = cap(slot,refDay)<=getSlot(refDay,slot).length;
-    const disabled = (locked && !kx) || full;
-    const lockIcon = locked && !kx ? ' 🔒' : '';
-    const fullLabel = full ? t('qrFullLabel') : '';
+    const sel = MR.selectedSlots.has(slot);
+    // Vérifier si bloqué par priorité (au moins sur un jour sélectionné)
+    const lockedOnAny = MR.selectedDays.size>0
+      ? [...MR.selectedDays].some(d=>!S.isAdmin && isLocked(d,slot))
+      : (!S.isAdmin && isLocked(refDay, slot));
+    const fullOnAll = MR.selectedDays.size>0
+      ? [...MR.selectedDays].every(d=> cap(slot,d)<=getSlot(d,slot).length)
+      : false;
+    // Vérifier si le créneau est bloqué par l'admin sur au moins un jour sélectionné
+    const blockedOnAny = MR.selectedDays.size>0
+      ? [...MR.selectedDays].some(d=>getKayakSlotCfg(d,slot).blocked)
+      : getKayakSlotCfg(refDay,slot).blocked;
+    const labelOnAny = MR.selectedDays.size>0
+      ? (getKayakSlotCfg([...MR.selectedDays][0],slot).label||'')
+      : (getKayakSlotCfg(refDay,slot).label||'');
+    const labelColor = labelOnAny==='CRRCK'?'#7c3aed':labelOnAny==='CLUB'?'#0d9488':'';
+    const disabled = (lockedOnAny && !kx) || fullOnAll || blockedOnAny;
+    const lockIcon = lockedOnAny && !kx ? ' 🔒' : '';
+    const fullLabel = fullOnAll ? t('qrFullLabel') : '';
+    const blockedTxt = blockedOnAny ? ' 🚫' : (labelOnAny ? ` [${labelOnAny}]` : '');
     return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
-      style="${disabled?'opacity:.4;cursor:not-allowed;':''}"
+      style="${disabled?'opacity:.4;cursor:not-allowed;':''} ${!disabled&&labelColor?'border-color:'+labelColor+';color:'+labelColor+';':''}"
       ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-      title="${disabled?(locked?t('qrLockedTitle'):t('qrFullTitle')):''}">
-      ${slot}${kx?' 🏄':''}${lockIcon}${fullLabel}
+      title="${blockedOnAny?'Créneau bloqué par l\'administrateur':disabled?(lockedOnAny?t('qrLockedTitle'):t('qrFullTitle')):''}">
+      ${slot}${kx?' 🏄':''}${lockIcon}${fullLabel}${blockedTxt}
     </button>`;
   }
 
@@ -3547,21 +3368,18 @@ function renderMdregSlots(refDay){
 }
 
 function mdregToggleSlot(slot){
-  const refDay = MR.activeDay || dk(S.selectedDate||S.currentDate);
-  MR.activeDay = refDay;
-  if(!MR.daySlots[refDay]) MR.daySlots[refDay] = new Set();
-  if(MR.daySlots[refDay].has(slot)) MR.daySlots[refDay].delete(slot);
-  else MR.daySlots[refDay].add(slot);
-  if(MR.daySlots[refDay].size===0) delete MR.daySlots[refDay];
-  renderMdregWeek();
-  renderMdregSlots(refDay);
+  if(MR.selectedSlots.has(slot)) MR.selectedSlots.delete(slot);
+  else MR.selectedSlots.add(slot);
+  renderMdregSlots();
   renderMdregMembers();
   updateMdregSummary();
 }
 
 function mrHasKayakCrossSelected(){
   if(MR.activity!=='kayak') return false;
-  return Object.keys(MR.daySlots).some(d => [...MR.daySlots[d]].some(s=>isKayakCross(d,s)));
+  const days=[...MR.selectedDays], slots=[...MR.selectedSlots];
+  if(!days.length || !slots.length) return false;
+  return days.some(d=>slots.some(s=>isKayakCross(d,s)));
 }
 
 // ── Inscription par team : liste des teams auxquelles l'utilisateur a accès ──
@@ -3668,7 +3486,8 @@ function mdregAddCustom(){
 }
 
 function updateMdregSummary(){
-  const days = Object.keys(MR.daySlots).sort();
+  const days = [...MR.selectedDays].sort();
+  const slots = [...MR.selectedSlots];
   // Membres depuis la liste connue
   const members = [...MR.selectedMembers];
   // Membres custom
@@ -3679,26 +3498,24 @@ function updateMdregSummary(){
 
   const el = document.getElementById('mdregSummary');
   if(!el) return;
-  if(!days.length && !members.length){
+  if(!days.length && !slots.length && !members.length){
     el.textContent = t('qrSummaryDefault'); return;
   }
-  const total = days.reduce((sum,d)=>sum + MR.daySlots[d].size, 0) * members.length;
-  const daysDetail = days.map(d=>{
-    const dLabel = d.slice(8,10)+'/'+d.slice(5,7);
-    return `<div style="margin-left:8px;font-size:.78rem">📅 ${dLabel} : ${[...MR.daySlots[d]].join(', ')}</div>`;
-  }).join('');
+  const total = days.length * slots.length * members.length;
   el.innerHTML = `
-    <div style="margin-bottom:4px"><b>${t('qrDaysLbl')} (${days.length}):</b></div>
-    ${daysDetail || '<div style="margin-left:8px;color:var(--text3)">—</div>'}
-    <div style="margin:6px 0 4px"><b>${t('qrParticipantsLbl')} (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>${t('qrDaysLbl')} (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>${t('qrSessionsLbl')} (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>${t('qrParticipantsLbl')} (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
     <div style="margin-top:6px;font-weight:700;color:var(--accent)">${t('qrRegCountTpl').replace('{n}',total)}</div>`;
 }
 
 async function submitMultiReg(){
   if(!S.session) return;
   const act = MR.activity;
-  const days = Object.keys(MR.daySlots).sort();
+  const days = [...MR.selectedDays].sort();
+  const slots = [...MR.selectedSlots];
   if(!days.length){ toast(t('qrErrDay'),'error'); return; }
+  if(!slots.length){ toast(t('qrErrSlot'),'error'); return; }
 
   // Construire la liste des participants
   // Dossard : jamais collecté en ligne (rempli au stylo sur la feuille imprimée au moment du retrait).
@@ -3725,9 +3542,8 @@ async function submitMultiReg(){
   let created = 0, skipped = 0;
   const errors = [];
 
-  // Itérer sur chaque jour, avec SES créneaux propres (peut différer d'un jour à l'autre)
+  // Itérer sur chaque combinaison jour × créneau × participant
   for(const dateK of days){
-    const slots = [...MR.daySlots[dateK]];
     for(const slot of slots){
       // Vérifier période de stage
       if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
@@ -3745,6 +3561,7 @@ async function submitMultiReg(){
       if(act==='kayak' && !S.isAdmin && isLocked(dateK, slot)){ skipped++; continue; }
       // Vérifier si le créneau muscu est bloqué
       if(act==='muscu' && getMuscuSlotCfg(dateK, slot).blocked){ skipped++; continue; }
+      if(act==='kayak' && getKayakSlotCfg(dateK, slot).blocked){ skipped++; continue; }
       // Vérifier places disponibles
       const free = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
       const toAdd = participants.slice(0, free);
@@ -3809,7 +3626,9 @@ function addParticipantRow(prefillName){
 }
 async function submitRegistration(){
   if(!S.regPending||!S.session) return;
-  const { dateK, slot } = S.regPending;
+  const { dateK, slot, act } = S.regPending;
+  if((act||'kayak')==='kayak' && getKayakSlotCfg(dateK, slot).blocked){ toast('🚫 Ce créneau est bloqué par l\'administrateur.','error'); return; }
+  if(act==='muscu' && getMuscuSlotCfg(dateK, slot).blocked){ toast('🚫 Ce créneau est bloqué par l\'administrateur.','error'); return; }
   const rows = [...document.querySelectorAll('#regParticipants .group-row')];
   const participants = rows.map(r=>{
     const name = r.querySelector('input').value.trim();
@@ -4138,18 +3957,78 @@ function exportCSV(){
 // ── Horaires personnalisés par date ──────────────────────────────────
 let _csDate = null;
 let _csTmp = { morning:[], afternoon:[] };
+let _csWeekStart = weekStart(new Date());
+
+// Navigation semaine par semaine dans le mini-calendrier de sélection
+function csWeekNav(dir){
+  const d = new Date(_csWeekStart); d.setDate(d.getDate()+dir*7);
+  _csWeekStart = d;
+  renderCsWeek();
+}
+
+// Aller directement à la date saisie dans le champ (utile pour sauter loin dans le planning)
+function csJumpToDate(){
+  const v = document.getElementById('customSlotDate').value;
+  if(!v) return;
+  const d = parseDate(v);
+  _csWeekStart = weekStart(d);
+  renderCsWeek();
+  csSelectDay(v);
+}
+
+// Affiche la grille des 7 jours de la semaine courante, cliquable comme dans l'inscription rapide
+function renderCsWeek(){
+  const grid = document.getElementById('csDaysGrid');
+  if(!grid) return;
+  const ws = _csWeekStart, we = new Date(ws); we.setDate(ws.getDate()+6);
+  const lbl = document.getElementById('csWeekLabel');
+  if(lbl) lbl.textContent = `${ws.getDate()} ${t('months')[ws.getMonth()]} — ${we.getDate()} ${t('months')[we.getMonth()]} ${we.getFullYear()}`;
+  const heads = t('calHeads').map(s=>s[0]);
+  let h = heads.map(d=>`<div style="text-align:center;font-size:.65rem;color:var(--text3);padding-bottom:2px">${d}</div>`).join('');
+  for(let i=0;i<7;i++){
+    const dt = new Date(ws); dt.setDate(ws.getDate()+i);
+    const k = dk(dt);
+    const closed = isClosed(dt)||outOfRange(dt);
+    const hasCustom = !!(S.customSlots && S.customSlots[k]);
+    const sel = _csDate===k;
+    const dow = t('calHeads')[i];
+    h += `<div class="mdreg-day${sel?' mdreg-selected':''}${closed?' mdreg-day-closed':''}" style="position:relative"
+      ${closed?'':`onclick="csSelectDay('${k}')"`}>
+      <span style="font-size:.65rem;opacity:.75">${dow}</span>
+      <b>${dt.getDate()}</b>
+      ${hasCustom?'<span style="position:absolute;top:2px;right:5px;color:#2563eb;font-size:1rem;line-height:1">●</span>':''}
+    </div>`;
+  }
+  grid.innerHTML = h;
+}
+
+// Sélectionne un jour (clic sur la grille) et ouvre directement son éditeur d'horaires
+function csSelectDay(k){
+  _csDate = k;
+  const dateEl = document.getElementById('customSlotDate');
+  if(dateEl) dateEl.value = k;
+  renderCsWeek();
+  loadCustomSlotEditor();
+}
 
 function loadCustomSlotEditor(){
-  const dateEl = document.getElementById('customSlotDate');
-  const dateK = dateEl.value;
-  if(!dateK){ alert('Sélectionne une date.'); return; }
-  _csDate = dateK;
+  if(!_csDate){
+    const dateEl = document.getElementById('customSlotDate');
+    if(dateEl && dateEl.value) _csDate = dateEl.value;
+  }
+  if(!_csDate){ alert('Sélectionne un jour dans le calendrier ci-dessus (ou une date).'); return; }
+  const dateK = _csDate;
   // Charger les créneaux existants (custom ou défaut)
   const existing = S.customSlots[dateK];
   _csTmp = {
     morning:   [...(existing ? existing.morning   : S.morningOrder)],
     afternoon: [...(existing ? existing.afternoon : S.afternoonOrder)],
   };
+  const lblEl = document.getElementById('csEditorDateLabel');
+  if(lblEl){
+    const d = parseDate(dateK);
+    lblEl.textContent = `📅 ${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}`;
+  }
   renderCustomSlotEditor();
   document.getElementById('customSlotEditor').style.display = 'block';
   document.getElementById('csMsg').textContent = '';
@@ -4158,13 +4037,20 @@ function loadCustomSlotEditor(){
 function renderCustomSlotEditor(){
   ['morning','afternoon'].forEach(period=>{
     const list = document.getElementById(period==='morning'?'csMorningList':'csAfternoonList');
-    list.innerHTML = _csTmp[period].map((slot,i)=>`
+    list.innerHTML = _csTmp[period].map((slot,i)=>{
+      // Nombre de groupes déjà inscrits sur ce créneau, pour ce jour — pour éviter de le supprimer par erreur
+      const used = _csDate ? getSlot(_csDate, slot).length : 0;
+      return `
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-        <span style="flex:1;font-size:.82rem;background:var(--bg2,#f5f6fa);padding:4px 8px;border-radius:6px">${esc(slot)}</span>
+        <span style="flex:1;font-size:.82rem;background:var(--bg2,#f5f6fa);padding:4px 8px;border-radius:6px">
+          ${esc(slot)}
+          ${used>0?`<span style="font-size:.68rem;color:#dc2626;font-weight:700;margin-left:6px">${used} inscrit(s)</span>`:''}
+        </span>
         ${i>0?`<button class="ath-btn mv" onclick="moveCustomSlot('${period}',${i},-1)">↑</button>`:'<span style="width:22px"></span>'}
         ${i<_csTmp[period].length-1?`<button class="ath-btn mv" onclick="moveCustomSlot('${period}',${i},1)">↓</button>`:'<span style="width:22px"></span>'}
         <button class="ath-btn del" onclick="removeCustomSlot('${period}',${i})">✕</button>
-      </div>`).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau — ajoutes-en ci-dessous.</p>`;
+      </div>`;
+    }).join('') || `<p style="font-size:.75rem;color:var(--text3)">Aucun créneau — ajoutes-en ci-dessous.</p>`;
   });
 }
 
@@ -4178,6 +4064,9 @@ function addCustomSlot(period){
 }
 
 function removeCustomSlot(period,idx){
+  const slot = _csTmp[period][idx];
+  const used = _csDate ? getSlot(_csDate, slot).length : 0;
+  if(used>0 && !confirm(`${used} groupe(s) déjà inscrit(s) sur "${slot}" ce jour-là. Ces inscriptions ne seront pas supprimées mais n'apparaîtront plus si tu retires ce créneau. Continuer ?`)) return;
   _csTmp[period].splice(idx,1);
   renderCustomSlotEditor();
 }
@@ -4202,6 +4091,7 @@ async function saveCustomSlots(){
   document.getElementById('csMsg').style.color='#16a34a';
   document.getElementById('csMsg').textContent = `✅ Horaires enregistrés pour le ${_csDate}`;
   renderCustomSlotSummary();
+  renderCsWeek();
   render();
 }
 
@@ -4214,6 +4104,7 @@ async function resetCustomSlots(){
   document.getElementById('csMsg').style.color='#6b7280';
   document.getElementById('csMsg').textContent = `Horaires remis par défaut pour le ${_csDate}`;
   renderCustomSlotSummary();
+  renderCsWeek();
   render();
 }
 
@@ -4235,6 +4126,7 @@ async function quickResetDate(dateK){
   delete S.customSlots[dateK];
   await saveConfig();
   renderCustomSlotSummary();
+  renderCsWeek();
   render();
 }
 
