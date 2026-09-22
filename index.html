@@ -4425,7 +4425,12 @@ async function adminCreateUserAccess(){
       return;
     }
     msgEl.style.color='#16a34a';
-    msgEl.textContent = `✅ Accès créé pour ${email} — mot de passe provisoire envoyé par email.`;
+    msgEl.innerHTML = `✅ Accès créé pour <b>${esc(email)}</b>.<br>
+      Mot de passe provisoire (envoyé par email si configuré, sinon transmets-le toi-même) :
+      <span style="display:inline-flex;align-items:center;gap:6px;margin-top:4px">
+        <code style="background:#f1f5f9;padding:2px 8px;border-radius:5px;font-size:.85rem;font-weight:700;letter-spacing:.02em">${esc(out.tempPassword||'—')}</code>
+        ${out.tempPassword?`<button class="btn btn-sm" style="padding:2px 8px" onclick="navigator.clipboard.writeText('${esc(out.tempPassword)}');toast('Mot de passe copié','success')">📋 Copier</button>`:''}
+      </span>`;
     document.getElementById('newUserEmail').value='';
     document.getElementById('newUserFirstName').value='';
     document.getElementById('newUserLastName').value='';
