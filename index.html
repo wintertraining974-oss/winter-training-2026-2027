@@ -525,6 +525,10 @@ select.field { min-width: 110px; cursor: pointer; }
   </div>
 </header>
 
+<div id="readonlyBanner" style="display:none;background:#fef3c7;color:#92400e;padding:8px 14px;font-size:.82rem;font-weight:600;text-align:center">
+  👁️ Mode consultation — tu peux voir le planning mais pas t'inscrire ni modifier d'inscriptions.
+</div>
+
 <div class="app-body" id="appBody" style="display:none">
 
   <div class="page-tabs" id="pageTabs">
@@ -912,6 +916,35 @@ select.field { min-width: 110px; cursor: pointer; }
 <div class="modal-bg" id="accessRequestsModal">
   <div class="modal-box" style="max-width:600px">
     <h3>🔐 Demandes d'accès</h3>
+
+    <!-- Création directe d'un accès par l'admin (email + mot de passe provisoire) -->
+    <div class="admin-card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleNewUserForm()">
+        <h4 style="margin:0">➕ Créer un accès directement</h4>
+        <span id="newUserToggleIcon">▼</span>
+      </div>
+      <div id="newUserFormWrap" style="display:none;margin-top:10px">
+        <p style="font-size:.75rem;color:var(--text3);margin-bottom:10px">
+          Renseigne l'email de la personne : un compte est créé avec un mot de passe provisoire qui lui sera envoyé par email.
+          Elle pourra ensuite se connecter et changer son mot de passe (Mon profil → Changer le mot de passe).
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <input class="field" id="newUserFirstName" placeholder="Prénom" style="flex:1;min-width:120px">
+          <input class="field" id="newUserLastName" placeholder="Nom" style="flex:1;min-width:120px">
+        </div>
+        <input class="field" id="newUserEmail" type="email" placeholder="Email" style="width:100%;margin-bottom:8px">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <label style="font-size:.8rem;color:var(--text2)">Rôle :</label>
+          <select class="field" id="newUserRole" style="width:220px">
+            <option value="referent">Référent — peut s'inscrire et modifier</option>
+            <option value="readonly">Lecture seule — visuel du site uniquement</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="adminCreateUserAccess()">Créer l'accès</button>
+        <p id="newUserMsg" style="font-size:.8rem;margin-top:8px"></p>
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <button class="btn btn-sm" id="filterPending" onclick="filterRequests('pending')" style="background:var(--accent);color:white">⏳ En attente</button>
       <button class="btn btn-sm" id="filterApproved" onclick="filterRequests('approved')">✅ Validés</button>
@@ -2021,7 +2054,7 @@ let S = {
   page:'quickreg',
   athletes:[], teams:[], myTeam:null, teamManagers:[],
   view:'week', currentDate:todayClamped(), selectedDate:null,
-  isAdmin:false, priorityOn:true,
+  isAdmin:false, isReadonly:false, priorityOn:true,
   priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
   morningOrder:['7h-8h','8h-9h','9h-10h','10h-11h','11h-12h'],
   afternoonOrder:['12h-13h','13h-14h','14h-15h','15h-16h','16h-17h'],
@@ -2131,8 +2164,8 @@ async function submitAuth(){
 
 async function logout(){
   await sb.auth.signOut();
-  S.session=null; S.profile=null; S.isAdmin=false;
-  ['pendingScreen','blockedScreen','resetPwdScreen','appHeader','appBody'].forEach(id=>{
+  S.session=null; S.profile=null; S.isAdmin=false; S.isReadonly=false;
+  ['pendingScreen','blockedScreen','resetPwdScreen','appHeader','appBody','readonlyBanner'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display='none';
   });
@@ -2148,6 +2181,7 @@ async function onAuthed(session){
   }
   S.profile = profile;
   S.isAdmin = !!(profile && profile.is_admin);
+  S.isReadonly = !S.isAdmin && !!(profile && profile.role === 'readonly');
 
   // Masquer tous les écrans
   ['authScreen','pendingScreen','blockedScreen'].forEach(id=>{
@@ -2168,12 +2202,19 @@ async function onAuthed(session){
   // Accès autorisé
   document.getElementById('appHeader').style.display='flex';
   document.getElementById('appBody').style.display='block';
-  setPage('quickreg');
+  // En lecture seule, pas d'intérêt à ouvrir l'inscription rapide : direct sur le planning
+  const pbQ = document.getElementById('pbQuickReg');
+  const pbT = document.getElementById('pbTeam');
+  if(pbQ) pbQ.style.display = S.isReadonly ? 'none' : '';
+  if(pbT) pbT.style.display = S.isReadonly ? 'none' : '';
+  setPage(S.isReadonly ? 'planning' : 'quickreg');
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
   document.getElementById('profileBtn').style.display='inline-block';
   document.getElementById('logoutBtn').style.display='inline-block';
   document.getElementById('adminPill').style.display = S.isAdmin ? 'inline' : 'none';
+  const roBanner = document.getElementById('readonlyBanner');
+  if(roBanner) roBanner.style.display = S.isReadonly ? 'block' : 'none';
   document.getElementById('whoRegisteredBtn').style.display='inline-block';
   document.getElementById('recapBtn').style.display = S.isAdmin ? 'inline-block' : 'none';
   await load();
@@ -2608,7 +2649,7 @@ function renderSlot(dateK,slot,act='kayak'){
     } else {
       aths.forEach((a,i)=>{
         const mine = S.session && a.user_id===S.session.user.id;
-        const canEdit = S.isAdmin || mine;
+        const canEdit = (S.isAdmin || mine) && !S.isReadonly;
         h+=`<div class="ath-row">
           <span class="ath-num">${i+1}</span>
           <span class="ath-name">${esc(a.name)}${a.dossard?` <span style="font-size:.68rem;color:var(--text3)">#${esc(a.dossard)}</span>`:''}${a.nationality?` <span style="font-size:.68rem;color:var(--text3)">(${esc(a.nationality)})</span>`:''}${mine&&!S.isAdmin?'<span class="owner-tag">me</span>':''}${a.rental?`<span style="font-size:.65rem;background:#fed7aa;color:#9a3412;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">🚣 ${esc(a.kayakModel||'')}</span>`:''}</span>
@@ -2623,7 +2664,7 @@ function renderSlot(dateK,slot,act='kayak'){
     h+=`</div>`;
     if(st!=='full'&&!(st==='locked'&&!S.isAdmin)){
       h+=`<div class="add-form">
-        <button class="btn btn-sm btn-primary" onclick="openRegister('${dateK}','${slot}','${act}')">${t('regBtn')}</button>
+        ${S.isReadonly?'<span style="font-size:.75rem;color:var(--text3)">👁️ Lecture seule</span>':`<button class="btn btn-sm btn-primary" onclick="openRegister('${dateK}','${slot}','${act}')">${t('regBtn')}</button>`}
       </div>`;
     } else if(st==='full'){
       if(act==='kayak'){
@@ -2631,7 +2672,7 @@ function renderSlot(dateK,slot,act='kayak'){
         const alreadyWaiting = S.session && wl.find(e=>e.user_id===S.session.user.id);
         h+=`<div class="add-form">
           <span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span>
-          ${S.session && !alreadyWaiting ? `<button class="btn btn-sm" style="margin-left:8px" onclick="joinWaitlist('${dateK}','${slot}')">⏳ Liste d'attente</button>` : ''}
+          ${S.session && !alreadyWaiting && !S.isReadonly ? `<button class="btn btn-sm" style="margin-left:8px" onclick="joinWaitlist('${dateK}','${slot}')">⏳ Liste d'attente</button>` : ''}
           ${alreadyWaiting ? `<span style="font-size:.75rem;color:#92400e;margin-left:8px">⏳ Tu es sur liste d'attente</span>` : ''}
           ${wl.length ? `<span style="font-size:.72rem;color:var(--text3);margin-left:6px">${wl.length} en attente</span>` : ''}
         </div>`;
@@ -3637,6 +3678,7 @@ function updateMdregSummary(){
 
 async function submitMultiReg(){
   if(!S.session) return;
+  if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation : tu ne peux pas t'inscrire.","error"); return; }
   const act = MR.activity;
   const days = [...MR.selectedDays].sort();
   const slots = [...MR.selectedSlots];
@@ -3752,6 +3794,7 @@ function addParticipantRow(prefillName){
 }
 async function submitRegistration(){
   if(!S.regPending||!S.session) return;
+  if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation : tu ne peux pas t'inscrire.","error"); return; }
   const { dateK, slot, act } = S.regPending;
   if((act||'kayak')==='kayak' && getKayakSlotCfg(dateK, slot).blocked){ toast('🚫 Ce créneau est bloqué par l\'administrateur.','error'); return; }
   if(act==='muscu' && getMuscuSlotCfg(dateK, slot).blocked){ toast('🚫 Ce créneau est bloqué par l\'administrateur.','error'); return; }
@@ -3787,6 +3830,7 @@ async function removeAthlete(dateK,slot,idx,act='kayak'){
   const a=getSlot(dateK,slot,act)[idx];
   const mine = S.session && a.user_id===S.session.user.id;
   if(!S.isAdmin && !mine){ toast("Tu ne peux annuler que tes propres inscriptions.","error"); return; }
+  if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation : tu ne peux pas modifier d'inscriptions.","error"); return; }
   const name=a.name;
   try {
     if(a._id) await sbDelete(a._id);
@@ -4037,6 +4081,7 @@ function getWaitlist(dateK,slot){ const k=wlKey(dateK,slot); if(!S.waitlist[k])S
 
 async function joinWaitlist(dateK,slot){
   if(!S.session){ toast("Connecte-toi pour rejoindre la liste d'attente.","error"); return; }
+  if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation : tu ne peux pas t'inscrire.","error"); return; }
   const wl=getWaitlist(dateK,slot);
   if(wl.find(e=>e.user_id===S.session.user.id)){ toast("Tu es déjà sur la liste d'attente.","error"); return; }
   wl.push({ name:S.profile?.full_name||S.session.user.email, user_id:S.session.user.id, email:S.profile?.email||S.session.user.email });
@@ -4342,6 +4387,56 @@ async function openAccessRequests(){
   if(badge){ badge.style.display = pending ? 'inline' : 'none'; badge.textContent = pending; }
 }
 
+function toggleNewUserForm(){
+  const wrap = document.getElementById('newUserFormWrap');
+  const icon = document.getElementById('newUserToggleIcon');
+  const open = wrap.style.display !== 'none';
+  wrap.style.display = open ? 'none' : 'block';
+  if(icon) icon.textContent = open ? '▼' : '▲';
+}
+
+// Crée directement un accès (email + mot de passe provisoire) pour une personne, sans passer par le formulaire d'inscription.
+// Nécessite la fonction serveur "admin-create-user" (clé service_role côté serveur — voir documentation fournie).
+async function adminCreateUserAccess(){
+  if(!S.isAdmin) return;
+  const email = document.getElementById('newUserEmail').value.trim();
+  const firstName = document.getElementById('newUserFirstName').value.trim();
+  const lastName = document.getElementById('newUserLastName').value.trim();
+  const role = document.getElementById('newUserRole').value;
+  const msgEl = document.getElementById('newUserMsg');
+  msgEl.style.color=''; msgEl.textContent='';
+  if(!email){ msgEl.style.color='#dc2626'; msgEl.textContent='Email requis.'; return; }
+  msgEl.style.color='#6b7280'; msgEl.textContent='Création en cours…';
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/admin-create-user`,{
+      method:'POST',
+      headers:{
+        'Authorization':`Bearer ${S.session.access_token}`,
+        'Content-Type':'application/json'
+      },
+      body: JSON.stringify({
+        email, first_name:firstName, last_name:lastName, role
+      })
+    });
+    const out = await resp.json().catch(()=>({}));
+    if(!resp.ok){
+      msgEl.style.color='#dc2626';
+      msgEl.textContent = out.error || `Erreur (${resp.status}). Vérifie que la fonction "admin-create-user" est bien déployée.`;
+      return;
+    }
+    msgEl.style.color='#16a34a';
+    msgEl.textContent = `✅ Accès créé pour ${email} — mot de passe provisoire envoyé par email.`;
+    document.getElementById('newUserEmail').value='';
+    document.getElementById('newUserFirstName').value='';
+    document.getElementById('newUserLastName').value='';
+    await openAccessRequests();
+    filterRequests('approved');
+  } catch(e){
+    msgEl.style.color='#dc2626';
+    msgEl.textContent='Erreur réseau — réessaie.';
+  }
+}
+
 function filterRequests(filter){
   _requestFilter = filter;
   ['pending','approved','blocked'].forEach(f=>{
@@ -4354,19 +4449,35 @@ function filterRequests(filter){
   if(filter==='blocked')  list = list.filter(p=>p.blocked);
   const el = document.getElementById('accessRequestsList');
   if(!list.length){ el.innerHTML=`<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aucun utilisateur dans cette catégorie.</p>`; return; }
-  el.innerHTML = list.map(p=>`
+  el.innerHTML = list.map(p=>{
+    const role = p.role || 'referent';
+    return `
     <div class="request-card">
       <b>${esc(p.full_name||p.email)}</b>
       <div class="rc-meta">📧 ${esc(p.email)} · 📞 ${esc(p.phone||'—')} · 🌍 ${esc(p.nationality||'—')}</div>
       <div class="rc-meta">📅 Stage : ${p.arrival_date||'?'} → ${p.departure_date||'?'}</div>
       <div class="rc-meta">🏠 ${esc(p.billing_address||'—')}</div>
-      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         ${!p.approved&&!p.blocked ? `<button class="approve-btn" onclick="approveUser('${p.id}','${esc(p.full_name||'')}','${esc(p.email)}','${p.arrival_date||''}','${p.departure_date||''}')">✅ Valider l'accès</button>` : ''}
         ${p.approved&&!p.blocked  ? `<span style="font-size:.75rem;color:#16a34a;font-weight:700">✅ Accès actif</span>` : ''}
         ${!p.blocked ? `<button class="block-btn" onclick="blockUser('${p.id}')">🚫 Bloquer</button>` : ''}
         ${p.blocked  ? `<button class="unblock-btn" onclick="unblockUser('${p.id}')">🔓 Débloquer</button>` : ''}
+        <select class="field" style="width:190px;font-size:.72rem;padding:3px 6px" onchange="updateUserRole('${p.id}',this.value)">
+          <option value="referent" ${role==='referent'?'selected':''}>👤 Référent (inscrit/modifie)</option>
+          <option value="readonly" ${role==='readonly'?'selected':''}>👁️ Lecture seule (visuel)</option>
+        </select>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+// Change le rôle d'un utilisateur existant (référent ↔ lecture seule)
+async function updateUserRole(userId, role){
+  const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
+  if(error){ toast("Erreur lors du changement de rôle.","error"); return; }
+  const p = _allProfiles.find(x=>x.id===userId);
+  if(p) p.role = role;
+  toast(role==='readonly' ? '👁️ Compte passé en lecture seule.' : '👤 Compte passé en référent.', 'success');
 }
 
 async function approveUser(userId, name, email, arrival, departure){
