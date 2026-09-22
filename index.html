@@ -2785,36 +2785,162 @@ function renderKayakSlotParams(){
   const dateLabel = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   let h = `<div style="font-size:.78rem;font-weight:600;color:var(--text2);margin-bottom:8px">📅 ${dateLabel}</div>`;
   const daySlots = allSlots(k);
-  daySlots.forEach(slot=>{
+  daySlots.forEach((slot,idx)=>{
     const cfg = getKayakSlotCfg(k, slot);
     const isBlocked = cfg.blocked;
     const label = cfg.label||'';
+    const isCustomLabel = label && label!=='CRRCK' && label!=='CLUB';
     const kx = isKayakCross(k,slot);
     const used = getSlot(k,slot,'kayak').length;
     const total = cap(slot,k,'kayak');
-    const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':'var(--text3)';
+    const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':isCustomLabel?'#b45309':'var(--text3)';
     h+=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;border:1.5px solid ${isBlocked?'#dc2626':'var(--border)'};margin-bottom:6px;background:${isBlocked?'#fef2f2':label?'#f5f3ff':'white'}">
       <div style="flex:1;min-width:100px">
-        <b style="font-size:.82rem">${slot}</b>${kx?' <span style="font-size:.65rem;color:#f97316;font-weight:700">🏄 KX</span>':''}
+        <b style="font-size:.82rem">${esc(slot)}</b>${kx?' <span style="font-size:.65rem;color:#f97316;font-weight:700">🏄 KX</span>':''}
         <span style="font-size:.72rem;color:var(--text3);margin-left:6px">${used}/${total} inscrits</span>
-        ${label?`<span style="font-size:.68rem;font-weight:700;color:${labelColor};margin-left:6px">[${label}]</span>`:''}
+        ${label?`<span style="font-size:.68rem;font-weight:700;color:${labelColor};margin-left:6px">[${esc(label)}]</span>`:''}
         ${isBlocked?'<span style="font-size:.68rem;font-weight:700;color:#dc2626;margin-left:6px">🚫 BLOQUÉ</span>':''}
       </div>
       <!-- Label -->
-      <select class="field" style="width:105px;font-size:.75rem;padding:4px 6px"
-        onchange="setKayakLabel('${k}','${slot}',this.value)">
+      <select class="field" style="width:110px;font-size:.75rem;padding:4px 6px"
+        onchange="onKayakLabelChange('${k}','${slot}',this)">
         <option value="" ${!label?'selected':''}>— Aucun label</option>
         <option value="CRRCK" ${label==='CRRCK'?'selected':''} style="color:#7c3aed;font-weight:700">CRRCK</option>
         <option value="CLUB"  ${label==='CLUB' ?'selected':''} style="color:#0d9488;font-weight:700">CLUB</option>
+        ${isCustomLabel?`<option value="${esc(label)}" selected style="color:#b45309;font-weight:700">${esc(label)}</option>`:''}
+        <option value="__AUTRE__">✏️ Autre…</option>
       </select>
       <!-- Block/Unblock -->
       <button class="btn btn-sm" style="background:${isBlocked?'#16a34a':'#dc2626'};color:white;font-size:.72rem;white-space:nowrap"
         onclick="toggleKayakBlock('${k}','${slot}')">
         ${isBlocked?'🔓 Débloquer':'🚫 Bloquer'}
       </button>
+      <!-- Horaire -->
+      <button class="btn btn-sm" style="background:#2563eb;color:white;font-size:.72rem;white-space:nowrap"
+        onclick="editKayakSlotTime('${k}',${idx})">
+        🕐 Horaire
+      </button>
     </div>`;
   });
   el.innerHTML = h || '<p style="font-size:.78rem;color:var(--text3)">Aucun créneau ce jour.</p>';
+  el.innerHTML += renderKayakDaySlotsEditor(k);
+}
+
+// Gère le choix "Autre" dans le select de label (créneaux kayak)
+function onKayakLabelChange(dateK, slot, selectEl){
+  const val = selectEl.value;
+  if(val === '__AUTRE__'){
+    const cfg = getKayakSlotCfg(dateK, slot);
+    const currentCustom = (cfg.label && cfg.label!=='CRRCK' && cfg.label!=='CLUB') ? cfg.label : '';
+    const txt = prompt('Texte du label personnalisé pour ce créneau :', currentCustom);
+    if(txt === null){ renderKayakSlotParams(); return; } // annulé -> on ré-affiche l'état précédent
+    setKayakLabel(dateK, slot, txt.trim());
+    return;
+  }
+  setKayakLabel(dateK, slot, val);
+}
+
+// Renomme directement l'horaire (le créneau) affiché à l'index idx pour ce jour — kayak / eaux vives
+function editKayakSlotTime(dateK, idx){
+  const daySlots = allSlots(dateK);
+  const oldSlot = daySlots[idx];
+  if(oldSlot===undefined) return;
+  const newSlot = prompt('Nouvel horaire pour ce créneau (ex: 08:00-10:00) :', oldSlot);
+  if(newSlot===null) return;
+  const val = newSlot.trim();
+  if(!val || val===oldSlot) return;
+  const cs = ensureKayakCustomSlots(dateK);
+  const morningLen = cs.morning.length;
+  if(idx < morningLen) cs.morning[idx] = val; else cs.afternoon[idx-morningLen] = val;
+  // On déplace aussi la config (blocage/label) de l'ancien horaire vers le nouveau
+  if(S.kayakSlotConfig[dateK] && S.kayakSlotConfig[dateK][oldSlot]){
+    S.kayakSlotConfig[dateK][val] = S.kayakSlotConfig[dateK][oldSlot];
+    delete S.kayakSlotConfig[dateK][oldSlot];
+  }
+  saveConfig().then(()=>{
+    renderKayakSlotParams();
+    renderDayPanel();
+    render();
+    toast(`✅ Horaire changé : "${oldSlot}" → "${val}"`, 'success');
+  });
+}
+
+// S'assure qu'il existe des horaires custom pour ce jour (initialisés depuis les horaires par défaut si besoin)
+function ensureKayakCustomSlots(dateK){
+  if(!S.customSlots) S.customSlots={};
+  if(!S.customSlots[dateK]){
+    S.customSlots[dateK] = { morning:[...S.morningOrder], afternoon:[...S.afternoonOrder] };
+  }
+  return S.customSlots[dateK];
+}
+
+// Ajoute un nouveau créneau horaire pour ce jour, directement depuis la section Blocage & étiquette
+async function addKayakDaySlot(dateK){
+  const inputEl = document.getElementById(`kayakNewSlot_${dateK}`);
+  const periodEl = document.getElementById(`kayakNewSlotPeriod_${dateK}`);
+  if(!inputEl || !periodEl) return;
+  const val = inputEl.value.trim();
+  if(!val) return;
+  const cs = ensureKayakCustomSlots(dateK);
+  cs[periodEl.value].push(val);
+  inputEl.value = '';
+  await saveConfig();
+  renderKayakSlotParams();
+  renderDayPanel();
+  render();
+  toast(`✅ Créneau "${val}" ajouté`, 'success');
+}
+
+// Retire un créneau horaire de ce jour (index global dans la liste matin+après-midi)
+async function removeKayakDaySlot(dateK, globalIdx){
+  const cs = ensureKayakCustomSlots(dateK);
+  const morningLen = cs.morning.length;
+  const slotVal = globalIdx < morningLen ? cs.morning[globalIdx] : cs.afternoon[globalIdx-morningLen];
+  if(slotVal===undefined) return;
+  const used = getSlot(dateK, slotVal, 'kayak').length;
+  if(used>0 && !confirm(`${used} groupe(s) déjà inscrit(s) sur "${slotVal}" ce jour-là. Ces inscriptions ne seront pas supprimées mais n'apparaîtront plus si tu retires ce créneau. Continuer ?`)) return;
+  if(globalIdx < morningLen) cs.morning.splice(globalIdx,1); else cs.afternoon.splice(globalIdx-morningLen,1);
+  await saveConfig();
+  renderKayakSlotParams();
+  renderDayPanel();
+  render();
+}
+
+// Remet les horaires par défaut pour ce jour
+async function resetKayakDaySlots(dateK){
+  if(!confirm('Remettre les horaires par défaut pour ce jour ?')) return;
+  if(S.customSlots) delete S.customSlots[dateK];
+  await saveConfig();
+  renderKayakSlotParams();
+  renderDayPanel();
+  render();
+}
+
+// Petit éditeur d'horaires (ajout / suppression) intégré à la section Blocage & étiquette
+function renderKayakDaySlotsEditor(dateK){
+  const hasCustom = !!(S.customSlots && S.customSlots[dateK]);
+  const daySlots = allSlots(dateK);
+  const morningLen = (S.customSlots && S.customSlots[dateK] ? S.customSlots[dateK].morning.length : S.morningOrder.length);
+  const chips = daySlots.map((s,i)=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2,#f5f6fa);border-radius:6px;padding:3px 6px;font-size:.72rem">
+      ${i===morningLen?'':''}${esc(s)}${i<morningLen?' <span style="color:var(--text3);font-size:.62rem">(matin)</span>':' <span style="color:var(--text3);font-size:.62rem">(ap-m)</span>'}
+      <button class="ath-btn del" style="font-size:.6rem;padding:0 4px" onclick="removeKayakDaySlot('${dateK}',${i})">✕</button>
+    </span>`).join('');
+  return `<div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--border)">
+    <div style="font-size:.75rem;font-weight:700;color:var(--text2);margin-bottom:6px">
+      🕐 Horaires de ce jour ${hasCustom?'<span style="color:#2563eb;font-weight:600">(personnalisés)</span>':'<span style="color:var(--text3);font-weight:400">(par défaut)</span>'}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${chips || '<span style="font-size:.72rem;color:var(--text3)">Aucun créneau ce jour.</span>'}</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="kayakNewSlot_${dateK}" class="field" placeholder="ex: 14:00-16:00" style="width:130px;font-size:.75rem;padding:4px 6px">
+      <select id="kayakNewSlotPeriod_${dateK}" class="field" style="width:110px;font-size:.72rem;padding:4px 6px">
+        <option value="morning">Matin</option>
+        <option value="afternoon">Après-midi</option>
+      </select>
+      <button class="btn btn-sm" onclick="addKayakDaySlot('${dateK}')">+ Ajouter</button>
+      ${hasCustom?`<button class="btn btn-sm" style="background:#6b7280;color:white" onclick="resetKayakDaySlots('${dateK}')">↺ Horaires par défaut</button>`:''}
+    </div>
+    <p style="font-size:.68rem;color:var(--text3);margin-top:6px">Astuce : clique sur 🕐 Horaire à côté d'un créneau ci-dessus pour renommer directement son horaire.</p>
+  </div>`;
 }
 
 // Affiche les paramètres admin de chaque créneau muscu pour le jour sélectionné
