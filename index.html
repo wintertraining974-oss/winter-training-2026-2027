@@ -558,17 +558,14 @@ select.field { min-width: 110px; cursor: pointer; }
       <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrStep1Hint"></p>
     </div>
 
-    <!-- Étape 2 : Sélection des créneaux -->
+    <!-- Étape 2 : Sélection des créneaux (indépendante pour chaque jour sélectionné) -->
     <div class="mdreg-section">
       <h4 id="qrStep2"></h4>
       <div id="qrKayakSlots">
-        <div style="margin-bottom:6px;font-size:.78rem;color:var(--text3)">🌅 <span id="qrMorningLbl"></span></div>
-        <div class="mdreg-slots" id="mdregMorningSlots"></div>
-        <div style="margin:8px 0 6px;font-size:.78rem;color:var(--text3)">🌇 <span id="qrAfternoonLbl"></span></div>
-        <div class="mdreg-slots" id="mdregAfternoonSlots"></div>
+        <div id="mdregKayakSlotsByDay"></div>
       </div>
       <div id="qrMuscuSlots" style="display:none">
-        <div class="mdreg-slots" id="mdregMuscuSlots"></div>
+        <div id="mdregMuscuSlots"></div>
       </div>
       <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrStep2Hint"></p>
     </div>
@@ -2376,6 +2373,13 @@ function afternoonSlots(dateK){
   if(dateK && S.customSlots && S.customSlots[dateK]) return S.customSlots[dateK].afternoon||[];
   return S.afternoonOrder;
 }
+// Renvoie l'heure de début d'un créneau en minutes, pour un tri chronologique
+// correct (et non alphabétique : "10h-11h" ne doit pas passer avant "7h-8h").
+function slotStartMinutes(slot){
+  const m = String(slot).match(/^(\d{1,2})h(\d{2})?/);
+  if(!m) return 0;
+  return parseInt(m[1],10)*60 + (m[2]?parseInt(m[2],10):0);
+}
 function cap(slot,dateK,act='kayak'){
   if(act==='muscu') return S.muscuCapacity[slot]||8;
   if(dateK && S.dateCapacity && S.dateCapacity[dateK] && S.dateCapacity[dateK][slot]!=null){
@@ -2861,10 +2865,33 @@ function renderKayakSlotParams(){
         onclick="editKayakSlotTime('${k}',${idx})">
         🕐 Horaire
       </button>
+      <!-- Capacité -->
+      <button class="btn btn-sm" style="background:#7c3aed;color:white;font-size:.72rem;white-space:nowrap"
+        onclick="editKayakSlotCapacity('${k}','${slot}')">
+        🔢 Capacité (${total})
+      </button>
     </div>`;
   });
   el.innerHTML = h || '<p style="font-size:.78rem;color:var(--text3)">Aucun créneau ce jour.</p>';
   el.innerHTML += renderKayakDaySlotsEditor(k);
+}
+
+// Modifie le nombre de places disponibles pour un créneau précis, uniquement pour ce jour
+// (capacité par défaut inchangée pour les autres jours). Stocké dans S.dateCapacity.
+async function editKayakSlotCapacity(dateK, slot){
+  const current = cap(slot, dateK, 'kayak');
+  const val = prompt(`Nombre de participants max pour "${slot}" le ${dateK} :`, current);
+  if(val===null) return;
+  const n = parseInt(val, 10);
+  if(!n || n<1){ toast('Nombre invalide.', 'error'); return; }
+  if(!S.dateCapacity) S.dateCapacity = {};
+  if(!S.dateCapacity[dateK]) S.dateCapacity[dateK] = {};
+  S.dateCapacity[dateK][slot] = n;
+  await saveConfig();
+  renderKayakSlotParams();
+  renderDayPanel();
+  render();
+  toast(`✅ Capacité de "${slot}" fixée à ${n} pour ce jour.`, 'success');
 }
 
 // Gère le choix "Autre" dans le select de label (créneaux kayak)
@@ -3146,7 +3173,7 @@ function renderPlanningGrid(){
     getSlots(k).forEach(s=>allSlotLabels.add(s));
   });
   // Trier les créneaux chronologiquement
-  const slotRows = [...allSlotLabels].sort((a,b)=>a.localeCompare(b));
+  const slotRows = [...allSlotLabels].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
 
   // Toggle activité
   let html = `<div class="pg-act-toggle">
@@ -3155,8 +3182,9 @@ function renderPlanningGrid(){
   </div>`;
 
   // Bouton impression planning semaine
-  html += `<div style="margin-bottom:8px">
-    <button class="btn btn-sm" onclick="printPlanningGrid()">🖨️ Print week</button>
+  html += `<div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="printPlanningGrid()">🖨️ Print week (aperçu compact)</button>
+    <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
   </div>`;
 
   // Tableau
@@ -3257,7 +3285,7 @@ function printPlanningGrid(){
   const getSlots=(k)=>isKayak?allSlots(k):S.muscuSlots;
   const allSlotLabels=new Set();
   days.forEach(d=>getSlots(dk(d)).forEach(s=>allSlotLabels.add(s)));
-  const slotRows=[...allSlotLabels].sort((a,b)=>a.localeCompare(b));
+  const slotRows=[...allSlotLabels].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
   const dowLabels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
   let html=`<html><head><title>Planning ${weekLabel}</title><style>
@@ -3329,10 +3357,10 @@ let MR = {
   activity: 'kayak',  // 'kayak' | 'muscu' — activité sélectionnée dans la carte d'inscription rapide
   weekStart: null,   // Date début de semaine affichée
   selectedDays: new Set(),   // Set de dateK sélectionnés
-  selectedSlots: new Set(),  // Set de slots sélectionnés
+  daySlots: {},       // { dateK: Set(slots) } — créneaux choisis, indépendants pour chaque jour
   selectedMembers: new Set(),// Set de noms sélectionnés
   customCounter: 0,
-  knownMembers: [],  // Membres connus depuis les inscriptions passées
+  knownMembers: [],  // Membres de la base athlètes (équipe du référent, gérée par l'admin)
   extras: {},        // { pid: {dossard, nationality, rental} } — préservé entre les re-rendus
 };
 function mrSetExtra(pid, field, val){
@@ -3344,7 +3372,7 @@ function openMultiReg(preDate, preSlot, act){
   if(!S.session){ toast(t('qrLoginToRegister'),'error'); return; }
   if(act) MR.activity = act;
   MR.selectedDays.clear();
-  MR.selectedSlots.clear();
+  MR.daySlots = {};
   MR.selectedMembers.clear();
   MR.customCounter = 0;
   MR.extras = {};
@@ -3352,6 +3380,7 @@ function openMultiReg(preDate, preSlot, act){
   // Pré-sélectionner le jour et le créneau si fournis
   if(preDate){
     MR.selectedDays.add(preDate);
+    MR.daySlots[preDate] = new Set();
     // Semaine du jour cliqué
     const dt = new Date(preDate+'T12:00:00');
     MR.weekStart = new Date(dt);
@@ -3362,25 +3391,20 @@ function openMultiReg(preDate, preSlot, act){
     const d = MR.weekStart.getDay();
     MR.weekStart.setDate(MR.weekStart.getDate()-(d===0?6:d-1));
   }
-  if(preSlot) MR.selectedSlots.add(preSlot);
+  if(preSlot && preDate) MR.daySlots[preDate].add(preSlot);
 
-  // Collecter les membres connus depuis les inscriptions passées (kayak + muscu)
-  const seen = new Set();
+  // Membres disponibles = base athlètes gérée par l'admin (équipe du référent connecté).
+  // Un utilisateur normal ne peut choisir que parmi cette liste, jamais en texte libre.
   MR.knownMembers = [];
-  [S.data, S.muscuData].forEach(store=>{
-    Object.keys(store).forEach(dateK=>{
-      Object.keys(store[dateK]).forEach(slot=>{
-        store[dateK][slot].forEach(a=>{
-          if(a.user_id===S.session.user.id && !seen.has(a.name)){
-            seen.add(a.name);
-            MR.knownMembers.push({ name:a.name, role:a.role||'Athlète' });
-          }
-        });
-      });
+  if(!S.isAdmin && S.myTeam){
+    (S.myTeam.members||[]).forEach(m=>{
+      if(m.athlete && !MR.knownMembers.some(km=>km.name===m.athlete.full_name)){
+        MR.knownMembers.push({ name:m.athlete.full_name, role:m.athlete.role||'Athlète' });
+      }
     });
-  });
+  }
   const selfName = S.profile?.full_name||S.session.user.email;
-  if(!seen.has(selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
+  if(!MR.knownMembers.some(km=>km.name===selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
   MR.selectedMembers.add(selfName);
 
   document.getElementById('mdregCustoms').innerHTML='';
@@ -3388,6 +3412,9 @@ function openMultiReg(preDate, preSlot, act){
   document.getElementById('qrTabMuscu').classList.toggle('active', MR.activity==='muscu');
   document.getElementById('qrKayakSlots').style.display = MR.activity==='muscu'?'none':'block';
   document.getElementById('qrMuscuSlots').style.display = MR.activity==='muscu'?'block':'none';
+  // Ajout libre d'un participant : réservé à l'admin (les référents ne choisissent que dans la base athlètes)
+  const addPersonBtn = document.getElementById('qrAddPerson');
+  if(addPersonBtn) addPersonBtn.style.display = S.isAdmin ? 'inline-block' : 'none';
   renderMdregWeek();
   renderMdregSlots(preDate);
   renderMdregMembers();
@@ -3449,8 +3476,8 @@ function renderMdregWeek(){
 }
 
 function mdregToggleDay(k){
-  if(MR.selectedDays.has(k)) MR.selectedDays.delete(k);
-  else MR.selectedDays.add(k);
+  if(MR.selectedDays.has(k)){ MR.selectedDays.delete(k); delete MR.daySlots[k]; }
+  else { MR.selectedDays.add(k); MR.daySlots[k] = new Set(); }
   renderMdregWeek();
   renderMdregSlots(k); // recalculer créneaux disponibles selon les jours sélectionnés
   renderMdregMembers();
@@ -3464,79 +3491,86 @@ function mdregToggleDay(k){
 }
 
 function renderMdregSlots(refDay){
-  // Référence : premier jour sélectionné, sinon jour courant
-  if(!refDay) refDay = MR.selectedDays.size>0 ? [...MR.selectedDays].sort()[0] : dk(S.selectedDate||S.currentDate);
+  const days = [...MR.selectedDays].sort();
+  const shortLabel = k=>{
+    const d = parseDate(k);
+    return `${t('calHeads')[(d.getDay()+6)%7]} ${d.getDate()} ${t('months')[d.getMonth()].slice(0,3)}`;
+  };
 
   if(MR.activity==='muscu'){
     const el = document.getElementById('mdregMuscuSlots');
-    function slotBtnMuscu(slot){
-      const sel = MR.selectedSlots.has(slot);
-      const fullOnAll = MR.selectedDays.size>0
-        ? [...MR.selectedDays].every(d=> cap(slot,d,'muscu')<=getSlot(d,slot,'muscu').length)
-        : false;
-      // Vérifier si le créneau est bloqué sur au moins un jour sélectionné
-      const blockedOnAny = MR.selectedDays.size>0
-        ? [...MR.selectedDays].some(d=>getMuscuSlotCfg(d,slot).blocked)
-        : false;
-      const labelOnAny = MR.selectedDays.size>0
-        ? (getMuscuSlotCfg([...MR.selectedDays][0],slot).label||'')
-        : '';
-      const disabled = fullOnAll || blockedOnAny;
-      const labelTxt = blockedOnAny ? ' 🚫' : (labelOnAny ? ` [${labelOnAny}]` : '');
-      const labelColor = labelOnAny==='CRRCK'?'#7c3aed':labelOnAny==='CLUB'?'#0d9488':'';
+    if(!days.length){ el.innerHTML = `<p style="font-size:.78rem;color:var(--text3)">${t('qrPickDayFirst')||'Sélectionne d\'abord un ou plusieurs jours ci-dessus.'}</p>`; return; }
+    function slotBtnMuscu(day,slot){
+      const daySet = MR.daySlots[day] || (MR.daySlots[day]=new Set());
+      const sel = daySet.has(slot);
+      const full = cap(slot,day,'muscu')<=getSlot(day,slot,'muscu').length;
+      const blocked = getMuscuSlotCfg(day,slot).blocked;
+      const label = getMuscuSlotCfg(day,slot).label||'';
+      const disabled = full || blocked;
+      const labelTxt = blocked ? ' 🚫' : (label ? ` [${label}]` : '');
+      const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':'';
       return `<button class="mdreg-slot-btn${sel&&!disabled?' mdreg-selected':''}"
         style="${disabled?'opacity:.4;cursor:not-allowed;':''} ${labelColor?'border-color:'+labelColor+';color:'+labelColor+';':''}"
-        ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-        title="${blockedOnAny?'Slot blocked by admin':fullOnAll?t('qrFullTitle'):''}">
+        ${disabled?'disabled':`onclick="mdregToggleSlot('${day}','${slot}')"`}
+        title="${blocked?'Slot blocked by admin':full?t('qrFullTitle'):''}">
         ${slot}${labelTxt}
       </button>`;
     }
-    el.innerHTML = S.muscuSlots.map(slotBtnMuscu).join('');
+    el.innerHTML = days.map(day=>`
+      <div style="margin-bottom:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:.75rem;font-weight:700;margin-bottom:6px">📅 ${shortLabel(day)}</div>
+        <div class="mdreg-slots">${S.muscuSlots.map(s=>slotBtnMuscu(day,s)).join('')}</div>
+      </div>`).join('');
     return;
   }
 
-  const morningEl = document.getElementById('mdregMorningSlots');
-  const afternoonEl = document.getElementById('mdregAfternoonSlots');
-  const mSlots = morningSlots(refDay);
-  const aSlots = afternoonSlots(refDay);
+  const el = document.getElementById('mdregKayakSlotsByDay');
+  if(!days.length){ el.innerHTML = `<p style="font-size:.78rem;color:var(--text3)">${t('qrPickDayFirst')||'Sélectionne d\'abord un ou plusieurs jours ci-dessus.'}</p>`; return; }
 
-  function slotBtn(slot){
-    const kx = isKayakCross(refDay, slot);
-    const sel = MR.selectedSlots.has(slot);
-    // Vérifier si bloqué par priorité (au moins sur un jour sélectionné)
-    const lockedOnAny = MR.selectedDays.size>0
-      ? [...MR.selectedDays].some(d=>!S.isAdmin && isLocked(d,slot))
-      : (!S.isAdmin && isLocked(refDay, slot));
-    const fullOnAll = MR.selectedDays.size>0
-      ? [...MR.selectedDays].every(d=> cap(slot,d)<=getSlot(d,slot).length)
-      : false;
-    // Vérifier si le créneau est bloqué par l'admin sur au moins un jour sélectionné
-    const blockedOnAny = MR.selectedDays.size>0
-      ? [...MR.selectedDays].some(d=>getKayakSlotCfg(d,slot).blocked)
-      : getKayakSlotCfg(refDay,slot).blocked;
-    const labelOnAny = MR.selectedDays.size>0
-      ? (getKayakSlotCfg([...MR.selectedDays][0],slot).label||'')
-      : (getKayakSlotCfg(refDay,slot).label||'');
-    const labelColor = labelOnAny==='CRRCK'?'#7c3aed':labelOnAny==='CLUB'?'#0d9488':'';
-    const disabled = (lockedOnAny && !kx) || fullOnAll || blockedOnAny;
-    const lockIcon = lockedOnAny && !kx ? ' 🔒' : '';
-    const fullLabel = fullOnAll ? t('qrFullLabel') : '';
-    const blockedTxt = blockedOnAny ? ' 🚫' : (labelOnAny ? ` [${labelOnAny}]` : '');
+  function slotBtn(day,slot){
+    const daySet = MR.daySlots[day] || (MR.daySlots[day]=new Set());
+    const kx = isKayakCross(day, slot);
+    const sel = daySet.has(slot);
+    const locked = !S.isAdmin && isLocked(day,slot);
+    const full = cap(slot,day)<=getSlot(day,slot).length;
+    const blocked = getKayakSlotCfg(day,slot).blocked;
+    const label = getKayakSlotCfg(day,slot).label||'';
+    const labelColor = label==='CRRCK'?'#7c3aed':label==='CLUB'?'#0d9488':'';
+    const disabled = (locked && !kx) || full || blocked;
+    const lockIcon = locked && !kx ? ' 🔒' : '';
+    const fullLabel = full ? t('qrFullLabel') : '';
+    const blockedTxt = blocked ? ' 🚫' : (label ? ` [${label}]` : '');
     return `<button class="mdreg-slot-btn${kx?' kx-slot-btn':''}${sel&&!disabled?' mdreg-selected':''}"
       style="${disabled?'opacity:.4;cursor:not-allowed;':''} ${!disabled&&labelColor?'border-color:'+labelColor+';color:'+labelColor+';':''}"
-      ${disabled?'disabled':'onclick="mdregToggleSlot(\''+slot+'\')"'}
-      title="${blockedOnAny?'Créneau bloqué par l\'administrateur':disabled?(lockedOnAny?t('qrLockedTitle'):t('qrFullTitle')):''}">
+      ${disabled?'disabled':`onclick="mdregToggleSlot('${day}','${slot}')"`}
+      title="${blocked?'Créneau bloqué par l\'administrateur':disabled?(locked?t('qrLockedTitle'):t('qrFullTitle')):''}">
       ${slot}${kx?' 🏄':''}${lockIcon}${fullLabel}${blockedTxt}
     </button>`;
   }
 
-  morningEl.innerHTML = mSlots.map(slotBtn).join('');
-  afternoonEl.innerHTML = aSlots.map(slotBtn).join('');
+  el.innerHTML = days.map(day=>{
+    const mSlots = morningSlots(day), aSlots = afternoonSlots(day);
+    return `<div style="margin-bottom:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+      <div style="font-size:.75rem;font-weight:700;margin-bottom:6px">📅 ${shortLabel(day)}</div>
+      <div style="font-size:.68rem;color:var(--text3);margin-bottom:3px">🌅 <span id="qrMorningLbl_${day}"></span></div>
+      <div class="mdreg-slots">${mSlots.map(s=>slotBtn(day,s)).join('')}</div>
+      <div style="font-size:.68rem;color:var(--text3);margin:6px 0 3px">🌇 <span id="qrAfternoonLbl_${day}"></span></div>
+      <div class="mdreg-slots">${aSlots.map(s=>slotBtn(day,s)).join('')}</div>
+    </div>`;
+  }).join('');
+  // Libellés Matin/Après-midi traduits
+  days.forEach(day=>{
+    const mEl = document.getElementById(`qrMorningLbl_${day}`);
+    const aEl = document.getElementById(`qrAfternoonLbl_${day}`);
+    if(mEl) mEl.textContent = t('morning');
+    if(aEl) aEl.textContent = t('afternoon');
+  });
 }
 
-function mdregToggleSlot(slot){
-  if(MR.selectedSlots.has(slot)) MR.selectedSlots.delete(slot);
-  else MR.selectedSlots.add(slot);
+function mdregToggleSlot(day,slot){
+  if(!MR.daySlots[day]) MR.daySlots[day] = new Set();
+  if(MR.daySlots[day].has(slot)) MR.daySlots[day].delete(slot);
+  else MR.daySlots[day].add(slot);
   renderMdregSlots();
   renderMdregMembers();
   updateMdregSummary();
@@ -3544,9 +3578,7 @@ function mdregToggleSlot(slot){
 
 function mrHasKayakCrossSelected(){
   if(MR.activity!=='kayak') return false;
-  const days=[...MR.selectedDays], slots=[...MR.selectedSlots];
-  if(!days.length || !slots.length) return false;
-  return days.some(d=>slots.some(s=>isKayakCross(d,s)));
+  return [...MR.selectedDays].some(d=>[...(MR.daySlots[d]||[])].some(s=>isKayakCross(d,s)));
 }
 
 // ── Inscription par team : liste des teams auxquelles l'utilisateur a accès ──
@@ -3560,6 +3592,7 @@ function populateQrTeamSelect(){
   const wrap = document.getElementById('qrTeamLoader');
   const sel = document.getElementById('qrTeamSelect');
   if(!wrap || !sel) return;
+  if(!S.isAdmin){ wrap.style.display='none'; return; } // auto-chargé depuis la base athlètes pour les référents
   const teams = teamsAvailableForQuickReg();
   document.getElementById('qrLoadTeamBtn') && (document.getElementById('qrLoadTeamBtn').textContent = t('qrLoadTeamBtn'));
   document.getElementById('qrTeamHint') && (document.getElementById('qrTeamHint').textContent = t('qrTeamHint'));
@@ -3654,10 +3687,9 @@ function mdregAddCustom(){
 
 function updateMdregSummary(){
   const days = [...MR.selectedDays].sort();
-  const slots = [...MR.selectedSlots];
   // Membres depuis la liste connue
   const members = [...MR.selectedMembers];
-  // Membres custom
+  // Membres custom (admin uniquement)
   [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
     const n = r.querySelector('input')?.value?.trim();
     if(n) members.push(n);
@@ -3665,13 +3697,18 @@ function updateMdregSummary(){
 
   const el = document.getElementById('mdregSummary');
   if(!el) return;
-  if(!days.length && !slots.length && !members.length){
+  const sessionsCount = days.reduce((sum,d)=> sum + (MR.daySlots[d]?MR.daySlots[d].size:0), 0);
+  if(!days.length && !sessionsCount && !members.length){
     el.textContent = t('qrSummaryDefault'); return;
   }
-  const total = days.length * slots.length * members.length;
+  const total = sessionsCount * members.length;
+  const perDay = days.map(d=>{
+    const s = [...(MR.daySlots[d]||[])];
+    return `${d} (${s.length?s.join(', '):'—'})`;
+  }).join(' · ');
   el.innerHTML = `
     <div style="margin-bottom:4px"><b>${t('qrDaysLbl')} (${days.length}):</b> ${days.length?days.join(', '):'—'}</div>
-    <div style="margin-bottom:4px"><b>${t('qrSessionsLbl')} (${slots.length}):</b> ${slots.length?slots.join(', '):'—'}</div>
+    <div style="margin-bottom:4px"><b>${t('qrSessionsLbl')} (${sessionsCount}):</b> ${days.length?perDay:'—'}</div>
     <div style="margin-bottom:4px"><b>${t('qrParticipantsLbl')} (${members.length}):</b> ${members.length?members.join(', '):'—'}</div>
     <div style="margin-top:6px;font-weight:700;color:var(--accent)">${t('qrRegCountTpl').replace('{n}',total)}</div>`;
 }
@@ -3681,9 +3718,9 @@ async function submitMultiReg(){
   if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation : tu ne peux pas t'inscrire.","error"); return; }
   const act = MR.activity;
   const days = [...MR.selectedDays].sort();
-  const slots = [...MR.selectedSlots];
   if(!days.length){ toast(t('qrErrDay'),'error'); return; }
-  if(!slots.length){ toast(t('qrErrSlot'),'error'); return; }
+  const totalSlotsPicked = days.reduce((sum,d)=> sum + (MR.daySlots[d]?MR.daySlots[d].size:0), 0);
+  if(!totalSlotsPicked){ toast(t('qrErrSlot'),'error'); return; }
 
   // Construire la liste des participants
   // Dossard : jamais collecté en ligne (rempli au stylo sur la feuille imprimée au moment du retrait).
@@ -3710,8 +3747,9 @@ async function submitMultiReg(){
   let created = 0, skipped = 0;
   const errors = [];
 
-  // Itérer sur chaque combinaison jour × créneau × participant
+  // Itérer sur chaque combinaison jour × créneau (propre à ce jour) × participant
   for(const dateK of days){
+    const slots = [...(MR.daySlots[dateK]||[])];
     for(const slot of slots){
       // Vérifier période de stage
       if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
@@ -3886,43 +3924,43 @@ function movePrio(group,idx,dir){
 function updateCap(slot,val){ S.capacity[slot]=Math.max(1,parseInt(val)||15); saveConfig(); renderDayPanel(); }
 function updateMuscuCap(slot,val){ S.muscuCapacity[slot]=Math.max(1,parseInt(val)||8); saveConfig(); renderMuscuDayPanel(); }
 
+// Feuille d'émargement réutilisable : colonnes = créneaux horaires, sous-colonnes = Nom Prénom + case (dossard/nationalité)
+// + colonne "Location kayak" (Pyrhana / Paname S / Paname M à cocher) pour les créneaux Kayak Cross.
+// Lignes numérotées de 1 à la capacité max du créneau (les inscrits d'abord, puis lignes vides jusqu'au max — pour écrire les athlètes à la main).
+function buildAttendanceSheetHTML(dateK, act, slots, extraLabel, extraKey){
+  if(!slots.length) return `<p class="print-empty">${t('printEmptySlot')}</p>`;
+  const models = ['Pyrhana','Paname S','Paname M'];
+  const maxRows = Math.max(1, ...slots.map(s=>cap(s,dateK,act)));
+  const kxOf = s => act==='kayak' && isKayakCross(dateK,s);
+  let h = `<table class="print-sheet"><thead>
+    <tr class="ps-slot-row"><th class="ps-num-col"></th>${slots.map(s=>
+      `<th colspan="${kxOf(s)?3:2}">${esc(s)}${kxOf(s)?' 🏄 Kayak Cross':''}</th>`
+    ).join('')}</tr>
+    <tr class="ps-sub-row"><th class="ps-num-col">N°</th>${slots.map(s=>
+      `<th>${t('printColName')}</th><th>${extraLabel}</th>${kxOf(s)?`<th>${t('rentalLbl')}</th>`:''}`
+    ).join('')}</tr>
+  </thead><tbody>`;
+  for(let i=0;i<maxRows;i++){
+    h += `<tr><td class="ps-num-col">${i+1}</td>`;
+    slots.forEach(s=>{
+      const a = getSlot(dateK, s, act)[i];
+      const extraVal = a ? (extraKey==='dossard' ? a.dossard : a.nationality) : '';
+      h += `<td class="ps-name-cell">${a?esc(a.name):''}</td><td class="ps-extra-cell">${esc(extraVal||'')}</td>`;
+      if(kxOf(s)){
+        const checks = models.map(m=>`<span class="ps-check">${a&&a.kayakModel===m?'☑':'☐'} ${m}</span>`).join('<br>');
+        h += `<td class="ps-rental-cell">${checks}</td>`;
+      }
+    });
+    h += `</tr>`;
+  }
+  h += `</tbody></table>`;
+  return h;
+}
+
 function printDaySchedule(dateK, act){
   const d = parseDate(dateK);
   const dayName = t('dowFull')[d.getDay()];
   const dateStr = `${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
-  const models = ['Pyrhana','Paname S','Paname M'];
-
-  // Feuille d'émargement : colonnes = créneaux horaires, sous-colonnes = Nom Prénom + case (dossard/nationalité)
-  // + colonne "Location kayak" (Pyrhana / Paname S / Paname M à cocher) pour les créneaux Kayak Cross.
-  // Lignes numérotées de 1 à la capacité max du créneau (les inscrits d'abord, puis lignes vides jusqu'au max potentiel).
-  function sheet(slots, extraLabel, extraKey){
-    if(!slots.length) return `<p class="print-empty">${t('printEmptySlot')}</p>`;
-    const maxRows = Math.max(1, ...slots.map(s=>cap(s,dateK,act)));
-    const kxOf = s => act==='kayak' && isKayakCross(dateK,s);
-    let h = `<table class="print-sheet"><thead>
-      <tr class="ps-slot-row"><th class="ps-num-col"></th>${slots.map(s=>
-        `<th colspan="${kxOf(s)?3:2}">${esc(s)}${kxOf(s)?' 🏄 Kayak Cross':''}</th>`
-      ).join('')}</tr>
-      <tr class="ps-sub-row"><th class="ps-num-col">N°</th>${slots.map(s=>
-        `<th>${t('printColName')}</th><th>${extraLabel}</th>${kxOf(s)?`<th>${t('rentalLbl')}</th>`:''}`
-      ).join('')}</tr>
-    </thead><tbody>`;
-    for(let i=0;i<maxRows;i++){
-      h += `<tr><td class="ps-num-col">${i+1}</td>`;
-      slots.forEach(s=>{
-        const a = getSlot(dateK, s, act)[i];
-        const extraVal = a ? (extraKey==='dossard' ? a.dossard : a.nationality) : '';
-        h += `<td class="ps-name-cell">${a?esc(a.name):''}</td><td class="ps-extra-cell">${esc(extraVal||'')}</td>`;
-        if(kxOf(s)){
-          const checks = models.map(m=>`<span class="ps-check">${a&&a.kayakModel===m?'☑':'☐'} ${m}</span>`).join('<br>');
-          h += `<td class="ps-rental-cell">${checks}</td>`;
-        }
-      });
-      h += `</tr>`;
-    }
-    h += `</tbody></table>`;
-    return h;
-  }
 
   const icon = act==='muscu' ? '🏋️' : '🚣';
   const sectionLabel = act==='muscu' ? t('printMuscuSection') : t('printKayakSection');
@@ -3933,16 +3971,55 @@ function printDaySchedule(dateK, act){
   } else if(act==='muscu'){
     const extraLabel = t('printColNat'), extraKey = 'nationality';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    h += sheet(S.muscuSlots.slice(0,4), extraLabel, extraKey);
+    h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(0,4), extraLabel, extraKey);
     h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += sheet(S.muscuSlots.slice(4), extraLabel, extraKey);
+    h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(4), extraLabel, extraKey);
   } else {
     const extraLabel = t('printColDossard'), extraKey = 'dossard';
     h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    h += sheet(morningSlots(dateK), extraLabel, extraKey);
+    h += buildAttendanceSheetHTML(dateK, act, morningSlots(dateK), extraLabel, extraKey);
     h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += sheet(afternoonSlots(dateK), extraLabel, extraKey);
+    h += buildAttendanceSheetHTML(dateK, act, afternoonSlots(dateK), extraLabel, extraKey);
   }
+  document.getElementById('printArea').innerHTML = h;
+  window.print();
+}
+
+// Impression de la semaine entière en feuilles d'émargement : un bloc par jour,
+// matin en haut puis après-midi en dessous, horaires triés chronologiquement (8h→18h),
+// une ligne numérotée par place disponible (capacité max du créneau), pré-remplies
+// pour les athlètes déjà inscrits et vides pour le reste.
+function printWeekAttendance(act){
+  const ws = weekStart(S.currentDate);
+  const days = [];
+  for(let i=0;i<7;i++){ const d=new Date(ws); d.setDate(ws.getDate()+i); days.push(d); }
+  const icon = act==='muscu' ? '🏋️' : '🚣';
+  const sectionLabel = act==='muscu' ? t('printMuscuSection') : t('printKayakSection');
+  let h = '';
+  let first = true;
+  days.forEach(d=>{
+    const dateK = dk(d);
+    if(isClosed(d) || outOfRange(d)) return;
+    const dayName = t('dowFull')[d.getDay()];
+    const dateStr = `${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+    h += `<div class="print-title"${first?'':' style="page-break-before:always"'}>${icon} ${sectionLabel}</div>
+      <div class="print-sub">${esc(dateStr)}</div>`;
+    if(act==='muscu'){
+      const extraLabel = t('printColNat'), extraKey = 'nationality';
+      h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
+      h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(0,4), extraLabel, extraKey);
+      h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
+      h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(4), extraLabel, extraKey);
+    } else {
+      const extraLabel = t('printColDossard'), extraKey = 'dossard';
+      h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
+      h += buildAttendanceSheetHTML(dateK, act, morningSlots(dateK), extraLabel, extraKey);
+      h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
+      h += buildAttendanceSheetHTML(dateK, act, afternoonSlots(dateK), extraLabel, extraKey);
+    }
+    first = false;
+  });
+  if(!h){ toast('Aucun jour ouvert cette semaine.','error'); return; }
   document.getElementById('printArea').innerHTML = h;
   window.print();
 }
