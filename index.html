@@ -70,6 +70,8 @@ header { background: var(--white); border-bottom: 1px solid var(--border); paddi
 .wk-closed-lbl { font-size: .58rem; color: var(--red); margin-top: 2px; }
 .wk-section { font-size: .6rem; font-weight: 700; color: var(--text3); text-align: center; padding: 4px; background: var(--bg); text-transform: uppercase; letter-spacing: .5px; }
 .wk-slot { padding: 5px 6px; border-bottom: 1px solid var(--border); }
+.wk-slot.wk-blocked { background: #fef2f2; }
+.wk-slot-blocked-tag { font-size: .6rem; font-weight: 700; color: #dc2626; line-height: 1.3; }
 .wk-slot-time { font-size: .65rem; font-weight: 700; }
 .wk-slot-count { font-size: .6rem; color: var(--text3); }
 .wk-bar { height: 3px; border-radius: 2px; margin-top: 3px; }
@@ -185,6 +187,7 @@ select.field { min-width: 110px; cursor: pointer; }
 .print-sub { font-size: .95rem; color: #333; margin-bottom: 14px; font-weight: 600; }
 .print-section-title { font-size: .95rem; font-weight: 800; margin: 10px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #111; }
 .print-empty { font-size: .8rem; color: #777; font-style: italic; margin: 4px 0 10px; }
+.print-blocked-note { font-size: .82rem; color: #991b1b; font-weight: 700; margin: 4px 0 10px; }
 .print-sheet { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: .74rem; table-layout: fixed; }
 .print-sheet th, .print-sheet td { border: 1px solid #444; padding: 3px 5px; text-align: left; }
 .print-sheet thead th { background: #eee; font-weight: 700; text-align: center; }
@@ -194,6 +197,10 @@ select.field { min-width: 110px; cursor: pointer; }
 .ps-rental-cell { width: 78px; font-size: .68rem; line-height: 1.5; }
 .ps-check { white-space: nowrap; }
 .ps-rental { font-size: .7rem; }
+/* Une page pour le matin, une page pour l'après-midi, pour ne pas couper une séance entre deux pages */
+.print-section-am { page-break-before: auto; page-break-after: always; break-after: page; }
+.print-section-pm { page-break-before: always; break-before: page; page-break-after: auto; }
+.print-sheet, .print-blocked-note { page-break-inside: avoid; break-inside: avoid; }
 @media print {
   @page { size: landscape; margin: 10mm; }
   body * { visibility: hidden; }
@@ -535,6 +542,7 @@ select.field { min-width: 110px; cursor: pointer; }
     <button class="page-tab active" id="pbQuickReg" onclick="setPage('quickreg')">⚡ <span id="navQuickReg">Quick registration</span></button>
     <button class="page-tab" id="pbTeam" onclick="setPage('team')">👥 <span id="navTeam">My team</span></button>
     <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Planning</span></button>
+    <button class="page-tab" id="pbAthletes" style="display:none" onclick="setPage('athletes')">📇 <span id="navAthletes">Athlete database</span></button>
   </div>
 
   <div class="quick-reg-card" id="quickRegPanel">
@@ -788,21 +796,9 @@ select.field { min-width: 110px; cursor: pointer; }
 
   <div id="teamPage" style="display:none">
 
-    <!-- Section admin : gestion des teams + base des athlètes (100% admin, déplacée depuis Planning) -->
+    <!-- Section admin : gestion des teams (100% admin, déplacée depuis Planning).
+         La base de données des athlètes a son propre onglet dédié (voir athletesPage). -->
     <div id="teamAdminSection" style="display:none">
-
-      <!-- Base de données des athlètes (gérée uniquement par l'admin) -->
-      <div class="admin-card" id="adminAthletesCard" style="margin-bottom:16px">
-        <h4 id="adminAthDbTitle">📇 Base de données des athlètes</h4>
-        <p id="adminAthDbDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input class="field" id="adminAthFullName" placeholder="Nom complet" style="flex:1;min-width:200px">
-          <input class="field" id="adminAthRole" placeholder="Rôle (ex: Athlète)" style="flex:1;min-width:160px">
-          <button class="btn btn-sm btn-primary" id="adminAddAthBtn" onclick="adminAddAthlete()"></button>
-        </div>
-        <div id="adminAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
-        <div id="adminAthleteDbList" style="margin-top:12px"></div>
-      </div>
 
       <!-- Gestion des teams (création, composition simplifiée, verrouillage — 100% admin) -->
       <div class="admin-card" id="adminTeamsCard" style="margin-bottom:16px">
@@ -870,6 +866,21 @@ select.field { min-width: 110px; cursor: pointer; }
       <h2 id="teamTitle">👥 My team</h2>
       <p class="qr-sub" id="teamSub"></p>
       <div id="teamBody"></div>
+    </div>
+  </div>
+
+  <!-- Onglet dédié admin : base de données des athlètes (séparée de la gestion des teams) -->
+  <div id="athletesPage" style="display:none">
+    <div class="admin-card" id="adminAthletesCard" style="margin-bottom:16px">
+      <h4 id="adminAthDbTitle">📇 Base de données des athlètes</h4>
+      <p id="adminAthDbDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input class="field" id="adminAthFullName" placeholder="Nom complet" style="flex:1;min-width:200px">
+        <input class="field" id="adminAthRole" placeholder="Rôle (ex: Athlète)" style="flex:1;min-width:160px">
+        <button class="btn btn-sm btn-primary" id="adminAddAthBtn" onclick="adminAddAthlete()"></button>
+      </div>
+      <div id="adminAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
+      <div id="adminAthleteDbList" style="margin-top:12px"></div>
     </div>
   </div>
 
@@ -1227,6 +1238,7 @@ const TR = {
     printColName:'Nom', printColRole:'Rôle', printColDossard:'N° dossard',
     printColNat:'Nationalité', printColRental:'Location kayak',
     printEmptySlot:'— aucune inscription —', printYes:'Oui', printNo:'Non',
+    printBlockedPfx:'🚫 Bloqué :',
     recapBtnLbl:'📊 Tableau récapitulatif',
     rcModalTitle:'📊 Tableau récapitulatif par participant',
     rcModalSub:'Musculation, Slalom, Kayak Cross et location de kayak, jour par jour.',
@@ -1236,7 +1248,7 @@ const TR = {
     costDateCol:'Date', costNameCol:'Nom Prénom', costTypeCol:'Séance', costPriceCol:'Tarif',
     costGrandTotal:'Total général',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Musculation', typeWithRental:'+ location',
-    navQuickReg:'Inscription rapide', navTeam:'Mon équipe', navPlanning:'Planning',
+    navQuickReg:'Inscription rapide', navTeam:'Mon équipe', navPlanning:'Planning', navAthletes:'Base athlètes',
     teamTitle:'📜 Historique de mes inscriptions', teamGroupLabel:'Groupe',
     teamSub:'Retrouvez ici le nom, prénom et le groupe de chaque athlète que vous avez inscrit sur le planning.',
     teamEmpty:"Vous n'avez inscrit personne pour le moment. Utilisez l'inscription rapide ou le planning pour ajouter des athlètes.",
@@ -1389,6 +1401,7 @@ const TR = {
     printColName:'Name', printColRole:'Role', printColDossard:'Bib number',
     printColNat:'Nationality', printColRental:'Kayak rental',
     printEmptySlot:'— no registration —', printYes:'Yes', printNo:'No',
+    printBlockedPfx:'🚫 Blocked:',
     recapBtnLbl:'📊 Recap table',
     rcModalTitle:'📊 Recap table by participant',
     rcModalSub:'Weight room, Slalom, Kayak Cross and kayak rental, day by day.',
@@ -1398,7 +1411,7 @@ const TR = {
     costDateCol:'Date', costNameCol:'Full name', costTypeCol:'Session', costPriceCol:'Price',
     costGrandTotal:'Grand total',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Weight room', typeWithRental:'+ rental',
-    navQuickReg:'Quick registration', navTeam:'My team', navPlanning:'Planning',
+    navQuickReg:'Quick registration', navTeam:'My team', navPlanning:'Planning', navAthletes:'Athletes database',
     teamTitle:'📜 My registration history', teamGroupLabel:'Group',
     teamSub:'Here you can find the name and the group of every athlete you have registered on the planning.',
     teamEmpty:"You haven't registered anyone yet. Use quick registration or the planning to add athletes.",
@@ -1467,7 +1480,7 @@ function applyI18n(){
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary','qrLoadTeamBtn','qrTeamHint',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtn','rcModalTitle','rcModalSub','costTitle','costSub',
-    'navQuickReg','navTeam','navPlanning','teamTitle','teamSub',
+    'navQuickReg','navTeam','navPlanning','navAthletes','teamTitle','teamSub',
     'myTeamTitle','teamAthDbTitle','aTeamsTitle'];
   const keys = ['appTitle','appSub','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
@@ -1482,7 +1495,7 @@ function applyI18n(){
     'qrPrevLbl','qrNextLbl','qrStep3','qrAddPerson','qrSummary','qrLoadTeamBtn','qrTeamHint',
     'qrResetBtn','qrSubmitBtn','aMuscuCapTitle','waJoinTitle','waJoinSub',
     'recapBtnLbl','rcModalTitle','rcModalSub','costTitle','costSub',
-    'navQuickReg','navTeam','navPlanning','teamTitle','teamSub',
+    'navQuickReg','navTeam','navPlanning','navAthletes','teamTitle','teamSub',
     'myTeamTitle','teamAthDbTitle','aTeamsTitle'];
   ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.textContent=t(keys[i]); });
   document.getElementById('vbMonth').textContent = t('viewMonth');
@@ -1508,19 +1521,24 @@ function applyI18n(){
 // NAVIGATION PAR PAGES (Inscription rapide / Mon équipe / Planning)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function setPage(page){
+  if(page==='athletes' && !S.isAdmin) page='quickreg'; // onglet réservé à l'admin
   S.page = page;
   const qr = document.getElementById('quickRegPanel');
   const team = document.getElementById('teamPage');
   const plan = document.getElementById('planningPage');
+  const ath = document.getElementById('athletesPage');
   if(qr)   qr.style.display   = page==='quickreg' ? 'block' : 'none';
   if(team) team.style.display = page==='team'     ? 'block' : 'none';
   if(plan) plan.style.display = page==='planning' ? 'block' : 'none';
+  if(ath)  ath.style.display  = page==='athletes' ? 'block' : 'none';
   const pbQ = document.getElementById('pbQuickReg');
   const pbT = document.getElementById('pbTeam');
   const pbP = document.getElementById('pbPlanning');
+  const pbA = document.getElementById('pbAthletes');
   if(pbQ) pbQ.classList.toggle('active', page==='quickreg');
   if(pbT) pbT.classList.toggle('active', page==='team');
   if(pbP) pbP.classList.toggle('active', page==='planning');
+  if(pbA) pbA.classList.toggle('active', page==='athletes');
   if(page==='team'){
     renderMyTeam();
     renderTeamPage();
@@ -1529,6 +1547,11 @@ async function setPage(page){
       await loadTeamsData();
       renderTeamPage();
     }
+  }
+  if(page==='athletes' && S.session){
+    await loadAthletes();
+    await loadTeamsData();
+    renderAdminTeams();
   }
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -2215,8 +2238,10 @@ async function onAuthed(session){
   // En lecture seule, pas d'intérêt à ouvrir l'inscription rapide : direct sur le planning
   const pbQ = document.getElementById('pbQuickReg');
   const pbT = document.getElementById('pbTeam');
+  const pbA = document.getElementById('pbAthletes');
   if(pbQ) pbQ.style.display = S.isReadonly ? 'none' : '';
   if(pbT) pbT.style.display = S.isReadonly ? 'none' : '';
+  if(pbA) pbA.style.display = S.isAdmin ? '' : 'none';
   setPage(S.isReadonly ? 'planning' : 'quickreg');
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
@@ -2393,6 +2418,35 @@ function slotStartMinutes(slot){
   if(!m) return 0;
   return parseInt(m[1],10)*60 + (m[2]?parseInt(m[2],10):0);
 }
+// Versions triées chronologiquement de morningSlots/afternoonSlots, pour l'affichage
+// (l'ordre "priorité" de morningSlots/afternoonSlots reste utilisé pour la logique
+// de verrouillage et le pairage matin/après-midi, jamais pour l'affichage visuel).
+function morningSlotsChrono(dateK){
+  return [...morningSlots(dateK)].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
+}
+function afternoonSlotsChrono(dateK){
+  return [...afternoonSlots(dateK)].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
+}
+// Case d'un créneau dans la vue "Semaine" : affiche "🚫 Bloqué [label]" si le
+// créneau est bloqué par l'admin, sinon le compteur de places habituel.
+function renderWkSlotCell(k,slot){
+  const cfg = getKayakSlotCfg(k, slot);
+  const kx = isKayakCross(k,slot);
+  if(cfg.blocked){
+    return `<div class="wk-slot wk-blocked">
+      <div class="wk-slot-time">${slot}</div>
+      <div class="wk-slot-blocked-tag">🚫 ${t('closed')}${cfg.label?' — '+esc(cfg.label):''}</div>
+    </div>`;
+  }
+  const aths=getSlot(k,slot),c=cap(slot,k),pct=Math.min(1,aths.length/c);
+  const locked=isLocked(k,slot)&&!S.isAdmin;
+  const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
+  return `<div class="wk-slot${locked?' wk-locked':''}${kx?' kx-wk-slot':''}">
+    <div class="wk-slot-time">${slot}${kx?'<span style="font-size:.55rem;display:block;color:#f97316;font-weight:700">KX</span>':(cfg.label?`<span style="font-size:.55rem;display:block;color:var(--text3);font-weight:700">${esc(cfg.label)}</span>`:'')}</div>
+    <div class="wk-slot-count">${aths.length}/${c}</div>
+    <div class="wk-bar" style="background:var(--border2)"><div style="width:${pct*100}%;height:100%;background:${kx?'#f97316':color};border-radius:2px"></div></div>
+  </div>`;
+}
 function cap(slot,dateK,act='kayak'){
   if(act==='muscu') return S.muscuCapacity[slot]||8;
   if(dateK && S.dateCapacity && S.dateCapacity[dateK] && S.dateCapacity[dateK][slot]!=null){
@@ -2541,29 +2595,10 @@ function renderWeek(){
       h+=`<div class="wk-closed-label">${lbl||t('closed')}</div>`;
     } else {
       h+=`<div class="wk-section">${t('morning')}</div>`;
-      morningSlots(k).forEach(slot=>{
-        const aths=getSlot(k,slot),c=cap(slot,k),pct=Math.min(1,aths.length/c);
-        const locked=isLocked(k,slot)&&!S.isAdmin;
-        const kx=isKayakCross(k,slot);
-        const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
-        h+=`<div class="wk-slot${locked?' wk-locked':''}${kx?' kx-wk-slot':''}">
-          <div class="wk-slot-time">${slot}${kx?'<span style="font-size:.55rem;display:block;color:#f97316;font-weight:700">KX</span>':''}</div>
-          <div class="wk-slot-count">${aths.length}/${c}</div>
-          <div class="wk-bar" style="background:var(--border2)"><div style="width:${pct*100}%;height:100%;background:${kx?'#f97316':color};border-radius:2px"></div></div>
-        </div>`;
-      });
+      // Tri chronologique (et non par ordre de priorité) pour un planning lisible.
+      morningSlotsChrono(k).forEach(slot=>{ h+=renderWkSlotCell(k,slot); });
       h+=`<div class="wk-section" style="border-top:1px solid var(--border)">${t('afternoon')}</div>`;
-      afternoonSlots(k).forEach(slot=>{
-        const aths=getSlot(k,slot),c=cap(slot,k),pct=Math.min(1,aths.length/c);
-        const locked=isLocked(k,slot)&&!S.isAdmin;
-        const kx=isKayakCross(k,slot);
-        const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
-        h+=`<div class="wk-slot${locked?' wk-locked':''}${kx?' kx-wk-slot':''}">
-          <div class="wk-slot-time">${slot}${kx?'<span style="font-size:.55rem;display:block;color:#f97316;font-weight:700">KX</span>':''}</div>
-          <div class="wk-slot-count">${aths.length}/${c}</div>
-          <div class="wk-bar" style="background:var(--border2)"><div style="width:${pct*100}%;height:100%;background:${kx?'#f97316':color};border-radius:2px"></div></div>
-        </div>`;
-      });
+      afternoonSlotsChrono(k).forEach(slot=>{ h+=renderWkSlotCell(k,slot); });
     }
     h+='</div>';
   }
@@ -2595,9 +2630,11 @@ function renderDayPanel(){
   } else {
     h+=`<div class="slots-body">
       <div class="slot-group"><div class="slot-group-title">🌅 ${t('morning')}</div>`;
-    morningSlots(k).forEach(slot=>h+=renderKayakSlotBlock(k,slot));
+    // Tri chronologique pour la lisibilité (l'ordre de priorité admin reste utilisé
+    // en interne pour le verrouillage et le pairage matin/après-midi).
+    morningSlotsChrono(k).forEach(slot=>h+=renderKayakSlotBlock(k,slot));
     h+=`</div><div class="slot-group"><div class="slot-group-title">🌇 ${t('afternoon')}</div>`;
-    afternoonSlots(k).forEach(slot=>h+=renderKayakSlotBlock(k,slot));
+    afternoonSlotsChrono(k).forEach(slot=>h+=renderKayakSlotBlock(k,slot));
     h+=`</div></div>`;
   }
   h+='</div>'; el.innerHTML=h;
@@ -4113,20 +4150,33 @@ function updateMuscuCap(slot,val){ S.muscuCapacity[slot]=Math.max(1,parseInt(val
 // Lignes numérotées de 1 à la capacité max du créneau (les inscrits d'abord, puis lignes vides jusqu'au max — pour écrire les athlètes à la main).
 function buildAttendanceSheetHTML(dateK, act, slots, extraLabel, extraKey){
   if(!slots.length) return `<p class="print-empty">${t('printEmptySlot')}</p>`;
+  const getCfg = s => act==='kayak' ? getKayakSlotCfg(dateK,s) : getMuscuSlotCfg(dateK,s);
+  // Les créneaux bloqués n'ont pas d'inscriptions possibles : inutile d'imprimer des
+  // lignes numérotées vides pour eux. On se contente de noter qui a bloqué (le label).
+  const blockedSlots = slots.filter(s=>getCfg(s).blocked);
+  const openSlots = slots.filter(s=>!getCfg(s).blocked);
+  let h = '';
+  if(blockedSlots.length){
+    h += `<p class="print-blocked-note">${t('printBlockedPfx')} ${blockedSlots.map(s=>{
+      const lbl = getCfg(s).label;
+      return `${esc(s)}${lbl?' — '+esc(lbl):''}`;
+    }).join(', ')}</p>`;
+  }
+  if(!openSlots.length) return h || `<p class="print-empty">${t('printEmptySlot')}</p>`;
   const models = ['Pyrhana','Paname S','Paname M'];
-  const maxRows = Math.max(1, ...slots.map(s=>cap(s,dateK,act)));
+  const maxRows = Math.max(1, ...openSlots.map(s=>cap(s,dateK,act)));
   const kxOf = s => act==='kayak' && isKayakCross(dateK,s);
-  let h = `<table class="print-sheet"><thead>
-    <tr class="ps-slot-row"><th class="ps-num-col"></th>${slots.map(s=>
+  h += `<table class="print-sheet"><thead>
+    <tr class="ps-slot-row"><th class="ps-num-col"></th>${openSlots.map(s=>
       `<th colspan="${kxOf(s)?3:2}">${esc(s)}${kxOf(s)?' 🏄 Kayak Cross':''}</th>`
     ).join('')}</tr>
-    <tr class="ps-sub-row"><th class="ps-num-col">N°</th>${slots.map(s=>
+    <tr class="ps-sub-row"><th class="ps-num-col">N°</th>${openSlots.map(s=>
       `<th>${t('printColName')}</th><th>${extraLabel}</th>${kxOf(s)?`<th>${t('rentalLbl')}</th>`:''}`
     ).join('')}</tr>
   </thead><tbody>`;
   for(let i=0;i<maxRows;i++){
     h += `<tr><td class="ps-num-col">${i+1}</td>`;
-    slots.forEach(s=>{
+    openSlots.forEach(s=>{
       const a = getSlot(dateK, s, act)[i];
       const extraVal = a ? (extraKey==='dossard' ? a.dossard : a.nationality) : '';
       h += `<td class="ps-name-cell">${a?esc(a.name):''}</td><td class="ps-extra-cell">${esc(extraVal||'')}</td>`;
@@ -4154,16 +4204,16 @@ function printDaySchedule(dateK, act){
     h += `<p class="print-sub">${esc(closedLabel(d))}</p>`;
   } else if(act==='muscu'){
     const extraLabel = t('printColNat'), extraKey = 'nationality';
-    h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(0,4), extraLabel, extraKey);
-    h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(4), extraLabel, extraKey);
+    h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
+    ${buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(0,4), extraLabel, extraKey)}</div>`;
+    h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
+    ${buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(4), extraLabel, extraKey)}</div>`;
   } else {
     const extraLabel = t('printColDossard'), extraKey = 'dossard';
-    h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-    h += buildAttendanceSheetHTML(dateK, act, morningSlots(dateK), extraLabel, extraKey);
-    h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-    h += buildAttendanceSheetHTML(dateK, act, afternoonSlots(dateK), extraLabel, extraKey);
+    h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
+    ${buildAttendanceSheetHTML(dateK, act, morningSlots(dateK), extraLabel, extraKey)}</div>`;
+    h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
+    ${buildAttendanceSheetHTML(dateK, act, afternoonSlots(dateK), extraLabel, extraKey)}</div>`;
   }
   document.getElementById('printArea').innerHTML = h;
   window.print();
@@ -4190,16 +4240,16 @@ function printWeekAttendance(act){
       <div class="print-sub">${esc(dateStr)}</div>`;
     if(act==='muscu'){
       const extraLabel = t('printColNat'), extraKey = 'nationality';
-      h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-      h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(0,4), extraLabel, extraKey);
-      h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-      h += buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(4), extraLabel, extraKey);
+      h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
+      ${buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(0,4), extraLabel, extraKey)}</div>`;
+      h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
+      ${buildAttendanceSheetHTML(dateK, act, S.muscuSlots.slice(4), extraLabel, extraKey)}</div>`;
     } else {
       const extraLabel = t('printColDossard'), extraKey = 'dossard';
-      h += `<div class="print-section-title">🌅 ${t('morning')}</div>`;
-      h += buildAttendanceSheetHTML(dateK, act, morningSlots(dateK), extraLabel, extraKey);
-      h += `<div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>`;
-      h += buildAttendanceSheetHTML(dateK, act, afternoonSlots(dateK), extraLabel, extraKey);
+      h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
+      ${buildAttendanceSheetHTML(dateK, act, morningSlots(dateK), extraLabel, extraKey)}</div>`;
+      h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
+      ${buildAttendanceSheetHTML(dateK, act, afternoonSlots(dateK), extraLabel, extraKey)}</div>`;
     }
     first = false;
   });
