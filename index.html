@@ -1209,6 +1209,7 @@ const TR = {
     qrFullTitle:'Complet', qrFullLabel:' (complet)',
     qrErrDay:'Sélectionnez au moins un jour.', qrErrSlot:'Sélectionnez au moins un créneau.',
     qrErrPart:'Sélectionnez au moins un participant.',
+    qrPairMismatch:'2e séance dans la journée : tu dois choisir le même rang de créneau que le matin/l\'après-midi (1er = 1er, 2e = 2e, etc.).',
     qrCreatedTpl:'✅ {n} inscription(s) créée(s){skip}',
     qrSkippedTpl:', {n} ignorée(s) (priorité/complet/fermé)',
     qrNoneCreatedTpl:'Aucune inscription créée. {n} créneau(x) ignoré(s) (règles de priorité, complet ou fermé).',
@@ -1370,6 +1371,7 @@ const TR = {
     qrFullTitle:'Full', qrFullLabel:' (full)',
     qrErrDay:'Select at least one day.', qrErrSlot:'Select at least one session.',
     qrErrPart:'Select at least one participant.',
+    qrPairMismatch:'2nd session that day: you must pick the same rank of session as your morning/afternoon pick (1st = 1st, 2nd = 2nd, etc.).',
     qrCreatedTpl:'✅ {n} registration(s) created{skip}',
     qrSkippedTpl:', {n} skipped (priority/full/closed)',
     qrNoneCreatedTpl:'No registration created. {n} slot(s) skipped (priority rules, full, or closed).',
@@ -3709,11 +3711,43 @@ function renderMdregSlots(refDay){
 
 function mdregToggleSlot(day,slot){
   if(!MR.daySlots[day]) MR.daySlots[day] = new Set();
-  if(MR.daySlots[day].has(slot)) MR.daySlots[day].delete(slot);
-  else MR.daySlots[day].add(slot);
+  const daySet = MR.daySlots[day];
+  if(daySet.has(slot)){
+    daySet.delete(slot);
+  } else {
+    // Règle de pairage matin/après-midi (kayak uniquement) : si on s'inscrit une
+    // 2e fois (ou plus) le même jour, le rang du créneau choisi dans une
+    // demi-journée doit correspondre exactement au(x) rang(s) déjà choisi(s)
+    // dans l'autre demi-journée (1er du matin = 1er de l'après-midi, etc.).
+    // On ne choisit librement que si on ne s'inscrit qu'une seule fois ce jour-là.
+    if(MR.activity==='kayak' && !mdregSlotPairOk(day,slot)){
+      toast(t('qrPairMismatch'),'error');
+      return;
+    }
+    daySet.add(slot);
+  }
   renderMdregSlots();
   renderMdregMembers();
   updateMdregSummary();
+}
+
+// Vérifie que l'ajout de `slot` pour `day` respecte le pairage matin/après-midi.
+// Renvoie true si l'ajout est autorisé (pas de créneau opposé sélectionné, ou
+// rang identique à celui déjà sélectionné dans l'autre demi-journée).
+function mdregSlotPairOk(day, slot){
+  const daySet = MR.daySlots[day] || new Set();
+  const mSlots = morningSlots(day), aSlots = afternoonSlots(day);
+  const isMorning = mSlots.includes(slot);
+  const isAfternoon = aSlots.includes(slot);
+  if(!isMorning && !isAfternoon) return true; // créneau hors matin/après-midi (ex: cas particulier) → pas de contrainte
+  const group = isMorning ? mSlots : aSlots;
+  const oppGroup = isMorning ? aSlots : mSlots;
+  const idx = group.indexOf(slot);
+  const oppSelectedIdx = [...daySet]
+    .filter(s => oppGroup.includes(s))
+    .map(s => oppGroup.indexOf(s));
+  if(!oppSelectedIdx.length) return true; // aucune séance encore choisie dans l'autre demi-journée → libre
+  return oppSelectedIdx.includes(idx);
 }
 
 function mrHasKayakCrossSelected(){
@@ -4004,10 +4038,20 @@ async function submitRegistration(){
   } catch(e){ toast("Erreur lors de l'inscription — réessayez.","error"); }
 }
 
+// Un athlète est "de ma team" si son nom figure dans la liste des membres
+// de la team gérée par l'administrateur pour le compte connecté (S.myTeam).
+// Sert à limiter les suppressions aux athlètes de sa propre team, pour éviter
+// que des utilisateurs suppriment les inscriptions d'autres teams (triche).
+function isAthleteInMyTeam(name){
+  if(!S.myTeam || !Array.isArray(S.myTeam.members)) return false;
+  return S.myTeam.members.some(m => m.athlete && m.athlete.full_name === name);
+}
+
 async function removeAthlete(dateK,slot,idx,act='kayak'){
   const a=getSlot(dateK,slot,act)[idx];
   const mine = S.session && a.user_id===S.session.user.id;
-  if(!S.isAdmin && !mine){ toast("Tu ne peux annuler que tes propres inscriptions.","error"); return; }
+  const teamMate = isAthleteInMyTeam(a.name);
+  if(!S.isAdmin && !mine && !teamMate){ toast("Tu ne peux annuler que les inscriptions des athlètes de ta team.","error"); return; }
   if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation : tu ne peux pas modifier d'inscriptions.","error"); return; }
   const name=a.name;
   try {
