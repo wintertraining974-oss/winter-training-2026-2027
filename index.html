@@ -543,6 +543,7 @@ select.field { min-width: 110px; cursor: pointer; }
     <button class="page-tab" id="pbTeam" onclick="setPage('team')">👥 <span id="navTeam">My team</span></button>
     <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Planning</span></button>
     <button class="page-tab" id="pbAthletes" style="display:none" onclick="setPage('athletes')">📇 <span id="navAthletes">Athlete database</span></button>
+    <button class="page-tab" id="pbSuivi" style="display:none" onclick="setPage('suivi')">📝 <span id="navSuivi">Suivi</span></button>
   </div>
 
   <div class="quick-reg-card" id="quickRegPanel">
@@ -673,6 +674,16 @@ select.field { min-width: 110px; cursor: pointer; }
       </div>
       <div class="admin-card">
         <h4 id="aMuscuCapTitle">🏋️ Capacité par créneau — Salle de musculation</h4>
+        <!-- Édition des horaires de musculation (point 11) -->
+        <div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px">
+          <h4 style="margin-bottom:6px;font-size:.82rem;font-weight:700">🕐 Horaires des créneaux de musculation</h4>
+          <p style="font-size:.75rem;color:var(--text3);margin-bottom:10px">Ajoute, renomme ou supprime les créneaux horaires (ex: "7h30-9h00"). Les 4 premiers créneaux comptent comme le matin, le reste comme l'après-midi (impression, planning).</p>
+          <div id="adminMuscuHoursList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input class="field" id="adminMuscuNewSlot" placeholder="ex: 18h00-19h30" style="flex:1;min-width:160px">
+            <button class="btn btn-sm btn-primary" onclick="adminAddMuscuSlot()">+ Ajouter un créneau</button>
+          </div>
+        </div>
         <div id="adminMuscuCap"></div>
         <!-- Récap paramètres créneaux muscu -->
         <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
@@ -805,6 +816,7 @@ select.field { min-width: 110px; cursor: pointer; }
         <h4 id="aTeamsTitle">🏳️ Gestion des teams</h4>
         <p id="aTeamsDesc" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
         <button class="btn btn-sm" style="margin-bottom:12px" onclick="refreshTeamsAdmin()">🔄 <span id="aTeamsRefreshBtn"></span></button>
+        <button class="btn btn-sm" style="margin-bottom:12px;color:var(--red)" onclick="adminClearMyInscriptionsHistory()">🗑️ <span id="adminClearHistBtn"></span></button>
 
         <h5 id="aTeamsCreateTitle" style="font-size:.8rem;font-weight:700;margin-bottom:8px"></h5>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -877,10 +889,40 @@ select.field { min-width: 110px; cursor: pointer; }
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <input class="field" id="adminAthFullName" placeholder="Nom complet" style="flex:1;min-width:200px">
         <input class="field" id="adminAthRole" placeholder="Rôle (ex: Athlète)" style="flex:1;min-width:160px">
+        <select class="field" id="adminAthRental" style="flex:1;min-width:160px">
+          <option value="">Pas de location</option>
+          <option value="Pyrhana">Pyrhana</option>
+          <option value="Paname S">Paname S</option>
+          <option value="Paname M">Paname M</option>
+        </select>
         <button class="btn btn-sm btn-primary" id="adminAddAthBtn" onclick="adminAddAthlete()"></button>
       </div>
       <div id="adminAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
       <div id="adminAthleteDbList" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- Point 12 : feuille de suivi / facturation, admin + référents de groupe -->
+  <div id="suiviPage" style="display:none">
+    <div class="quick-reg-card">
+      <h2>📝 Feuille de suivi des présences</h2>
+      <p class="qr-sub">Coche par personne, par jour, qui est venu sur la séance normale, le kayak cross, la location kayak cross, ou la musculation. Le total (séances + montant) se calcule automatiquement en bas.</p>
+      <div id="suiviTeamSelectWrap" style="display:none;margin-bottom:12px">
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px">Groupe / Team</label>
+        <select class="field" id="suiviTeamSelect" onchange="suiviOnTeamChange(this.value)" style="max-width:320px"></select>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <label style="font-size:.8rem;font-weight:600">Jour à cocher :</label>
+        <input type="date" class="field" id="suiviDateInput" onchange="suiviOnDateChange(this.value)" style="max-width:180px">
+      </div>
+      <div id="suiviDayGrid"></div>
+      <div style="margin-top:24px;border-top:2px solid var(--border);padding-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <h3 style="margin:0">💶 Récapitulatif / Facture du groupe</h3>
+          <button class="btn btn-sm" onclick="printSuiviInvoice()">🖨️ Imprimer la facture</button>
+        </div>
+        <div id="suiviRecap"></div>
+      </div>
     </div>
   </div>
 
@@ -1238,7 +1280,7 @@ const TR = {
     printColName:'Nom', printColRole:'Rôle', printColDossard:'N° dossard',
     printColNat:'Nationalité', printColRental:'Location kayak',
     printEmptySlot:'— aucune inscription —', printYes:'Oui', printNo:'Non',
-    printBlockedPfx:'🚫 Bloqué :',
+    printBlockedPfx:'🚫 Bloqué :', printTeamBtn:'Imprimer', printTeamMembersHdr:'Athlètes', printTeamRoleHdr:'Rôle',
     recapBtnLbl:'📊 Tableau récapitulatif',
     rcModalTitle:'📊 Tableau récapitulatif par participant',
     rcModalSub:'Musculation, Slalom, Kayak Cross et location de kayak, jour par jour.',
@@ -1277,6 +1319,9 @@ const TR = {
     teamErrAdminCreate:'Indiquez au moins un nom de team.',
     teamManagerAdded:'✅ Gestionnaire ajouté à la team.',
     aTeamsTitle:'🏳️ Gestion des teams', aTeamsRefreshBtn:'Actualiser les teams',
+    adminClearHistBtn:'Effacer l\'historique de mes inscriptions',
+    adminClearHistConfirm:'Cette action supprime définitivement toutes les inscriptions passées et à venir enregistrées sous ton compte admin (toutes teams confondues). Continuer ?',
+    adminClearHistDone:'🗑️ Historique de tes inscriptions effacé.',
     aTeamsDesc:"Créez les teams, inscrivez leurs athlètes, renommez, verrouillez ou supprimez — tout est géré ici par l'administrateur.",
     aTeamsAllTitle:'Toutes les teams', aTeamsCreateTitle:'Créer une nouvelle team',
     aTeamsCreateBtn:'✅ Créer la team',
@@ -1401,7 +1446,7 @@ const TR = {
     printColName:'Name', printColRole:'Role', printColDossard:'Bib number',
     printColNat:'Nationality', printColRental:'Kayak rental',
     printEmptySlot:'— no registration —', printYes:'Yes', printNo:'No',
-    printBlockedPfx:'🚫 Blocked:',
+    printBlockedPfx:'🚫 Blocked:', printTeamBtn:'Print', printTeamMembersHdr:'Athletes', printTeamRoleHdr:'Role',
     recapBtnLbl:'📊 Recap table',
     rcModalTitle:'📊 Recap table by participant',
     rcModalSub:'Weight room, Slalom, Kayak Cross and kayak rental, day by day.',
@@ -1440,6 +1485,9 @@ const TR = {
     teamErrAdminCreate:'Enter at least a team name.',
     teamManagerAdded:'✅ Manager added to the team.',
     aTeamsTitle:'🏳️ Teams management', aTeamsRefreshBtn:'Refresh teams',
+    adminClearHistBtn:'Clear my registration history',
+    adminClearHistConfirm:'This will permanently delete every past and upcoming registration recorded under your admin account (across all teams). Continue?',
+    adminClearHistDone:'🗑️ Your registration history has been cleared.',
     aTeamsDesc:"Create teams, register their athletes, rename, lock or delete — everything is managed here by the administrator.",
     aTeamsAllTitle:'All teams', aTeamsCreateTitle:'Create a new team',
     aTeamsCreateBtn:'✅ Create team',
@@ -1522,23 +1570,28 @@ function applyI18n(){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function setPage(page){
   if(page==='athletes' && !S.isAdmin) page='quickreg'; // onglet réservé à l'admin
+  if(page==='suivi' && !S.isAdmin && !S.myTeam) page='quickreg'; // réservé admin + référents
   S.page = page;
   const qr = document.getElementById('quickRegPanel');
   const team = document.getElementById('teamPage');
   const plan = document.getElementById('planningPage');
   const ath = document.getElementById('athletesPage');
-  if(qr)   qr.style.display   = page==='quickreg' ? 'block' : 'none';
-  if(team) team.style.display = page==='team'     ? 'block' : 'none';
-  if(plan) plan.style.display = page==='planning' ? 'block' : 'none';
-  if(ath)  ath.style.display  = page==='athletes' ? 'block' : 'none';
+  const suivi = document.getElementById('suiviPage');
+  if(qr)    qr.style.display    = page==='quickreg' ? 'block' : 'none';
+  if(team)  team.style.display  = page==='team'     ? 'block' : 'none';
+  if(plan)  plan.style.display  = page==='planning' ? 'block' : 'none';
+  if(ath)   ath.style.display   = page==='athletes' ? 'block' : 'none';
+  if(suivi) suivi.style.display = page==='suivi'    ? 'block' : 'none';
   const pbQ = document.getElementById('pbQuickReg');
   const pbT = document.getElementById('pbTeam');
   const pbP = document.getElementById('pbPlanning');
   const pbA = document.getElementById('pbAthletes');
+  const pbS = document.getElementById('pbSuivi');
   if(pbQ) pbQ.classList.toggle('active', page==='quickreg');
   if(pbT) pbT.classList.toggle('active', page==='team');
   if(pbP) pbP.classList.toggle('active', page==='planning');
   if(pbA) pbA.classList.toggle('active', page==='athletes');
+  if(pbS) pbS.classList.toggle('active', page==='suivi');
   if(page==='team'){
     renderMyTeam();
     renderTeamPage();
@@ -1552,6 +1605,11 @@ async function setPage(page){
     await loadAthletes();
     await loadTeamsData();
     renderAdminTeams();
+  }
+  if(page==='suivi' && S.session){
+    await loadAthletes();
+    await loadTeamsData();
+    await initSuiviPage();
   }
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -1659,6 +1717,241 @@ async function refreshTeamsAdmin(){
   renderAdminTeams();
 }
 
+// Efface toutes les inscriptions enregistrées sous le compte admin connecté
+// (point 10 : "effacer l'historique de mes inscriptions"). Action irréversible,
+// confirmée avant exécution, bornée au user_id de l'admin (jamais aux autres comptes).
+async function adminClearMyInscriptionsHistory(){
+  if(!S.isAdmin || !S.session) return;
+  if(!confirm(t('adminClearHistConfirm'))) return;
+  const { error } = await sb.from('inscriptions').delete().eq('user_id', S.session.user.id);
+  if(error){ toast(error.message,'error'); return; }
+  toast(t('adminClearHistDone'));
+  await load();
+  render();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// POINT 12 : FEUILLE DE SUIVI / FACTURATION DES PRÉSENCES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Nécessite une table Supabase "attendance" :
+//   create table attendance (
+//     id uuid primary key default gen_random_uuid(),
+//     team_id uuid references teams(id) on delete cascade,
+//     athlete_name text not null,
+//     date date not null,
+//     type text not null check (type in ('kayak','kayak_cross','kayak_cross_rental','muscu')),
+//     created_by uuid,
+//     created_at timestamptz default now(),
+//     unique (team_id, athlete_name, date, type)
+//   );
+// Cette table est indépendante des inscriptions en ligne : elle sert à cocher la
+// présence RÉELLE (qui est venu), pour la facturation, séance par séance.
+
+const SUIVI_PRICES = { kayak: 12, kayak_cross: 12, kayak_cross_rental: 10, muscu: 7 };
+const SUIVI_TYPES = [
+  { key:'kayak', label:'Séance normale (kayak)' },
+  { key:'kayak_cross', label:'Kayak Cross' },
+  { key:'kayak_cross_rental', label:'Location kayak Cross' },
+  { key:'muscu', label:'Musculation' },
+];
+const SUIVI = { teamId:null, date:null, rows:[] }; // rows = toutes les lignes "attendance" chargées pour la team
+
+function suiviTeamsAvailable(){
+  if(S.isAdmin) return S.teams||[];
+  return S.myTeam ? [S.myTeam] : [];
+}
+
+async function initSuiviPage(){
+  const wrap = document.getElementById('suiviTeamSelectWrap');
+  const sel = document.getElementById('suiviTeamSelect');
+  const teams = suiviTeamsAvailable();
+  if(S.isAdmin){
+    wrap.style.display = 'block';
+    const cur = sel.value;
+    sel.innerHTML = teams.map(tm=>`<option value="${tm.id}">${esc(tm.name)}</option>`).join('');
+    if(cur && teams.some(tm=>tm.id===cur)) sel.value = cur;
+    SUIVI.teamId = sel.value || (teams[0] && teams[0].id) || null;
+  } else {
+    wrap.style.display = 'none';
+    SUIVI.teamId = S.myTeam ? S.myTeam.id : null;
+  }
+  if(!SUIVI.date){
+    const today = todayClamped();
+    SUIVI.date = dk(today);
+  }
+  const dateInput = document.getElementById('suiviDateInput');
+  if(dateInput){
+    dateInput.min = dk(START); dateInput.max = dk(END);
+    dateInput.value = SUIVI.date;
+  }
+  await loadSuiviAttendance();
+  renderSuiviDayGrid();
+  renderSuiviRecap();
+}
+
+function suiviOnTeamChange(teamId){
+  SUIVI.teamId = teamId;
+  loadSuiviAttendance().then(()=>{ renderSuiviDayGrid(); renderSuiviRecap(); });
+}
+
+function suiviOnDateChange(dateVal){
+  SUIVI.date = dateVal;
+  renderSuiviDayGrid();
+}
+
+async function loadSuiviAttendance(){
+  if(!SUIVI.teamId){ SUIVI.rows = []; return; }
+  const { data, error } = await sb.from('attendance').select('*').eq('team_id', SUIVI.teamId);
+  if(error){ console.warn('loadSuiviAttendance', error.message); SUIVI.rows = []; return; }
+  SUIVI.rows = data||[];
+}
+
+function suiviCurrentTeam(){
+  const teams = suiviTeamsAvailable();
+  return teams.find(tm=>tm.id===SUIVI.teamId) || null;
+}
+
+function suiviIsChecked(name, date, type){
+  return SUIVI.rows.some(r=>r.athlete_name===name && r.date===date && r.type===type);
+}
+
+// Coche/décoche une présence pour une personne, un jour et un type de séance donné.
+// Sauvegarde immédiate (upsert/delete) dans Supabase, avec mise à jour locale optimiste.
+async function toggleSuiviAttendance(name, date, type){
+  if(!SUIVI.teamId) return;
+  const already = suiviIsChecked(name, date, type);
+  if(already){
+    SUIVI.rows = SUIVI.rows.filter(r=>!(r.athlete_name===name && r.date===date && r.type===type));
+    renderSuiviDayGrid(); renderSuiviRecap();
+    const { error } = await sb.from('attendance').delete()
+      .eq('team_id', SUIVI.teamId).eq('athlete_name', name).eq('date', date).eq('type', type);
+    if(error){ toast(error.message,'error'); await loadSuiviAttendance(); renderSuiviDayGrid(); renderSuiviRecap(); }
+  } else {
+    const optimistic = { team_id:SUIVI.teamId, athlete_name:name, date, type, created_by:S.session?S.session.user.id:null };
+    SUIVI.rows = [...SUIVI.rows, optimistic];
+    renderSuiviDayGrid(); renderSuiviRecap();
+    const { error } = await sb.from('attendance').upsert(optimistic, { onConflict:'team_id,athlete_name,date,type' });
+    if(error){ toast(error.message,'error'); await loadSuiviAttendance(); renderSuiviDayGrid(); renderSuiviRecap(); }
+  }
+}
+
+// Coche en un clic le Kayak Cross pour tout le groupe, sur le jour sélectionné
+// (point : "je préfère avoir à décocher" — plus rapide quand la majorité y participe).
+// Il suffit ensuite de décocher les quelques absents.
+async function suiviCheckAllKayakCross(){
+  const team = suiviCurrentTeam();
+  if(!team) return;
+  const members = (team.members||[]).filter(m=>m.athlete);
+  const date = SUIVI.date;
+  const toInsert = members
+    .map(m=>m.athlete.full_name)
+    .filter(name=>!suiviIsChecked(name, date, 'kayak_cross'))
+    .map(name=>({ team_id:SUIVI.teamId, athlete_name:name, date, type:'kayak_cross', created_by:S.session?S.session.user.id:null }));
+  if(!toInsert.length){ toast('Déjà coché pour tout le groupe.'); return; }
+  SUIVI.rows = [...SUIVI.rows, ...toInsert];
+  renderSuiviDayGrid();
+  renderSuiviRecap();
+  const { error } = await sb.from('attendance').upsert(toInsert, { onConflict:'team_id,athlete_name,date,type' });
+  if(error){ toast(error.message,'error'); await loadSuiviAttendance(); renderSuiviDayGrid(); renderSuiviRecap(); return; }
+  toast('✅ Kayak Cross coché pour tout le groupe — décoche les absents si besoin.');
+}
+
+function renderSuiviDayGrid(){
+  const el = document.getElementById('suiviDayGrid');
+  if(!el) return;
+  const team = suiviCurrentTeam();
+  if(!team){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Aucun groupe sélectionné.</p>`; return; }
+  const members = (team.members||[]).filter(m=>m.athlete);
+  if(!members.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Ce groupe n'a pas encore d'athlètes.</p>`; return; }
+  const date = SUIVI.date;
+  let h = `<div style="overflow-x:auto"><table class="print-sheet" style="font-size:.78rem">
+    <thead><tr><th style="text-align:left">Athlète</th>${SUIVI_TYPES.map(ty=>`<th>${esc(ty.label)}${ty.key==='kayak_cross'?`<br><button class="btn btn-sm" style="margin-top:4px;font-size:.62rem;padding:2px 6px;white-space:nowrap" onclick="suiviCheckAllKayakCross()">☑️ Tout cocher</button>`:''}</th>`).join('')}</tr></thead><tbody>`;
+  members.forEach(m=>{
+    const name = m.athlete.full_name;
+    h += `<tr><td style="text-align:left;font-weight:600">${esc(name)}</td>`;
+    SUIVI_TYPES.forEach(ty=>{
+      const checked = suiviIsChecked(name, date, ty.key);
+      h += `<td style="text-align:center"><input type="checkbox" ${checked?'checked':''} style="width:18px;height:18px;cursor:pointer" onchange="toggleSuiviAttendance('${esc(name).replace(/'/g,"\\'")}','${date}','${ty.key}')"></td>`;
+    });
+    h += `</tr>`;
+  });
+  h += `</tbody></table></div>`;
+  el.innerHTML = h;
+}
+
+// Calcule, pour chaque athlète du groupe, le nombre de séances de chaque type et
+// le montant correspondant (12€ kayak/kayak cross, 10€ location KX, 7€ muscu).
+function computeSuiviTotals(){
+  const team = suiviCurrentTeam();
+  const members = team ? (team.members||[]).filter(m=>m.athlete) : [];
+  const names = members.map(m=>m.athlete.full_name);
+  const perPerson = names.map(name=>{
+    const counts = { kayak:0, kayak_cross:0, kayak_cross_rental:0, muscu:0 };
+    SUIVI.rows.forEach(r=>{ if(r.athlete_name===name && counts[r.type]!==undefined) counts[r.type]++; });
+    const kayakSessions = counts.kayak + counts.kayak_cross; // même tarif, comptés ensemble
+    const amount = kayakSessions*SUIVI_PRICES.kayak + counts.kayak_cross_rental*SUIVI_PRICES.kayak_cross_rental + counts.muscu*SUIVI_PRICES.muscu;
+    return { name, counts, kayakSessions, amount };
+  });
+  const grand = perPerson.reduce((acc,p)=>{
+    acc.kayakSessions += p.kayakSessions;
+    acc.rental += p.counts.kayak_cross_rental;
+    acc.muscu += p.counts.muscu;
+    acc.amount += p.amount;
+    return acc;
+  }, { kayakSessions:0, rental:0, muscu:0, amount:0 });
+  return { perPerson, grand, teamName: team?team.name:'' };
+}
+
+function renderSuiviRecap(){
+  const el = document.getElementById('suiviRecap');
+  if(!el) return;
+  const { perPerson, grand, teamName } = computeSuiviTotals();
+  if(!perPerson.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Aucun athlète dans ce groupe.</p>`; return; }
+  let h = `<div style="overflow-x:auto"><table class="print-sheet" style="font-size:.8rem">
+    <thead><tr>
+      <th style="text-align:left">Athlète</th>
+      <th>Séances kayak / kayak cross (12€)</th>
+      <th>Location kayak cross (10€)</th>
+      <th>Musculation (7€)</th>
+      <th>Total</th>
+    </tr></thead><tbody>`;
+  perPerson.forEach(p=>{
+    h += `<tr>
+      <td style="text-align:left;font-weight:600">${esc(p.name)}</td>
+      <td style="text-align:center">${p.kayakSessions}</td>
+      <td style="text-align:center">${p.counts.kayak_cross_rental}</td>
+      <td style="text-align:center">${p.counts.muscu}</td>
+      <td style="text-align:right;font-weight:700">${p.amount}€</td>
+    </tr>`;
+  });
+  h += `<tr style="font-weight:800;border-top:2px solid #111">
+      <td style="text-align:left">TOTAL GROUPE${teamName?' — '+esc(teamName):''}</td>
+      <td style="text-align:center">${grand.kayakSessions}</td>
+      <td style="text-align:center">${grand.rental}</td>
+      <td style="text-align:center">${grand.muscu}</td>
+      <td style="text-align:right">${grand.amount}€</td>
+    </tr>`;
+  h += `</tbody></table></div>`;
+  el.innerHTML = h;
+}
+
+// Imprime le récapitulatif comme facture pour le groupe sélectionné.
+function printSuiviInvoice(){
+  const { perPerson, grand, teamName } = computeSuiviTotals();
+  let h = `<div class="print-section-title" style="font-size:1.1rem">💶 Facture — ${esc(teamName)}</div>`;
+  h += `<p style="font-size:.78rem;color:#555;margin:4px 0 12px">Tarifs : kayak/kayak cross 12€, location kayak cross 10€, musculation 7€ par séance.</p>`;
+  h += `<table class="print-sheet"><thead><tr>
+    <th style="text-align:left">Athlète</th><th>Kayak/KX</th><th>Location KX</th><th>Muscu</th><th>Total</th>
+  </tr></thead><tbody>`;
+  perPerson.forEach(p=>{
+    h += `<tr><td style="text-align:left">${esc(p.name)}</td><td style="text-align:center">${p.kayakSessions}</td><td style="text-align:center">${p.counts.kayak_cross_rental}</td><td style="text-align:center">${p.counts.muscu}</td><td style="text-align:right">${p.amount}€</td></tr>`;
+  });
+  h += `<tr style="font-weight:800;border-top:2px solid #111"><td style="text-align:left">TOTAL</td><td style="text-align:center">${grand.kayakSessions}</td><td style="text-align:center">${grand.rental}</td><td style="text-align:center">${grand.muscu}</td><td style="text-align:right">${grand.amount}€</td></tr>`;
+  h += `</tbody></table>`;
+  document.getElementById('printArea').innerHTML = h;
+  window.print();
+}
+
 let _approvedProfilesForTeams = [];
 async function loadApprovedProfilesForAdmin(){
   if(!S.isAdmin) return;
@@ -1679,20 +1972,34 @@ async function adminAddAthlete(){
   if(!S.isAdmin) return;
   const fullName = document.getElementById('adminAthFullName').value.trim();
   const role = document.getElementById('adminAthRole').value.trim();
+  const defaultRental = document.getElementById('adminAthRental')?.value || null;
   const msg = document.getElementById('adminAthMsg');
   if(!fullName){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrName'); } return; }
   const { error } = await sb.from('athletes').insert({
     full_name: fullName, role: role || 'Athlète',
+    default_rental: defaultRental,
     created_by: S.session ? S.session.user.id : null
   });
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
   if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamAthAdded'); }
   document.getElementById('adminAthFullName').value='';
   document.getElementById('adminAthRole').value='';
+  if(document.getElementById('adminAthRental')) document.getElementById('adminAthRental').value='';
   await loadAthletes();
   await loadTeamsData();
   renderAdminTeams();
   renderTeamPage();
+}
+
+// Modifie la location par défaut d'un athlète existant (point 9) : s'applique
+// automatiquement à ses futures inscriptions Kayak Cross, sans toucher aux
+// inscriptions déjà enregistrées.
+async function adminSetAthleteRental(athleteId, value){
+  if(!S.isAdmin) return;
+  const { error } = await sb.from('athletes').update({ default_rental: value || null }).eq('id', athleteId);
+  if(error){ toast(error.message,'error'); return; }
+  await loadAthletes();
+  renderAdminTeams();
 }
 
 async function adminDeleteAthlete(athleteId){
@@ -1714,11 +2021,19 @@ function renderAdminAthleteDbList(){
   if(!el) return;
   if(!S.athletes.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${esc(t('teamNoAthletesInDb'))}</p>`; return; }
   const sorted = [...S.athletes].sort((a,b)=> (a.full_name||'').localeCompare(b.full_name||''));
+  const rentalOpts = (cur)=>`
+    <option value="" ${!cur?'selected':''}>${t('rentalNone')}</option>
+    <option value="Pyrhana" ${cur==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
+    <option value="Paname S" ${cur==='Paname S'?'selected':''}>${t('rentalPanameS')}</option>
+    <option value="Paname M" ${cur==='Paname M'?'selected':''}>${t('rentalPanameM')}</option>`;
   el.innerHTML = `<div class="athletes-list">` + sorted.map((a,i)=>`
     <div class="ath-row">
       <span class="ath-num">${i+1}.</span>
       <span class="ath-name">${esc(a.full_name)}</span>
       ${a.role && a.role!=='Athlète' ? `<span class="slot-badge sb-mid">${esc(a.role)}</span>` : ''}
+      <select class="field" style="max-width:150px;font-size:.75rem" onchange="adminSetAthleteRental('${a.id}',this.value)">
+        ${rentalOpts(a.default_rental)}
+      </select>
       <div class="ath-actions"><button class="ath-btn del" title="${esc(t('teamRemoveBtn'))}" onclick="adminDeleteAthlete('${a.id}')">✕</button></div>
     </div>`).join('') + `</div>`;
 }
@@ -1993,6 +2308,7 @@ function renderAdminTeams(){
 
   document.getElementById('aTeamsDesc') && (document.getElementById('aTeamsDesc').textContent = t('aTeamsDesc'));
   document.getElementById('aTeamsRefreshBtn') && (document.getElementById('aTeamsRefreshBtn').textContent = t('aTeamsRefreshBtn'));
+  document.getElementById('adminClearHistBtn') && (document.getElementById('adminClearHistBtn').textContent = t('adminClearHistBtn'));
   document.getElementById('aTeamsAllTitle') && (document.getElementById('aTeamsAllTitle').textContent = t('aTeamsAllTitle'));
   document.getElementById('aTeamsCreateTitle') && (document.getElementById('aTeamsCreateTitle').textContent = t('aTeamsCreateTitle'));
   document.getElementById('aTeamsCreateBtn') && (document.getElementById('aTeamsCreateBtn').textContent = t('aTeamsCreateBtn'));
@@ -2020,6 +2336,7 @@ function renderAdminTeams(){
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
             <input class="field" id="teamNameEdit_${tm.id}" value="${esc(tm.name)}" style="flex:1;min-width:160px">
             <button class="btn btn-sm" onclick="adminRenameTeam('${tm.id}')">${esc(t('aTeamsRenameBtn'))}</button>
+            <button class="btn btn-sm" onclick="printTeamRoster('${tm.id}')">🖨️ ${t('printTeamBtn')}</button>
             <span class="slot-badge ${teamStatusBadgeClass(tm.status)}">${esc(teamStatusLabel(tm.status))}</span>
             ${locked
               ? `<button class="btn btn-sm" onclick="adminToggleTeamLock('${tm.id}', false)">${esc(t('aTeamsUnlockBtn'))}</button>`
@@ -2239,9 +2556,11 @@ async function onAuthed(session){
   const pbQ = document.getElementById('pbQuickReg');
   const pbT = document.getElementById('pbTeam');
   const pbA = document.getElementById('pbAthletes');
+  const pbS = document.getElementById('pbSuivi');
   if(pbQ) pbQ.style.display = S.isReadonly ? 'none' : '';
   if(pbT) pbT.style.display = S.isReadonly ? 'none' : '';
   if(pbA) pbA.style.display = S.isAdmin ? '' : 'none';
+  if(pbS) pbS.style.display = S.isAdmin ? '' : 'none'; // pour les non-admins, réévalué après loadTeamsData() ci-dessous
   setPage(S.isReadonly ? 'planning' : 'quickreg');
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
@@ -2256,6 +2575,10 @@ async function onAuthed(session){
   await loadConfig();
   await loadAthletes();
   await loadTeamsData();
+  if(!S.isAdmin){
+    const pbS2 = document.getElementById('pbSuivi');
+    if(pbS2) pbS2.style.display = S.myTeam ? '' : 'none'; // référent de groupe = a une team
+  }
   if(S.isAdmin) await loadApprovedProfilesForAdmin();
   let d = todayClamped();
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
@@ -2315,6 +2638,7 @@ async function saveConfig() {
     muscuCapacity:   S.muscuCapacity,
     muscuSlotConfig: S.muscuSlotConfig,
     kayakSlotConfig: S.kayakSlotConfig,
+    muscuSlots:      S.muscuSlots,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
   if(error){ console.error('saveConfig error', error); toast('Erreur sauvegarde config','error'); return; }
@@ -2338,6 +2662,7 @@ async function loadConfig() {
   if (cfg.muscuCapacity   !== undefined) S.muscuCapacity   = cfg.muscuCapacity;
   if (cfg.muscuSlotConfig !== undefined) S.muscuSlotConfig = cfg.muscuSlotConfig;
   if (cfg.kayakSlotConfig !== undefined) S.kayakSlotConfig = cfg.kayakSlotConfig;
+  if (cfg.muscuSlots !== undefined && Array.isArray(cfg.muscuSlots) && cfg.muscuSlots.length) S.muscuSlots = cfg.muscuSlots;
 }
 
 // ── Polling temps réel ────────────────────────────────────────────────
@@ -3186,6 +3511,60 @@ function renderKayakDaySlotsEditor(days){
 }
 
 // Affiche les paramètres admin de chaque créneau muscu pour le jour sélectionné
+// Édition des horaires de musculation par l'admin (point 11) : S.muscuSlots est
+// maintenant configurable et persisté dans la même config Supabase que le reste.
+function renderAdminMuscuHoursList(){
+  const el = document.getElementById('adminMuscuHoursList');
+  if(!el) return;
+  el.innerHTML = S.muscuSlots.map((slot,i)=>`
+    <div style="display:flex;gap:6px;align-items:center">
+      <span style="font-size:.72rem;color:var(--text3);width:60px">${i<4?'🌅 Matin':'🌇 Après-midi'}</span>
+      <input class="field" style="flex:1;font-size:.8rem" value="${esc(slot)}"
+        onchange="adminRenameMuscuSlot(${i}, this.value)">
+      <button class="ath-btn del" title="Supprimer" onclick="adminDeleteMuscuSlot(${i})">✕</button>
+    </div>`).join('');
+}
+
+async function adminAddMuscuSlot(){
+  if(!S.isAdmin) return;
+  const input = document.getElementById('adminMuscuNewSlot');
+  const val = (input?.value||'').trim();
+  if(!val) return;
+  if(S.muscuSlots.includes(val)){ toast('Ce créneau existe déjà','error'); return; }
+  S.muscuSlots = [...S.muscuSlots, val];
+  input.value='';
+  renderAdminMuscuHoursList();
+  await saveConfig();
+  renderMuscuSlotParams();
+  toast('✅ Créneau ajouté');
+}
+
+async function adminRenameMuscuSlot(idx, newVal){
+  if(!S.isAdmin) return;
+  const val = (newVal||'').trim();
+  if(!val){ renderAdminMuscuHoursList(); return; }
+  const old = S.muscuSlots[idx];
+  if(val===old) return;
+  const updated = [...S.muscuSlots];
+  updated[idx] = val;
+  S.muscuSlots = updated;
+  await saveConfig();
+  renderAdminMuscuHoursList();
+  renderMuscuSlotParams();
+  toast(`✅ Créneau renommé : "${old}" → "${val}" (les inscriptions déjà enregistrées gardent l'ancien nom)`);
+}
+
+async function adminDeleteMuscuSlot(idx){
+  if(!S.isAdmin) return;
+  const slot = S.muscuSlots[idx];
+  if(!confirm(`Supprimer le créneau "${slot}" ? Les inscriptions déjà enregistrées sur ce créneau resteront visibles dans l'historique, mais il ne sera plus proposé pour de nouvelles inscriptions.`)) return;
+  S.muscuSlots = S.muscuSlots.filter((_,i)=>i!==idx);
+  await saveConfig();
+  renderAdminMuscuHoursList();
+  renderMuscuSlotParams();
+  toast('🗑️ Créneau supprimé');
+}
+
 function renderMuscuSlotParams(){
   const el = document.getElementById('adminMuscuSlotParams');
   if(!el) return;
@@ -3272,6 +3651,7 @@ function renderAdmin(){
     </div>`;
   });
   document.getElementById('adminMuscuCap').innerHTML=mch;
+  renderAdminMuscuHoursList();
   renderMuscuSlotParams();
   renderKayakSlotParams();
   renderBlMiniCal();
@@ -3574,12 +3954,15 @@ function openMultiReg(preDate, preSlot, act){
   if(!S.isAdmin && S.myTeam){
     (S.myTeam.members||[]).forEach(m=>{
       if(m.athlete && !MR.knownMembers.some(km=>km.name===m.athlete.full_name)){
-        MR.knownMembers.push({ name:m.athlete.full_name, role:m.athlete.role||'Athlète' });
+        MR.knownMembers.push({ name:m.athlete.full_name, role:m.athlete.role||'Athlète', rental:m.athlete.default_rental||'' });
       }
     });
   }
   const selfName = S.profile?.full_name||S.session.user.email;
-  if(!MR.knownMembers.some(km=>km.name===selfName)) MR.knownMembers.unshift({ name:selfName, role:'Athlète' });
+  if(!MR.knownMembers.some(km=>km.name===selfName)){
+    const selfAthlete = (S.athletes||[]).find(a=>a.full_name===selfName);
+    MR.knownMembers.unshift({ name:selfName, role:'Athlète', rental:selfAthlete?.default_rental||'' });
+  }
   MR.selectedMembers.add(selfName);
 
   document.getElementById('mdregCustoms').innerHTML='';
@@ -3830,7 +4213,7 @@ function mrLoadTeamMembers(){
   members.forEach(m=>{
     const a = m.athlete;
     const already = MR.knownMembers.some(km=>km.name===a.full_name);
-    if(!already){ MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète' }); }
+    if(!already){ MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète', rental:a.default_rental||'' }); }
     if(!MR.selectedMembers.has(a.full_name)) added++;
     MR.selectedMembers.add(a.full_name);
   });
@@ -3849,7 +4232,11 @@ function renderMdregMembers(){
   el.innerHTML = MR.knownMembers.map((m,i)=>{
     const pid = 'k'+i;
     const sel = MR.selectedMembers.has(m.name);
-    const ex = MR.extras[pid]||{};
+    // Location : si l'utilisateur n'a pas encore touché le menu pour cette séance,
+    // on applique la location par défaut de l'athlète (point 9). S'il l'a modifiée
+    // (y compris pour la retirer / "Pas de location"), sa dernière valeur est gardée.
+    const touched = MR.extras[pid] && Object.prototype.hasOwnProperty.call(MR.extras[pid],'rental');
+    const effectiveRental = touched ? MR.extras[pid].rental : (m.rental||'');
     return `<div class="mdreg-member-row">
       <label class="mdreg-member${sel?' mdreg-selected':''}" onclick="mdregToggleMember('${esc(m.name)}',${i})">
         <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();mdregToggleMember('${esc(m.name)}',${i})">
@@ -3857,10 +4244,10 @@ function renderMdregMembers(){
         <span style="font-size:.72rem;color:var(--text3)">${roleDisplay(m.role)}</span>
       </label>
       ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
-        <option value="" ${!ex.rental?'selected':''}>${t('rentalNone')}</option>
-        <option value="Pyrhana" ${ex.rental==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
-        <option value="Paname S" ${ex.rental==='Paname S'?'selected':''}>${t('rentalPanameS')}</option>
-        <option value="Paname M" ${ex.rental==='Paname M'?'selected':''}>${t('rentalPanameM')}</option>
+        <option value="" ${!effectiveRental?'selected':''}>${t('rentalNone')}</option>
+        <option value="Pyrhana" ${effectiveRental==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
+        <option value="Paname S" ${effectiveRental==='Paname S'?'selected':''}>${t('rentalPanameS')}</option>
+        <option value="Paname M" ${effectiveRental==='Paname M'?'selected':''}>${t('rentalPanameM')}</option>
       </select>`:''}
     </div>`;
   }).join('');
@@ -3938,11 +4325,17 @@ async function submitMultiReg(){
   // Nationalité (musculation) : reprise automatiquement du profil du compte connecté, plus besoin de la ressaisir ici.
   const profileNationality = (S.profile?.nationality || '').trim();
   const participants = [];
+  const kxInThisReg = mrHasKayakCrossSelected();
   MR.selectedMembers.forEach(name=>{
     const i = MR.knownMembers.findIndex(m=>m.name===name);
     const member = MR.knownMembers[i];
     const ex = MR.extras['k'+i]||{};
-    participants.push({ name, role: member?.role||'Athlète', dossard:'', nationality: profileNationality, rental: ex.rental||'' });
+    // Location : valeur choisie manuellement si l'utilisateur y a touché, sinon
+    // location par défaut de l'athlète (point 9) — seulement pertinent s'il y a
+    // au moins une séance de Kayak Cross dans cette inscription (comme pour le menu affiché).
+    const touched = Object.prototype.hasOwnProperty.call(ex,'rental');
+    const rental = touched ? (ex.rental||'') : (kxInThisReg ? (member?.rental||'') : '');
+    participants.push({ name, role: member?.role||'Athlète', dossard:'', nationality: profileNationality, rental });
   });
   [...document.querySelectorAll('#mdregCustoms .group-row')].forEach(r=>{
     const id = r.id;
@@ -4189,6 +4582,26 @@ function buildAttendanceSheetHTML(dateK, act, slots, extraLabel, extraKey){
   }
   h += `</tbody></table>`;
   return h;
+}
+
+// Imprime la fiche (liste des membres) d'une team donnée — point 10.
+function printTeamRoster(teamId){
+  const tm = (S.teams||[]).find(t2=>t2.id===teamId);
+  if(!tm) return;
+  const members = tm.members||[];
+  let h = `<div class="print-section-title" style="font-size:1.1rem">👥 ${esc(tm.name)}</div>`;
+  h += `<p style="font-size:.8rem;color:#555;margin:4px 0 10px">${esc(t('aTeamsOwnerLabel'))}: ${esc(ownerDisplayName(tm.owner_user_id))}</p>`;
+  if(!members.length){
+    h += `<p class="print-empty">${t('printEmptySlot')}</p>`;
+  } else {
+    h += `<table class="print-sheet"><thead><tr><th class="ps-num-col">N°</th><th>${t('printTeamMembersHdr')}</th><th>${t('printTeamRoleHdr')}</th></tr></thead><tbody>`;
+    members.forEach((m,i)=>{
+      h += `<tr><td class="ps-num-col">${i+1}</td><td>${esc(m.athlete?.full_name||'')}</td><td>${esc(m.athlete?.role||'')}</td></tr>`;
+    });
+    h += `</tbody></table>`;
+  }
+  document.getElementById('printArea').innerHTML = h;
+  window.print();
 }
 
 function printDaySchedule(dateK, act){
