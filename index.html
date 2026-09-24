@@ -1975,13 +1975,28 @@ async function adminAddAthlete(){
   const defaultRental = document.getElementById('adminAthRental')?.value || null;
   const msg = document.getElementById('adminAthMsg');
   if(!fullName){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrName'); } return; }
-  const { error } = await sb.from('athletes').insert({
+  let { error } = await sb.from('athletes').insert({
     full_name: fullName, role: role || 'Athlète',
     default_rental: defaultRental,
     created_by: S.session ? S.session.user.id : null
   });
+  let rentalColumnMissing = false;
+  if(error && /default_rental/i.test(error.message||'')){
+    // La colonne "default_rental" n'existe pas encore côté Supabase : on ajoute
+    // quand même l'athlète (sans location par défaut) plutôt que de tout bloquer.
+    rentalColumnMissing = true;
+    ({ error } = await sb.from('athletes').insert({
+      full_name: fullName, role: role || 'Athlète',
+      created_by: S.session ? S.session.user.id : null
+    }));
+  }
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
-  if(msg){ msg.style.color='#15803d'; msg.textContent = t('teamAthAdded'); }
+  if(msg){
+    msg.style.color = rentalColumnMissing ? '#b45309' : '#15803d';
+    msg.textContent = rentalColumnMissing
+      ? "⚠️ Athlète ajouté, mais la colonne \"default_rental\" n'existe pas encore dans Supabase : la location par défaut n'a pas pu être enregistrée. Demande à ton développeur d'exécuter le SQL fourni pour activer cette fonction."
+      : t('teamAthAdded');
+  }
   document.getElementById('adminAthFullName').value='';
   document.getElementById('adminAthRole').value='';
   if(document.getElementById('adminAthRental')) document.getElementById('adminAthRental').value='';
@@ -1997,7 +2012,16 @@ async function adminAddAthlete(){
 async function adminSetAthleteRental(athleteId, value){
   if(!S.isAdmin) return;
   const { error } = await sb.from('athletes').update({ default_rental: value || null }).eq('id', athleteId);
-  if(error){ toast(error.message,'error'); return; }
+  if(error){
+    if(/default_rental/i.test(error.message||'')){
+      toast("⚠️ La colonne \"default_rental\" n'existe pas encore dans Supabase — impossible d'enregistrer la location par défaut pour l'instant. Vois avec ton développeur pour l'ajouter (SQL fourni).", 'error');
+    } else {
+      toast(error.message,'error');
+    }
+    await loadAthletes();
+    renderAdminTeams();
+    return;
+  }
   await loadAthletes();
   renderAdminTeams();
 }
