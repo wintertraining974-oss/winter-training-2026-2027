@@ -1052,6 +1052,11 @@ select.field { min-width: 110px; cursor: pointer; }
     <h3>👤 Mon profil</h3>
     <p id="profileEmailLine" style="margin-bottom:10px"></p>
     <div style="max-height:240px;overflow:auto" id="profileRegList"></div>
+    <div id="profileTeamContactWrap" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+      <h4 style="margin-bottom:6px;font-size:.9rem">📇 Coordonnées de mon groupe / club</h4>
+      <p style="font-size:.75rem;color:var(--text3);margin-bottom:8px">Ces informations apparaîtront sur la facture générée dans la feuille de suivi.</p>
+      <div id="profileTeamContactForm"></div>
+    </div>
     <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
     <div>
       <h4 style="margin-bottom:10px;font-size:.9rem">🔒 Changer mon mot de passe</h4>
@@ -1896,15 +1901,32 @@ function computeSuiviTotals(){
     acc.amount += p.amount;
     return acc;
   }, { kayakSessions:0, rental:0, muscu:0, amount:0 });
-  return { perPerson, grand, teamName: team?team.name:'' };
+  return { perPerson, grand, teamName: team?team.name:'', contact: team?(team.contact_info||{}):{} };
+}
+
+// Formatte le bloc coordonnées (référent/club/groupe/adresse/tel/email) pour
+// affichage dans le récap ou la facture imprimée.
+function suiviContactBlockHtml(contact){
+  const c = contact||{};
+  const addrParts = [c.street, [c.postal_code, c.city].filter(Boolean).join(' '), c.country].filter(Boolean);
+  const lines = [];
+  if(c.referent) lines.push(`👤 Référent : ${esc(c.referent)}`);
+  if(c.club) lines.push(`🏳️ Club : ${esc(c.club)}`);
+  if(c.groupe) lines.push(`👥 Groupe : ${esc(c.groupe)}`);
+  if(addrParts.length) lines.push(`📍 ${esc(addrParts.join(', '))}`);
+  if(c.phone) lines.push(`📞 ${esc(c.phone)}`);
+  if(c.email) lines.push(`✉️ ${esc(c.email)}`);
+  if(!lines.length) return '';
+  return `<div style="font-size:.8rem;color:#444;margin-bottom:12px;line-height:1.6">${lines.join('<br>')}</div>`;
 }
 
 function renderSuiviRecap(){
   const el = document.getElementById('suiviRecap');
   if(!el) return;
-  const { perPerson, grand, teamName } = computeSuiviTotals();
+  const { perPerson, grand, teamName, contact } = computeSuiviTotals();
   if(!perPerson.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Aucun athlète dans ce groupe.</p>`; return; }
-  let h = `<div style="overflow-x:auto"><table class="print-sheet" style="font-size:.8rem">
+  let h = suiviContactBlockHtml(contact);
+  h += `<div style="overflow-x:auto"><table class="print-sheet" style="font-size:.8rem">
     <thead><tr>
       <th style="text-align:left">Athlète</th>
       <th>Séances kayak / kayak cross (12€)</th>
@@ -1934,8 +1956,9 @@ function renderSuiviRecap(){
 
 // Imprime le récapitulatif comme facture pour le groupe sélectionné.
 function printSuiviInvoice(){
-  const { perPerson, grand, teamName } = computeSuiviTotals();
+  const { perPerson, grand, teamName, contact } = computeSuiviTotals();
   let h = `<div class="print-section-title" style="font-size:1.1rem">💶 Facture — ${esc(teamName)}</div>`;
+  h += suiviContactBlockHtml(contact);
   h += `<p style="font-size:.78rem;color:#555;margin:4px 0 12px">Tarifs : kayak/kayak cross 12€, location kayak cross 10€, musculation 7€ par séance.</p>`;
   h += `<table class="print-sheet"><thead><tr>
     <th style="text-align:left">Athlète</th><th>Kayak/KX</th><th>Location KX</th><th>Muscu</th><th>Total</th>
@@ -2070,6 +2093,61 @@ function renderAthleteDbList(){
       <span class="ath-name">${esc(a.full_name)}</span>
       ${a.role && a.role!=='Athlète' ? `<span class="slot-badge sb-mid">${esc(a.role)}</span>` : ''}
     </div>`).join('') + `</div>`;
+}
+
+// Construit le formulaire de coordonnées (référent, club, groupe, adresse, tel, email)
+// pour une team donnée, partagé entre la vue admin et "Mon profil" (côté référent).
+// idPrefix permet d'avoir des IDs uniques selon le contexte (admin vs profil).
+function teamContactFormHtml(tm, idPrefix){
+  const c = tm.contact_info || {};
+  const f = (key, ph) => `<input class="field" id="${idPrefix}_${key}_${tm.id}" placeholder="${esc(ph)}" value="${esc(c[key]||'')}" style="flex:1;min-width:150px">`;
+  return `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      ${f('referent','Nom du référent')}
+      ${f('club','Club')}
+      ${f('groupe','Groupe')}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      ${f('street','Adresse (rue)')}
+      ${f('postal_code','Code postal')}
+      ${f('city','Ville')}
+      ${f('country','Pays')}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      ${f('phone','Téléphone')}
+      ${f('email','Email')}
+    </div>
+    <button class="btn btn-sm btn-primary" onclick="saveTeamContactInfo('${tm.id}','${idPrefix}')">💾 Enregistrer les coordonnées</button>
+    <span id="${idPrefix}_contactMsg_${tm.id}" style="font-size:.75rem;margin-left:8px"></span>`;
+}
+
+// Sauvegarde les coordonnées de la team (référent/club/groupe/adresse/tel/email) dans
+// teams.contact_info (JSONB). Utilisable par l'admin ET par le référent de la team
+// depuis son profil — même source de données, jamais dupliquée.
+async function saveTeamContactInfo(teamId, idPrefix){
+  const keys = ['referent','club','groupe','street','postal_code','city','country','phone','email'];
+  const contact = {};
+  keys.forEach(k=>{
+    const el = document.getElementById(`${idPrefix}_${k}_${teamId}`);
+    contact[k] = el ? el.value.trim() : '';
+  });
+  const msgEl = document.getElementById(`${idPrefix}_contactMsg_${teamId}`);
+  const { error } = await sb.from('teams').update({ contact_info: contact }).eq('id', teamId);
+  if(error){
+    const missing = /contact_info/i.test(error.message||'');
+    const text = missing
+      ? "⚠️ La colonne \"contact_info\" n'existe pas encore dans Supabase (table teams)."
+      : error.message;
+    if(msgEl){ msgEl.style.color='var(--red)'; msgEl.textContent = text; } else toast(text,'error');
+    return;
+  }
+  if(msgEl){ msgEl.style.color='#15803d'; msgEl.textContent = '✅ Enregistré'; setTimeout(()=>{ if(msgEl) msgEl.textContent=''; }, 2500); }
+  await loadTeamsData();
+  if(S.isAdmin) renderAdminTeams();
+  if(idPrefix==='myteam' && S.myTeam){
+    const contactForm = document.getElementById('profileTeamContactForm');
+    if(contactForm) contactForm.innerHTML = teamContactFormHtml(S.myTeam, 'myteam');
+  }
 }
 
 function teamStatusLabel(status){
@@ -2383,6 +2461,10 @@ function renderAdminTeams(){
           <div style="margin-top:8px">
             ${teamAthPickerHtml(tm)}
           </div>
+          <details style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+            <summary style="cursor:pointer;font-weight:700;font-size:.82rem">📇 Coordonnées (référent, club, adresse, contact)</summary>
+            <div style="margin-top:8px">${teamContactFormHtml(tm,'admin')}</div>
+          </details>
         </div>
       </div>`;
     }).join('') : `<p style="color:var(--text3);font-size:.85rem">${esc(t('aTeamsNoTeams'))}</p>`;
@@ -4532,6 +4614,14 @@ function openProfile(){
         </div>
         <button class="ath-btn del" onclick="removeAthlete('${a.dateK}','${a.slot}',${a.idx},'${a.act}'); openProfile();">✕ Annuler</button>
       </div>`).join('');
+  }
+  const contactWrap = document.getElementById('profileTeamContactWrap');
+  const contactForm = document.getElementById('profileTeamContactForm');
+  if(!S.isAdmin && S.myTeam && contactWrap && contactForm){
+    contactWrap.style.display = 'block';
+    contactForm.innerHTML = teamContactFormHtml(S.myTeam, 'myteam');
+  } else if(contactWrap){
+    contactWrap.style.display = 'none';
   }
   document.getElementById('profileModal').classList.add('show');
 }
