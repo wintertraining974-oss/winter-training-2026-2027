@@ -3998,7 +3998,10 @@ function openMultiReg(preDate, preSlot, act){
   document.getElementById('qrMuscuSlots').style.display = MR.activity==='muscu'?'block':'none';
   // Ajout libre d'un participant : réservé à l'admin (les référents ne choisissent que dans la base athlètes)
   const addPersonBtn = document.getElementById('qrAddPerson');
-  if(addPersonBtn) addPersonBtn.style.display = S.isAdmin ? 'inline-block' : 'none';
+  // Bouton "+ Ajouter une autre personne" retiré : on ne peut plus inscrire un
+  // athlète en texte libre, même en admin, pour éviter erreurs de saisie et doublons.
+  // Seuls les athlètes déjà présents dans la base (liste déroulante) peuvent être choisis.
+  if(addPersonBtn) addPersonBtn.style.display = 'none';
   renderMdregWeek();
   renderMdregSlots(preDate);
   renderMdregMembers();
@@ -4287,26 +4290,9 @@ function mdregToggleMember(name, idx){
 }
 
 function mdregAddCustom(){
-  const id = 'mc'+(MR.customCounter++);
-  const wrap = document.getElementById('mdregCustoms');
-  const row = document.createElement('div');
-  row.className = 'group-row mdreg-custom-row'; row.id = id;
-  row.style.marginTop = '6px';
-  const showRental = mrHasKayakCrossSelected();
-  row.innerHTML = `
-    <input class="field" type="text" id="n-${id}" placeholder="${t('namePH')}" oninput="updateMdregSummary()">
-    <select class="field" id="r-${id}">
-      <option value="Athlète">${t('roleAth')}</option>
-      <option value="Encadrant">${t('roleCoach')}</option>
-    </select>
-    ${showRental?`<select class="field mdreg-extra" id="rent-${id}">
-      <option value="">${t('rentalNone')}</option>
-      <option value="Pyrhana">${t('rentalPyrhana')}</option>
-      <option value="Paname S">${t('rentalPanameS')}</option>
-      <option value="Paname M">${t('rentalPanameM')}</option>
-    </select>`:''}
-    <button class="ath-btn del" onclick="document.getElementById('${id}').remove();updateMdregSummary()">✕</button>`;
-  wrap.appendChild(row);
+  // Désactivé : plus d'ajout de participant en texte libre (évite erreurs de saisie
+  // et doublons). Seuls les athlètes déjà dans la base peuvent être sélectionnés.
+  return;
 }
 
 function updateMdregSummary(){
