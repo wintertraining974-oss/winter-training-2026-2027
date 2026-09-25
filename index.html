@@ -1572,7 +1572,7 @@ function applyI18n(){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function setPage(page){
   if(page==='athletes' && !S.isAdmin) page='quickreg'; // onglet réservé à l'admin
-  if(page==='suivi' && !S.isAdmin && !S.myTeam) page='quickreg'; // réservé admin + référents
+  if(page==='suivi' && !S.isAdmin) page='quickreg'; // réservé à l'admin uniquement
   S.page = page;
   const qr = document.getElementById('quickRegPanel');
   const team = document.getElementById('teamPage');
@@ -2663,7 +2663,7 @@ async function onAuthed(session){
   if(pbQ) pbQ.style.display = S.isReadonly ? 'none' : '';
   if(pbT) pbT.style.display = S.isReadonly ? 'none' : '';
   if(pbA) pbA.style.display = S.isAdmin ? '' : 'none';
-  if(pbS) pbS.style.display = S.isAdmin ? '' : 'none'; // pour les non-admins, réévalué après loadTeamsData() ci-dessous
+  if(pbS) pbS.style.display = S.isAdmin ? '' : 'none'; // réservé à l'admin uniquement
   setPage(S.isReadonly ? 'planning' : 'quickreg');
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
@@ -2678,10 +2678,6 @@ async function onAuthed(session){
   await loadConfig();
   await loadAthletes();
   await loadTeamsData();
-  if(!S.isAdmin){
-    const pbS2 = document.getElementById('pbSuivi');
-    if(pbS2) pbS2.style.display = S.myTeam ? '' : 'none'; // référent de groupe = a une team
-  }
   if(S.isAdmin) await loadApprovedProfilesForAdmin();
   let d = todayClamped();
   while((isClosed(d)||outOfRange(d))&&d<END) d.setDate(d.getDate()+1);
