@@ -706,11 +706,6 @@ select.field { min-width: 110px; cursor: pointer; }
         <div class="closed-list" id="adminClosedList"></div>
       </div>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
-      <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
-      <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
-      <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
-    </div>
 
     <!-- Horaires personnalisés par jour -->
     <div class="admin-card" style="margin-top:16px">
@@ -904,6 +899,11 @@ select.field { min-width: 110px; cursor: pointer; }
     <div class="quick-reg-card">
       <h2>📝 Feuille de suivi des présences</h2>
       <p class="qr-sub">Coche par personne, par jour, qui est venu sur la séance normale, le kayak cross, la location kayak cross, ou la musculation. Le total (séances + montant) se calcule automatiquement en bas.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
+        <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
+        <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
+      </div>
       <div id="suiviTeamSelectWrap" style="display:none;margin-bottom:12px">
         <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px">Groupe / Team</label>
         <select class="field" id="suiviTeamSelect" onchange="suiviOnTeamChange(this.value)" style="max-width:320px"></select>
