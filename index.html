@@ -592,6 +592,14 @@ select.field { min-width: 110px; cursor: pointer; }
         <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrTeamHint"></p>
       </div>
       <div id="mdregMembers"></div>
+      <div id="qrOtherWrap" style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm)">
+        <div style="font-size:.78rem;font-weight:600;margin-bottom:6px">➕ Ajouter une personne d'un autre groupe (base athlètes)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input class="field" id="qrOtherInput" list="qrOtherList" placeholder="Tape un nom…" style="flex:1;min-width:200px" autocomplete="off">
+          <datalist id="qrOtherList"></datalist>
+          <button class="btn btn-sm btn-primary" type="button" onclick="mdregAddOther()">Ajouter</button>
+        </div>
+      </div>
       <button class="btn btn-sm" style="margin-top:6px" id="qrAddPerson" onclick="mdregAddCustom()"></button>
       <div id="mdregCustoms"></div>
     </div>
@@ -4331,6 +4339,7 @@ function mrLoadTeamMembers(){
 
 function renderMdregMembers(){
   const el = document.getElementById('mdregMembers');
+  refreshOtherAthletesList();
   const showRental = mrHasKayakCrossSelected();
   if(!MR.knownMembers.length){
     el.innerHTML = `<p style="font-size:.8rem;color:var(--text3)">${t('qrNoMembers')}</p>`;
@@ -4358,6 +4367,32 @@ function renderMdregMembers(){
       </select>`:''}
     </div>`;
   }).join('');
+}
+
+
+// Ajout d'une personne de la base athlètes (même d'un autre groupe) : choix uniquement parmi les noms existants.
+function refreshOtherAthletesList(){
+  const dl = document.getElementById('qrOtherList');
+  if(!dl) return;
+  if(!(S.athletes||[]).length && S.session && !S._athLoading){ S._athLoading=true; loadAthletes().then(()=>{ S._athLoading=false; refreshOtherAthletesList(); }); return; }
+  const have = new Set(MR.knownMembers.map(m=>m.name.trim().toLowerCase()));
+  dl.innerHTML = (S.athletes||[])
+    .filter(a=>a.full_name && !have.has(a.full_name.trim().toLowerCase()))
+    .map(a=>`<option value="${esc(a.full_name)}"></option>`).join('');
+}
+function mdregAddOther(){
+  const inp = document.getElementById('qrOtherInput');
+  const v = (inp?.value||'').trim().toLowerCase();
+  if(!v) return;
+  const a = (S.athletes||[]).find(x=>(x.full_name||'').trim().toLowerCase()===v);
+  if(!a){ toast("Nom introuvable dans la base : choisis un nom proposé dans la liste.",'error'); return; }
+  if(!MR.knownMembers.some(m=>m.name===a.full_name)){
+    MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète', rental:a.default_rental||'' });
+  }
+  MR.selectedMembers.add(a.full_name);
+  inp.value='';
+  renderMdregMembers();
+  updateMdregSummary();
 }
 
 function mdregToggleMember(name, idx){
@@ -4439,6 +4474,7 @@ async function submitMultiReg(){
   const referentName = S.profile?.full_name || S.session.user.email;
   const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
   let created = 0, skipped = 0;
+  const duplicates = [];
   const errors = [];
 
   // Débordement : si le groupe est plus grand que les places restantes, proposer d'ouvrir le créneau
@@ -4485,9 +4521,15 @@ async function submitMultiReg(){
       if(act==='kayak' && getKayakSlotCfg(dateK, slot).blocked){ skipped++; continue; }
       // Vérifier places disponibles
       const free = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
-      const toAdd = (allowOverflow && free >= 0) ? participants.slice() : participants.slice(0, free);
+      // Doublons : une personne déjà inscrite dans cette catégorie ce jour-là est ignorée
+      const eligible = participants.filter(p=>{
+        if(alreadyRegisteredInCategory(dateK, slot, act, p.name)){ duplicates.push(`${p.name} (${dateK} ${slot})`); return false; }
+        return true;
+      });
+      if(!eligible.length){ continue; }
+      const toAdd = (allowOverflow && free >= 0) ? eligible.slice() : eligible.slice(0, free);
       if(!toAdd.length){ skipped++; continue; }
-      if(toAdd.length < participants.length) skipped += participants.length - toAdd.length;
+      if(toAdd.length < eligible.length) skipped += eligible.length - toAdd.length;
 
       const kx = act==='kayak' ? isKayakCross(dateK, slot) : false;
       const payload = toAdd.map(p=>({
@@ -4516,12 +4558,13 @@ async function submitMultiReg(){
 
   resetMultiReg();
   if(act==='muscu'){ renderMuscuDayPanel(); } else { renderDayPanel(); renderCal(); }
+  if(duplicates.length) setTimeout(()=>toast('⚠️ Déjà inscrit(e) sur ce type de séance ce jour-là, ignoré(e) : '+duplicates.slice(0,6).join(', ')+(duplicates.length>6?'…':''),'error'),300);
   if(created > 0){
     const skipTxt = skipped ? t('qrSkippedTpl').replace('{n}',skipped) : '';
     toast(t('qrCreatedTpl').replace('{n}',created).replace('{skip}',skipTxt),'success');
   } else if(errors.length){
     toast(`❌ Erreur serveur (${errors[0].dateK} ${errors[0].slot}) : ${errors[0].message}`,'error');
-  } else {
+  } else if(!duplicates.length){
     toast(t('qrNoneCreatedTpl').replace('{n}',skipped),'error');
   }
 }
@@ -4940,6 +4983,25 @@ function renderAuthPreview(){
 }
 
 
+
+// ── Règle : 1 inscription max par personne et par jour pour chaque catégorie
+// (matin, après-midi, kayak cross, muscu) ──
+function slotCategory(dateK, slot, act){
+  if(act==='muscu') return 'muscu';
+  if(isKayakCross(dateK, slot)) return 'kx';
+  return morningSlots(dateK).includes(slot) ? 'morning' : 'afternoon';
+}
+function alreadyRegisteredInCategory(dateK, slot, act, name){
+  const cat = slotCategory(dateK, slot, act);
+  const nm = String(name||'').trim().toLowerCase();
+  const slots = act==='muscu' ? S.muscuSlots : allSlots(dateK);
+  for(const sl of slots){
+    if(slotCategory(dateK, sl, act)!==cat) continue;
+    if(getSlot(dateK, sl, act).some(r=>String(r.name||'').trim().toLowerCase()===nm)) return true;
+  }
+  return false;
+}
+
 // ── Demande de créneau suivant (créneau plein) + validation WhatsApp ──
 const ADMIN_WHATSAPP = '262693540455';
 function nextSlotAfter(dateK, slot, act){
@@ -4957,6 +5019,8 @@ async function requestNextSlot(dateK, slot, act='kayak'){
   if(raw===null) return;
   const names = raw.split(',').map(x=>x.trim()).filter(Boolean);
   if(!names.length){ toast('Indique au moins un nom.','error'); return; }
+  const dupReq = names.filter(n=>alreadyRegisteredInCategory(dateK, next, act, n));
+  if(dupReq.length){ toast('Déjà inscrit(e) sur ce type de séance ce jour-là : '+dupReq.join(', '),'error'); return; }
   const requester = S.profile?.full_name || S.session.user.email;
   try{
     const { error } = await sb.from('slot_requests').insert({
@@ -4991,6 +5055,8 @@ async function acceptSlotRequest(id){
   const { data:r, error } = await sb.from('slot_requests').select('*').eq('id',id).single();
   if(error||!r){ toast('Demande introuvable.','error'); return; }
   const act = r.activity||'kayak';
+  const dups = r.names.filter(n=>alreadyRegisteredInCategory(r.date, r.to_creneau, act, n));
+  if(dups.length){ toast('❌ Déjà inscrit(e) sur ce type de séance ce jour-là : '+dups.join(', ')+'. Refuse ou corrige la demande.','error'); return; }
   const free = cap(r.to_creneau, r.date, act) - getSlot(r.date, r.to_creneau, act).length;
   if(r.names.length > free && !confirm(`Il reste ${Math.max(free,0)} place(s) sur ${r.to_creneau}, ${r.names.length} demandée(s). Ouvrir le créneau et inscrire tout le monde ?`)) return;
   const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
