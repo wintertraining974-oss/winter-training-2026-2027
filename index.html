@@ -4704,6 +4704,7 @@ function updateMuscuCap(slot,val){ S.muscuCapacity[slot]=Math.max(1,parseInt(val
 // + colonne "Location kayak" (Pyrhana / Paname S / Paname M à cocher) pour les créneaux Kayak Cross.
 // Lignes numérotées de 1 à la capacité max du créneau (les inscrits d'abord, puis lignes vides jusqu'au max — pour écrire les athlètes à la main).
 function buildAttendanceSheetHTML(dateK, act, slots, extraLabel, extraKey){
+  slots = [...(slots||[])].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)); // ordre chronologique à l'impression
   if(!slots.length) return `<p class="print-empty">${t('printEmptySlot')}</p>`;
   const getCfg = s => act==='kayak' ? getKayakSlotCfg(dateK,s) : getMuscuSlotCfg(dateK,s);
   // Les créneaux bloqués n'ont pas d'inscriptions possibles : inutile d'imprimer des
@@ -4771,7 +4772,7 @@ function printTeamRoster(teamId){
 // imprimée soit lisible indépendamment (point : chaque feuille doit porter la date).
 function printSectionSubtitle(dateStr, dateK, act, slots){
   const getCfg = s => act==='kayak' ? getKayakSlotCfg(dateK,s) : getMuscuSlotCfg(dateK,s);
-  const openSlots = (slots||[]).filter(s=>!getCfg(s).blocked);
+  const openSlots = [...(slots||[])].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)).filter(s=>!getCfg(s).blocked);
   const horaires = openSlots.length ? openSlots.join(', ') : '—';
   return `<div class="print-sub">${esc(dateStr)}</div><div class="print-sub" style="font-size:.78rem;font-weight:600">🕐 ${esc(horaires)}</div>`;
 }
