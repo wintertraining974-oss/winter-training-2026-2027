@@ -2852,7 +2852,7 @@ function afternoonSlots(dateK){
 // Renvoie l'heure de début d'un créneau en minutes, pour un tri chronologique
 // correct (et non alphabétique : "10h-11h" ne doit pas passer avant "7h-8h").
 function slotStartMinutes(slot){
-  const m = String(slot).match(/^(\d{1,2})h(\d{2})?/);
+  const m = String(slot).trim().match(/^(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i);
   if(!m) return 0;
   return parseInt(m[1],10)*60 + (m[2]?parseInt(m[2],10):0);
 }
