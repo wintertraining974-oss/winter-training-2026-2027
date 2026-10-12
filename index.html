@@ -3852,6 +3852,8 @@ function renderPlanningGrid(){
   html += `<div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">🖨️ Print week (aperçu compact)</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
+    ${S.session?`<button class="btn btn-sm" style="background:#1a73e8;color:white" onclick="exportMyCalendar()">📅 Google Agenda (.ics)</button>`:''}
+    ${S.session?`<button class="btn btn-sm" style="background:#1a73e8;color:white" onclick="copyCalendarFeed()">🔄 Lien d'abonnement automatique</button>`:''}
   </div>`;
 
   // Tableau
@@ -4984,6 +4986,64 @@ function renderAuthPreview(){
 }
 
 
+
+
+// ── Export Google Agenda / iCal : toutes mes inscriptions (celles faites avec mon compte) ──
+function slotTimes(slot){
+  const r = String(slot).match(/(\d{1,2})\s*(?:h|:)\s*(\d{2})?\s*[-–à]\s*(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i);
+  if(!r) return null;
+  const pad=n=>String(n).padStart(2,'0');
+  return { s:`${pad(r[1])}${pad(r[2]||0)}00`, e:`${pad(r[3])}${pad(r[4]||0)}00` };
+}
+function icsEsc(x){ return String(x||'').replace(/\\/g,'\\\\').replace(/;/g,'\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+function exportMyCalendar(){
+  if(!S.session){ toast('Connecte-toi.','error'); return; }
+  const me = S.session.user.id;
+  const today = dk(new Date());
+  const events = [];
+  const scan = (store, act)=>{
+    Object.keys(store||{}).forEach(dateK=>{
+      if(dateK < today) return;
+      Object.keys(store[dateK]||{}).forEach(slot=>{
+        const mine = (store[dateK][slot]||[]).filter(r=>r.user_id===me);
+        if(!mine.length) return;
+        const tm = slotTimes(slot); if(!tm) return;
+        events.push({ dateK, slot, act, tm, names: mine.map(r=>r.name) });
+      });
+    });
+  };
+  scan(S.data,'kayak'); scan(S.muscuData,'muscu');
+  if(!events.length){ toast('Aucune inscription à venir avec ton compte.','error'); return; }
+  const stamp = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z');
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Winter Training Reunion//FR','CALSCALE:GREGORIAN','X-WR-CALNAME:Winter Training Réunion','X-WR-TIMEZONE:Indian/Reunion'];
+  events.forEach(ev=>{
+    const d = ev.dateK.replace(/-/g,'');
+    const kx = ev.act==='kayak' && isKayakCross(ev.dateK, ev.slot);
+    const title = (ev.act==='muscu' ? '🏋️ Muscu' : (kx ? '🏄 Kayak Cross' : '🚣 Kayak')) + ' ' + ev.slot;
+    lines.push('BEGIN:VEVENT',
+      `UID:wt-${ev.act}-${ev.dateK}-${ev.slot.replace(/\W/g,'')}-${me}@winter-training`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;TZID=Indian/Reunion:${d}T${ev.tm.s}`,
+      `DTEND;TZID=Indian/Reunion:${d}T${ev.tm.e}`,
+      `SUMMARY:${icsEsc(title)}`,
+      `DESCRIPTION:${icsEsc('Inscrits : '+ev.names.join(', '))}`,
+      'END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'winter-training.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(`📅 ${events.length} séance(s) exportée(s). Importe le fichier dans Google Agenda.`,'success');
+}
+
+
+function copyCalendarFeed(){
+  const link = `${SUPABASE_URL}/functions/v1/calendar-feed?u=${S.session.user.id}`;
+  const done = ()=>toast("🔄 Lien copié. Google Agenda › Autres agendas › + › À partir de l'URL › colle le lien.",'success');
+  if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(link).then(done).catch(()=>prompt('Copie ce lien :',link)); }
+  else prompt('Copie ce lien :',link);
+}
 
 // ── Règle : 1 inscription max par personne et par jour pour chaque catégorie
 // (matin, après-midi, kayak cross, muscu) ──
