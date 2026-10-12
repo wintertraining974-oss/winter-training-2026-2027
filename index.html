@@ -904,6 +904,7 @@ select.field { min-width: 110px; cursor: pointer; }
         <button class="export-btn" style="background:#1d4ed8" onclick="openAdminUsers()">👥 Récap utilisateurs</button>
         <button class="export-btn" style="background:#7c3aed" onclick="openAccessRequests()">🔐 Demandes d'accès <span id="pendingBadge" style="display:none;background:white;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px"></span></button>
       </div>
+      <div id="slotRequestsBox" style="margin-bottom:16px"></div>
       <div id="suiviTeamSelectWrap" style="display:none;margin-bottom:12px">
         <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px">Groupe / Team</label>
         <select class="field" id="suiviTeamSelect" onchange="suiviOnTeamChange(this.value)" style="max-width:320px"></select>
@@ -1264,6 +1265,8 @@ const TR = {
     qrFullTitle:'Complet', qrFullLabel:' (complet)',
     qrErrDay:'Sélectionnez au moins un jour.', qrErrSlot:'Sélectionnez au moins un créneau.',
     qrErrPart:'Sélectionnez au moins un participant.',
+    ovPlaces:'place(s) restante(s)',
+    ovConfirm:"Vous êtes {n} mais il ne reste pas assez de places sur ces créneaux. Ouvrir les créneaux (dépassement de capacité) et inscrire tout le groupe ?\n(Annuler = inscrire seulement jusqu'à la limite)",
     qrPairMismatch:'2e séance dans la journée : tu dois choisir le même rang de créneau que le matin/l\'après-midi (1er = 1er, 2e = 2e, etc.).',
     qrCreatedTpl:'✅ {n} inscription(s) créée(s){skip}',
     qrSkippedTpl:', {n} ignorée(s) (priorité/complet/fermé)',
@@ -1430,6 +1433,8 @@ const TR = {
     qrFullTitle:'Full', qrFullLabel:' (full)',
     qrErrDay:'Select at least one day.', qrErrSlot:'Select at least one session.',
     qrErrPart:'Select at least one participant.',
+    ovPlaces:'place(s) left',
+    ovConfirm:"You are {n} but there are not enough places on these slots. Open the slots (over capacity) and register the whole group?\n(Cancel = register only up to the limit)",
     qrPairMismatch:'2nd session that day: you must pick the same rank of session as your morning/afternoon pick (1st = 1st, 2nd = 2nd, etc.).',
     qrCreatedTpl:'✅ {n} registration(s) created{skip}',
     qrSkippedTpl:', {n} skipped (priority/full/closed)',
@@ -1594,6 +1599,7 @@ async function setPage(page){
   if(pbP) pbP.classList.toggle('active', page==='planning');
   if(pbA) pbA.classList.toggle('active', page==='athletes');
   if(pbS) pbS.classList.toggle('active', page==='suivi');
+  if(page==='suivi' && S.isAdmin && typeof refreshPendingBadge==='function'){ try{ refreshPendingBadge(); }catch(e){} try{ renderSlotRequests(); }catch(e){} }
   if(page==='team'){
     renderMyTeam();
     renderTeamPage();
@@ -3150,12 +3156,11 @@ function renderSlot(dateK,slot,act='kayak'){
         const alreadyWaiting = S.session && wl.find(e=>e.user_id===S.session.user.id);
         h+=`<div class="add-form">
           <span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span>
-          ${S.session && !alreadyWaiting && !S.isReadonly ? `<button class="btn btn-sm" style="margin-left:8px" onclick="joinWaitlist('${dateK}','${slot}')">⏳ Liste d'attente</button>` : ''}
-          ${alreadyWaiting ? `<span style="font-size:.75rem;color:#92400e;margin-left:8px">⏳ Tu es sur liste d'attente</span>` : ''}
-          ${wl.length ? `<span style="font-size:.72rem;color:var(--text3);margin-left:6px">${wl.length} en attente</span>` : ''}
+          ${S.session && !S.isReadonly && !S.isAdmin ? `<button class="btn btn-sm" style="margin-left:8px" onclick="requestNextSlot('${dateK}','${slot}','kayak')">📲 Demander le créneau suivant</button>` : ''}
         </div>`;
       } else {
-        h+=`<div class="add-form"><span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span></div>`;
+        h+=`<div class="add-form"><span style="color:var(--red);font-size:.8rem;font-weight:600">🔴 ${t('slotFull')}</span>
+          ${S.session && !S.isReadonly && !S.isAdmin ? `<button class="btn btn-sm" style="margin-left:8px" onclick="requestNextSlot('${dateK}','${slot}','muscu')">📲 Demander le créneau suivant</button>` : ''}</div>`;
       }
       h+=`<div class="full-msg">${t('fullMsg')}</div>`;
     }
@@ -4436,6 +4441,27 @@ async function submitMultiReg(){
   let created = 0, skipped = 0;
   const errors = [];
 
+  // Débordement : si le groupe est plus grand que les places restantes, proposer d'ouvrir le créneau
+  const overflowList = [];
+  for(const dateK of days){
+    for(const slot of (MR.daySlots[dateK]||[])){
+      const dt0 = new Date(dateK+'T12:00:00');
+      if(isClosed(dt0)||outOfRange(dt0)) continue;
+      const ds0 = act==='muscu' ? S.muscuSlots : allSlots(dateK);
+      if(!ds0.includes(slot)) continue;
+      if(act==='kayak' && !S.isAdmin && isLocked(dateK, slot)) continue;
+      if(act==='muscu' && getMuscuSlotCfg(dateK, slot).blocked) continue;
+      if(act==='kayak' && getKayakSlotCfg(dateK, slot).blocked) continue;
+      const fr0 = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
+      if(fr0 >= 0 && fr0 < participants.length) overflowList.push({dateK, slot, free: fr0});
+    }
+  }
+  let allowOverflow = false;
+  if(overflowList.length){
+    const lines = overflowList.map(o=>`• ${o.dateK} ${o.slot} — ${o.free} ${t('ovPlaces')}`).join('\n');
+    allowOverflow = confirm(t('ovConfirm').replace('{n}',participants.length) + '\n\n' + lines);
+  }
+
   // Itérer sur chaque combinaison jour × créneau (propre à ce jour) × participant
   for(const dateK of days){
     const slots = [...(MR.daySlots[dateK]||[])];
@@ -4459,7 +4485,7 @@ async function submitMultiReg(){
       if(act==='kayak' && getKayakSlotCfg(dateK, slot).blocked){ skipped++; continue; }
       // Vérifier places disponibles
       const free = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
-      const toAdd = participants.slice(0, free);
+      const toAdd = (allowOverflow && free >= 0) ? participants.slice() : participants.slice(0, free);
       if(!toAdd.length){ skipped++; continue; }
       if(toAdd.length < participants.length) skipped += participants.length - toAdd.length;
 
@@ -4911,6 +4937,85 @@ function renderAuthPreview(){
     d=new Date(d); d.setDate(d.getDate()+1);
   }
   list.innerHTML = cards || '<p style="font-size:.8rem;color:var(--text3)">No upcoming sessions right now.</p>';
+}
+
+
+// ── Demande de créneau suivant (créneau plein) + validation WhatsApp ──
+const ADMIN_WHATSAPP = '262693540455';
+function nextSlotAfter(dateK, slot, act){
+  const list = act==='muscu' ? [...S.muscuSlots] : [...morningSlotsChrono(dateK), ...afternoonSlotsChrono(dateK)];
+  const i = list.indexOf(slot);
+  return i>=0 && i<list.length-1 ? list[i+1] : null;
+}
+async function requestNextSlot(dateK, slot, act='kayak'){
+  if(!S.session){ toast('Connecte-toi pour faire une demande.','error'); return; }
+  if(S.isReadonly){ toast('👁️ Ton compte est en mode consultation.','error'); return; }
+  const next = nextSlotAfter(dateK, slot, act);
+  if(!next){ toast('Aucun créneau suivant ce jour-là.','error'); return; }
+  const def = S.profile?.full_name || '';
+  const raw = prompt(`Le créneau ${slot} est plein.\nDemande d'inscription sur ${next} (le ${dateK}).\n\nNoms des personnes (séparés par une virgule) :`, def);
+  if(raw===null) return;
+  const names = raw.split(',').map(x=>x.trim()).filter(Boolean);
+  if(!names.length){ toast('Indique au moins un nom.','error'); return; }
+  const requester = S.profile?.full_name || S.session.user.email;
+  try{
+    const { error } = await sb.from('slot_requests').insert({
+      date: dateK, from_creneau: slot, to_creneau: next, activity: act,
+      names, requester, user_id: S.session.user.id, status: 'pending'
+    });
+    if(error) throw error;
+  }catch(e){ console.warn('slot_requests', e); toast('⚠️ Demande non enregistrée dans l\'app (table manquante ?), envoi par WhatsApp quand même.','error'); }
+  const msg = `🛶 WINTER TRAINING – Demande de créneau\n${requester} demande ${names.length} place(s) le ${dateK} sur ${next} (${slot} complet).\nPersonnes : ${names.join(', ')}\nÀ valider dans l'application (Suivi › Demandes de créneau).`;
+  window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
+  toast('📲 Demande envoyée. Envoie le message WhatsApp pour prévenir l\'admin.','success');
+}
+async function renderSlotRequests(){
+  const box = document.getElementById('slotRequestsBox');
+  if(!box || !S.isAdmin) return;
+  let rows = [];
+  try{
+    const { data, error } = await sb.from('slot_requests').select('*').eq('status','pending').order('created_at',{ascending:true});
+    if(error) throw error; rows = data||[];
+  }catch(e){ box.innerHTML=''; return; }
+  if(!rows.length){ box.innerHTML=''; return; }
+  box.innerHTML = `<div style="border:1px solid #7c3aed;border-radius:10px;padding:10px 12px;background:#faf5ff">
+    <div style="font-weight:700;margin-bottom:8px">📲 Demandes de créneau (${rows.length})</div>
+    ${rows.map(r=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid #e9d5ff;font-size:.82rem">
+      <span style="flex:1;min-width:200px"><b>${esc(r.requester||'')}</b> · ${esc(r.date)} · ${esc(r.from_creneau)} → <b>${esc(r.to_creneau)}</b> · ${esc((r.names||[]).join(', '))}</span>
+      <button class="btn btn-sm btn-primary" onclick="acceptSlotRequest('${r.id}')">✅ Accepter</button>
+      <button class="btn btn-sm" onclick="refuseSlotRequest('${r.id}')">❌ Refuser</button>
+    </div>`).join('')}</div>`;
+}
+async function acceptSlotRequest(id){
+  if(!S.isAdmin) return;
+  const { data:r, error } = await sb.from('slot_requests').select('*').eq('id',id).single();
+  if(error||!r){ toast('Demande introuvable.','error'); return; }
+  const act = r.activity||'kayak';
+  const free = cap(r.to_creneau, r.date, act) - getSlot(r.date, r.to_creneau, act).length;
+  if(r.names.length > free && !confirm(`Il reste ${Math.max(free,0)} place(s) sur ${r.to_creneau}, ${r.names.length} demandée(s). Ouvrir le créneau et inscrire tout le monde ?`)) return;
+  const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
+  const payload = r.names.map(n=>({
+    date:r.date, creneau:r.to_creneau, nom:n, role:'Athlète',
+    user_id:r.user_id, group_id:groupId, referent_name:r.requester,
+    kayak_rental:false, kayak_model:null, dossard:null, nationalite:null, activity:act
+  }));
+  try{
+    const inserted = await sbInsertMany(payload);
+    inserted.forEach(x=>getSlot(r.date,r.to_creneau,act).push({
+      name:x.nom, role:x.role, _id:x.id, user_id:x.user_id, group_id:x.group_id,
+      referent:x.referent_name, rental:x.kayak_rental, kayakModel:x.kayak_model,
+      dossard:x.dossard, nationality:x.nationalite }));
+    await sb.from('slot_requests').update({status:'accepted'}).eq('id',id);
+    toast('✅ Demande acceptée, personnes inscrites.','success');
+    try{ renderDayPanel(); renderCal(); }catch(e){}
+  }catch(e){ toast('❌ '+(e?.message||e),'error'); }
+  renderSlotRequests();
+}
+async function refuseSlotRequest(id){
+  if(!S.isAdmin) return;
+  await sb.from('slot_requests').update({status:'refused'}).eq('id',id);
+  toast('Demande refusée.','success');
+  renderSlotRequests();
 }
 
 // ── Liste d'attente ──────────────────────────────────────────────────
