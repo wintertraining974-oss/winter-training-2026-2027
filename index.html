@@ -173,6 +173,24 @@ select.field { min-width: 110px; cursor: pointer; }
 .quick-reg-card .qr-sub { font-size: .82rem; color: var(--text3); margin-bottom: 16px; }
 .qr-jump { display:block; text-align:center; font-size:.78rem; color: var(--text3); margin-top:14px; cursor:pointer; }
 .qr-jump:hover { color: var(--accent); }
+
+/* ── Agenda Google intégré (accueil) ── */
+.gcal-box { margin: 0 0 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); }
+.gcal-box > summary { cursor: pointer; padding: 10px 14px; font-size: .86rem; font-weight: 700; color: var(--text2); list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.gcal-box > summary::-webkit-details-marker { display: none; }
+.gcal-box > summary::after { content: '▾'; color: var(--text3); transition: transform .15s; }
+.gcal-box[open] > summary::after { transform: rotate(180deg); }
+.gcal-body { padding: 0 12px 12px; }
+.gcal-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.gcal-seg { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
+.gcal-seg button { border: none; background: transparent; padding: 6px 10px; border-radius: 6px; font-size: .78rem; font-weight: 700; color: var(--text3); cursor: pointer; }
+.gcal-seg button.active { background: var(--accent-light); color: var(--accent); }
+.gcal-frame { width: 100%; height: 560px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+.gcal-note { font-size: .72rem; color: var(--text3); margin-top: 6px; line-height: 1.5; }
+.gcal-note a { color: var(--accent); text-decoration: none; font-weight: 600; margin-right: 10px; white-space: nowrap; }
+@media (max-width: 600px) { .gcal-frame { height: 480px; } }
+.auth-preview .gcal-frame { height: 500px; }
+.auth-preview .ap-cta { margin-top: 10px; }
 .qr-tabs { display: flex; gap: 6px; margin: 14px 0 4px; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; }
 .qr-tab { flex: 1; border: none; background: transparent; padding: 9px; border-radius: 6px; font-size: .84rem; font-weight: 700; color: var(--text3); cursor: pointer; transition: all .15s; }
 .qr-tab.active { background: var(--white); color: var(--accent); box-shadow: var(--shadow-sm); }
@@ -270,14 +288,14 @@ select.field { min-width: 110px; cursor: pointer; }
 .mdreg-week-nav { display: flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 600; margin-bottom: 8px; }
 /* ── Auth screen (login/signup + aperçu planning) ────────────── */
 .auth-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
-.auth-wrap { display: flex; gap: 22px; align-items: flex-start; justify-content: center; max-width: 940px; width: 100%; flex-wrap: wrap; }
+.auth-wrap { display: flex; gap: 22px; align-items: flex-start; justify-content: center; max-width: 1040px; width: 100%; flex-wrap: wrap; }
 .auth-box { background: var(--white); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); flex: 1 1 420px; max-width: 460px; }
 .auth-sub { font-size: .82rem; color: var(--text3); text-align: center; margin: 6px 0 18px; }
 .auth-tabs { display: flex; gap: 6px; margin-bottom: 16px; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; }
 .auth-tab { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 6px; font-size: .82rem; font-weight: 700; color: var(--text3); cursor: pointer; transition: all .15s; }
 .auth-tab.active { background: var(--white); color: var(--accent); box-shadow: var(--shadow-sm); }
 .auth-err { color: var(--red); font-size: .78rem; min-height: 1em; margin-top: 8px; }
-.auth-preview { flex: 1 1 360px; max-width: 400px; background: var(--white); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); align-self: stretch; }
+.auth-preview { flex: 1 1 380px; max-width: 520px; background: var(--white); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); align-self: stretch; }
 .auth-preview h3 { font-size: .95rem; margin-bottom: 4px; }
 .auth-preview .ap-sub { font-size: .78rem; color: var(--text3); margin-bottom: 14px; line-height: 1.5; }
 .ap-day { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px; }
@@ -288,7 +306,7 @@ select.field { min-width: 110px; cursor: pointer; }
   .auth-wrap { flex-direction: column; align-items: stretch; }
   .auth-box, .auth-preview { max-width: none; }
 }
-.wa-join-card { max-width: 940px; width: 100%; margin: 18px auto 0; background: var(--white); border-radius: var(--radius); padding: 22px 24px 26px; box-shadow: var(--shadow); text-align: center; }
+.wa-join-card { max-width: 1040px; width: 100%; margin: 18px auto 0; background: var(--white); border-radius: var(--radius); padding: 22px 24px 26px; box-shadow: var(--shadow); text-align: center; }
 .wa-join-card h3 { font-size: .95rem; margin-bottom: 4px; }
 .wa-join-sub { font-size: .8rem; color: var(--text3); margin-bottom: 14px; }
 .wa-join-qr { width: 190px; max-width: 60%; border-radius: 10px; display: block; margin: 0 auto; }
@@ -455,10 +473,23 @@ select.field { min-width: 110px; cursor: pointer; }
     </div>
   </div>
   <div class="auth-preview" id="authPreview">
-    <h3>📅 Upcoming sessions</h3>
-    <p class="ap-sub">A quick look at what's coming up. Create an account or log in to see who's registered and reserve your spot.</p>
-    <div id="authPreviewList"></div>
-    <span class="ap-cta">👉 Sign up on the left to book your place</span>
+    <h3 id="gcalLoginTitle">📅 Prochaines séances</h3>
+    <p class="ap-sub" id="gcalLoginSub"></p>
+    <div class="gcal-controls">
+      <div class="gcal-seg" id="gcalLoginActSeg">
+        <button type="button" data-act="both" class="active"></button>
+        <button type="button" data-act="kayak"></button>
+        <button type="button" data-act="muscu"></button>
+      </div>
+      <div class="gcal-seg" id="gcalLoginModeSeg">
+        <button type="button" data-mode="AGENDA"></button>
+        <button type="button" data-mode="WEEK"></button>
+        <button type="button" data-mode="MONTH"></button>
+      </div>
+    </div>
+    <iframe class="gcal-frame" id="gcalLoginFrame" title="Agenda Google" loading="lazy" referrerpolicy="no-referrer"></iframe>
+    <p class="gcal-note" id="gcalLoginNote"></p>
+    <span class="ap-cta" id="gcalLoginCta"></span>
   </div>
   </div>
   <div class="wa-join-card">
@@ -551,6 +582,27 @@ select.field { min-width: 110px; cursor: pointer; }
   <div class="quick-reg-card" id="quickRegPanel">
     <h2 id="qrTitle">⚡ Quick registration</h2>
     <p class="qr-sub"><span id="qrSub"></span><a href="#calNavAnchor" class="qr-jump" id="qrJump" style="display:inline"></a></p>
+
+    <!-- Agenda Google intégré (lecture seule) -->
+    <details class="gcal-box" id="gcalBox">
+      <summary id="gcalSummary">📅 Agenda Google</summary>
+      <div class="gcal-body">
+        <div class="gcal-controls">
+          <div class="gcal-seg" id="gcalActSeg">
+            <button type="button" data-act="both" class="active"></button>
+            <button type="button" data-act="kayak"></button>
+            <button type="button" data-act="muscu"></button>
+          </div>
+          <div class="gcal-seg" id="gcalModeSeg">
+            <button type="button" data-mode="WEEK"></button>
+            <button type="button" data-mode="MONTH"></button>
+            <button type="button" data-mode="AGENDA"></button>
+          </div>
+        </div>
+        <iframe class="gcal-frame" id="gcalFrame" title="Agenda Google" loading="lazy" referrerpolicy="no-referrer"></iframe>
+        <p class="gcal-note" id="gcalNote"></p>
+      </div>
+    </details>
 
     <div class="qr-tabs" id="qrTabs">
       <button class="qr-tab active" id="qrTabKayak" onclick="mrSwitchActivity('kayak')"></button>
@@ -1529,6 +1581,118 @@ const TR = {
 };
 function t(k){ return TR[LANG][k] || k; }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AGENDA GOOGLE INTÉGRÉ (page d'accueil + page de connexion)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ➜ Colle ici l'ID de chaque agenda (Google Agenda → Paramètres et partage → Intégrer l'agenda).
+// ➜ Chaque agenda doit être rendu PUBLIC (voir tous les détails) pour s'afficher ici.
+const GCAL = {
+  kayak: 'COLLER_ID_AGENDA_KAYAK@group.calendar.google.com',
+  muscu: '1ce588d393133b02ec2de86b61391d892da6decd94ca8434f87effbd11caea1c@group.calendar.google.com',
+  tz: 'Indian/Reunion'
+};
+const GCAL_COLORS = { kayak: '#0B8043', muscu: '#039BE5' };
+const GCAL_TXT = {
+  fr: { summary:'📅 Agenda Google (créneaux et inscrits)', both:'Les deux', kayak:'🚣 Kayak', muscu:'🏋️ Muscu',
+        WEEK:'Semaine', MONTH:'Mois', AGENDA:'Liste',
+        note:'Lecture seule, mis à jour automatiquement à chaque inscription. 🔒 = créneau qui s\'ouvre quand le précédent est rempli.',
+        add:'➕ Ajouter à mon Google Agenda :',
+        loginTitle:'📅 Prochaines séances',
+        loginSub:'Un aperçu des créneaux à venir. Créez un compte ou connectez-vous pour réserver votre place.',
+        loginCta:'👉 Inscrivez-vous à gauche pour réserver votre place' },
+  en: { summary:'📅 Google Calendar (sessions and registrants)', both:'Both', kayak:'🚣 Kayak', muscu:'🏋️ Gym',
+        WEEK:'Week', MONTH:'Month', AGENDA:'List',
+        note:'Read-only, updated automatically with every registration. 🔒 = session that opens once the previous one is full.',
+        add:'➕ Add to my Google Calendar:',
+        loginTitle:'📅 Upcoming sessions',
+        loginSub:'A quick look at what is coming up. Create an account or log in to reserve your spot.',
+        loginCta:'👉 Sign up on the left to book your place' }
+};
+// Une entrée par emplacement : « gcal » = accueil (bloc repliable), « gcalLogin » = page de connexion
+const GCAL_INST = {
+  gcal:      { act: 'both', mode: (window.innerWidth < 700 ? 'AGENDA' : 'WEEK') },
+  gcalLogin: { act: 'both', mode: 'AGENDA' }
+};
+
+function gcalIds(){
+  const ok = id => id && !/COLLER/i.test(id);
+  const out = [];
+  if(ok(GCAL.kayak)) out.push(['kayak', GCAL.kayak]);
+  if(ok(GCAL.muscu)) out.push(['muscu', GCAL.muscu]);
+  return out;
+}
+
+function gcalUrl(p){
+  const st = GCAL_INST[p];
+  const sel = gcalIds().filter(([k]) => st.act === 'both' || st.act === k);
+  let u = 'https://calendar.google.com/calendar/embed'
+    + '?ctz=' + encodeURIComponent(GCAL.tz)
+    + '&hl=' + (LANG === 'fr' ? 'fr' : 'en')
+    + '&wkst=2&mode=' + st.mode
+    + '&showTitle=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0&showNav=1&showDate=1';
+  sel.forEach(([k, id]) => { u += '&src=' + encodeURIComponent(id) + '&color=' + encodeURIComponent(GCAL_COLORS[k]); });
+  return u;
+}
+
+function gcalLoad(p){
+  const box = document.getElementById(p + 'Box');   // n'existe que pour l'accueil (bloc repliable)
+  const fr  = document.getElementById(p + 'Frame');
+  if(!fr || (box && !box.open)) return;
+  const u = gcalUrl(p);
+  if(fr.getAttribute('src') !== u) fr.setAttribute('src', u);
+}
+
+function gcalApply(p){
+  const fr = document.getElementById(p + 'Frame');
+  if(!fr) return;
+  const st = GCAL_INST[p];
+  const ids = gcalIds();
+  const root = document.getElementById(p === 'gcal' ? 'gcalBox' : 'authPreview');
+  if(!ids.length){ if(root) root.style.display = 'none'; return; }
+  const T = GCAL_TXT[LANG] || GCAL_TXT.fr;
+  const setTxt = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  if(p === 'gcal') setTxt('gcalSummary', T.summary);
+  else { setTxt('gcalLoginTitle', T.loginTitle); setTxt('gcalLoginSub', T.loginSub); setTxt('gcalLoginCta', T.loginCta); }
+  const actSeg = document.getElementById(p + 'ActSeg');
+  actSeg.style.display = ids.length > 1 ? '' : 'none';
+  actSeg.querySelectorAll('button').forEach(b => {
+    b.textContent = T[b.dataset.act];
+    b.classList.toggle('active', b.dataset.act === st.act);
+  });
+  document.getElementById(p + 'ModeSeg').querySelectorAll('button').forEach(b => {
+    b.textContent = T[b.dataset.mode];
+    b.classList.toggle('active', b.dataset.mode === st.mode);
+  });
+  // Liens « ajouter à mon Google Agenda » (identifiant encodé en base64 sans « = »)
+  const links = ids.map(([k, id]) =>
+    '<a target="_blank" rel="noopener" href="https://calendar.google.com/calendar/u/0?cid=' +
+    encodeURIComponent(btoa(id).replace(/=+$/, '')) + '">' + T[k] + '</a>').join('');
+  const note = document.getElementById(p + 'Note');
+  if(note) note.innerHTML = T.note + '<br>' + T.add + ' ' + links;
+  gcalLoad(p);
+}
+
+function gcalApplyLang(){ Object.keys(GCAL_INST).forEach(gcalApply); }
+
+function gcalInit(){
+  Object.keys(GCAL_INST).forEach(p => {
+    if(!document.getElementById(p + 'Frame')) return;
+    const box = document.getElementById(p + 'Box');
+    if(box) box.addEventListener('toggle', () => gcalLoad(p)); // accueil : chargé à l'ouverture seulement
+    document.getElementById(p + 'ActSeg').addEventListener('click', e => {
+      const b = e.target.closest('button'); if(!b) return;
+      GCAL_INST[p].act = b.dataset.act; gcalApply(p);
+    });
+    document.getElementById(p + 'ModeSeg').addEventListener('click', e => {
+      const b = e.target.closest('button'); if(!b) return;
+      GCAL_INST[p].mode = b.dataset.mode; gcalApply(p);
+    });
+  });
+  gcalApplyLang();
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', gcalInit);
+else gcalInit();
+
 function applyI18n(){
   const ids = ['hTitle','hSubtitle','legAvail','legAlmost','legFull','aTitle','aPrioLabel',
     'aMorTitle','aAftTitle','aCapTitle','aDowTitle','aDateTitle','aToggleBtn',
@@ -1578,6 +1742,7 @@ function applyI18n(){
   renderDcMiniCal();
   if(S.page==='team'){ renderMyTeam(); renderTeamPage(); }
   if(S.isAdmin) renderAdminTeams();
+  if(typeof gcalApplyLang==='function') gcalApplyLang();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3852,8 +4017,6 @@ function renderPlanningGrid(){
   html += `<div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">🖨️ Print week (aperçu compact)</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
-    ${S.session?`<button class="btn btn-sm" style="background:#1a73e8;color:white" onclick="exportMyCalendar()">📅 Google Agenda (.ics)</button>`:''}
-    ${S.session?`<button class="btn btn-sm" style="background:#1a73e8;color:white" onclick="copyCalendarFeed()">🔄 Lien d'abonnement automatique</button>`:''}
   </div>`;
 
   // Tableau
@@ -4987,64 +5150,6 @@ function renderAuthPreview(){
 
 
 
-
-// ── Export Google Agenda / iCal : toutes mes inscriptions (celles faites avec mon compte) ──
-function slotTimes(slot){
-  const r = String(slot).match(/(\d{1,2})\s*(?:h|:)\s*(\d{2})?\s*[-–à]\s*(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i);
-  if(!r) return null;
-  const pad=n=>String(n).padStart(2,'0');
-  return { s:`${pad(r[1])}${pad(r[2]||0)}00`, e:`${pad(r[3])}${pad(r[4]||0)}00` };
-}
-function icsEsc(x){ return String(x||'').replace(/\\/g,'\\\\').replace(/;/g,'\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
-function exportMyCalendar(){
-  if(!S.session){ toast('Connecte-toi.','error'); return; }
-  const me = S.session.user.id;
-  const today = dk(new Date());
-  const events = [];
-  const scan = (store, act)=>{
-    Object.keys(store||{}).forEach(dateK=>{
-      if(dateK < today) return;
-      Object.keys(store[dateK]||{}).forEach(slot=>{
-        const mine = (store[dateK][slot]||[]).filter(r=>r.user_id===me);
-        if(!mine.length) return;
-        const tm = slotTimes(slot); if(!tm) return;
-        events.push({ dateK, slot, act, tm, names: mine.map(r=>r.name) });
-      });
-    });
-  };
-  scan(S.data,'kayak'); scan(S.muscuData,'muscu');
-  if(!events.length){ toast('Aucune inscription à venir avec ton compte.','error'); return; }
-  const stamp = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z');
-  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Winter Training Reunion//FR','CALSCALE:GREGORIAN','X-WR-CALNAME:Winter Training Réunion','X-WR-TIMEZONE:Indian/Reunion'];
-  events.forEach(ev=>{
-    const d = ev.dateK.replace(/-/g,'');
-    const kx = ev.act==='kayak' && isKayakCross(ev.dateK, ev.slot);
-    const title = (ev.act==='muscu' ? '🏋️ Muscu' : (kx ? '🏄 Kayak Cross' : '🚣 Kayak')) + ' ' + ev.slot;
-    lines.push('BEGIN:VEVENT',
-      `UID:wt-${ev.act}-${ev.dateK}-${ev.slot.replace(/\W/g,'')}-${me}@winter-training`,
-      `DTSTAMP:${stamp}`,
-      `DTSTART;TZID=Indian/Reunion:${d}T${ev.tm.s}`,
-      `DTEND;TZID=Indian/Reunion:${d}T${ev.tm.e}`,
-      `SUMMARY:${icsEsc(title)}`,
-      `DESCRIPTION:${icsEsc('Inscrits : '+ev.names.join(', '))}`,
-      'END:VEVENT');
-  });
-  lines.push('END:VCALENDAR');
-  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'winter-training.ics';
-  document.body.appendChild(a); a.click(); a.remove();
-  toast(`📅 ${events.length} séance(s) exportée(s). Importe le fichier dans Google Agenda.`,'success');
-}
-
-
-function copyCalendarFeed(){
-  const link = `${SUPABASE_URL}/functions/v1/calendar-feed?u=${S.session.user.id}`;
-  const done = ()=>toast("🔄 Lien copié. Google Agenda › Autres agendas › + › À partir de l'URL › colle le lien.",'success');
-  if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(link).then(done).catch(()=>prompt('Copie ce lien :',link)); }
-  else prompt('Copie ce lien :',link);
-}
-
 // ── Règle : 1 inscription max par personne et par jour pour chaque catégorie
 // (matin, après-midi, kayak cross, muscu) ──
 function slotCategory(dateK, slot, act){
@@ -6096,3 +6201,4 @@ function renderRecap(start, days){
 </script>
 </body>
 </html>
+
