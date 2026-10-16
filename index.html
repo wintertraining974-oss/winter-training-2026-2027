@@ -477,8 +477,7 @@ select.field { min-width: 110px; cursor: pointer; }
     <p class="ap-sub" id="gcalLoginSub"></p>
     <div class="gcal-controls">
       <div class="gcal-seg" id="gcalLoginActSeg">
-        <button type="button" data-act="both" class="active"></button>
-        <button type="button" data-act="kayak"></button>
+        <button type="button" data-act="kayak" class="active"></button>
         <button type="button" data-act="muscu"></button>
       </div>
       <div class="gcal-seg" id="gcalLoginModeSeg">
@@ -589,8 +588,7 @@ select.field { min-width: 110px; cursor: pointer; }
       <div class="gcal-body">
         <div class="gcal-controls">
           <div class="gcal-seg" id="gcalActSeg">
-            <button type="button" data-act="both" class="active"></button>
-            <button type="button" data-act="kayak"></button>
+            <button type="button" data-act="kayak" class="active"></button>
             <button type="button" data-act="muscu"></button>
           </div>
           <div class="gcal-seg" id="gcalModeSeg">
@@ -1587,7 +1585,7 @@ function t(k){ return TR[LANG][k] || k; }
 // ➜ Colle ici l'ID de chaque agenda (Google Agenda → Paramètres et partage → Intégrer l'agenda).
 // ➜ Chaque agenda doit être rendu PUBLIC (voir tous les détails) pour s'afficher ici.
 const GCAL = {
-  kayak: 'COLLER_ID_AGENDA_KAYAK@group.calendar.google.com',
+  kayak: '32de6d63471a1dc183e4dea43b1c5ddcb6648a73a6cac54300db900cfeb7b868@group.calendar.google.com',
   muscu: '1ce588d393133b02ec2de86b61391d892da6decd94ca8434f87effbd11caea1c@group.calendar.google.com',
   tz: 'Indian/Reunion'
 };
@@ -1610,8 +1608,8 @@ const GCAL_TXT = {
 };
 // Une entrée par emplacement : « gcal » = accueil (bloc repliable), « gcalLogin » = page de connexion
 const GCAL_INST = {
-  gcal:      { act: 'both', mode: (window.innerWidth < 700 ? 'AGENDA' : 'WEEK') },
-  gcalLogin: { act: 'both', mode: 'AGENDA' }
+  gcal:      { act: 'kayak', mode: (window.innerWidth < 700 ? 'AGENDA' : 'WEEK') },
+  gcalLogin: { act: 'kayak', mode: 'AGENDA' }
 };
 
 function gcalIds(){
@@ -1624,7 +1622,7 @@ function gcalIds(){
 
 function gcalUrl(p){
   const st = GCAL_INST[p];
-  const sel = gcalIds().filter(([k]) => st.act === 'both' || st.act === k);
+  const sel = gcalIds().filter(([k]) => k === st.act);
   let u = 'https://calendar.google.com/calendar/embed'
     + '?ctz=' + encodeURIComponent(GCAL.tz)
     + '&hl=' + (LANG === 'fr' ? 'fr' : 'en')
@@ -1649,6 +1647,7 @@ function gcalApply(p){
   const ids = gcalIds();
   const root = document.getElementById(p === 'gcal' ? 'gcalBox' : 'authPreview');
   if(!ids.length){ if(root) root.style.display = 'none'; return; }
+  if(!ids.some(([k]) => k === st.act)) st.act = ids[0][0]; // activité sans agenda configuré → première disponible
   const T = GCAL_TXT[LANG] || GCAL_TXT.fr;
   const setTxt = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
   if(p === 'gcal') setTxt('gcalSummary', T.summary);
@@ -6201,4 +6200,3 @@ function renderRecap(start, days){
 </script>
 </body>
 </html>
-
