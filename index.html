@@ -1049,18 +1049,32 @@ header .user-pill { color: #fff; }
     <div class="quick-reg-card">
       <h2>📆 Planning de fréquentation</h2>
       <p class="qr-sub">Note les groupes au fur et à mesure des demandes, créneau par créneau. « ➕ » ajoute un groupe (nom + athlètes + location). Clique sur un groupe pour le modifier ou le valider : « ⚡ Valider » ouvre l'inscription rapide avec ses athlètes déjà cochés. 🕓 = demandé, ✅ = validé. Tout est enregistré automatiquement.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-sm" id="fqTabWeek" onclick="fqSetView('week')">📅 Vue semaine</button>
+        <button class="btn btn-sm" id="fqTabTime" onclick="fqSetView('time')">🧭 Frise des périodes</button>
+        <span id="fqSaveState" style="font-size:.75rem;color:var(--text3);margin-left:auto"></span>
+      </div>
+      <div id="fqWeekView">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <button class="btn btn-sm" onclick="fqShift(-1)">◀ Semaine préc.</button>
         <button class="btn btn-sm" onclick="fqToday()">Aujourd'hui</button>
         <button class="btn btn-sm" onclick="fqShift(1)">Semaine suiv. ▶</button>
         <input type="date" class="field" id="fqDateJump" onchange="fqJump(this.value)" style="max-width:170px" title="Aller à la semaine du…">
         <span id="fqWeekLabel" style="font-weight:700"></span>
-        <span id="fqSaveState" style="font-size:.75rem;color:var(--text3);margin-left:auto"></span>
       </div>
       <div id="fqGrid" style="overflow-x:auto"></div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-sm" onclick="fqAddSlot()">➕ Ajouter un créneau</button>
         <span style="font-size:.75rem;color:var(--text3)">Les créneaux (lignes) sont communs à toutes les semaines : renomme-les en cliquant dessus, ✕ pour en retirer un.</span>
+      </div>
+      </div>
+      <div id="fqTimeView" style="display:none">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn btn-sm btn-primary" onclick="fqPeriodOpen()">➕ Ajouter une période</button>
+          <span style="font-size:.75rem;color:var(--text3)">Chaque barre = un groupe sur sa période (nombre d'athlètes, séances matin / après-midi). Clique sur une barre pour la modifier.</span>
+        </div>
+        <div id="fqTimeline" style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"></div>
+        <div id="fqTimeTotals" style="margin-top:10px;font-weight:700"></div>
       </div>
     </div>
   </div>
@@ -1248,6 +1262,34 @@ header .user-pill { color: #fff; }
     <div class="modal-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <button class="btn" style="color:var(--red);font-size:.78rem" onclick="requestDataDeletion()">🗑 Delete my account & data</button>
       <button class="btn" onclick="closeModal('profileModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal période (frise) -->
+<div class="modal-bg" id="fqPeriodModal">
+  <div class="modal-box" style="max-width:460px">
+    <h3 id="fqPModalTitle">Période</h3>
+    <div class="modal-fields">
+      <div><label>Nom du groupe</label><input class="field" id="fqPName" type="text" placeholder="Ex : Club de Lyon" style="width:100%"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label>Du</label><input class="field" id="fqPStart" type="date" style="width:100%"></div>
+        <div><label>Au</label><input class="field" id="fqPEnd" type="date" style="width:100%"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div><label>Athlètes</label><input class="field" id="fqPN" type="number" min="0" style="width:100%"></div>
+        <div><label>Séances matin</label><input class="field" id="fqPAm" type="number" min="0" style="width:100%"></div>
+        <div><label>Séances après-midi</label><input class="field" id="fqPPm" type="number" min="0" style="width:100%"></div>
+      </div>
+      <div><label>Note (facultatif)</label><input class="field" id="fqPNote" type="text" style="width:100%"></div>
+      <p id="fqPErr" style="color:var(--red);font-size:.8rem;margin:0"></p>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <button class="btn" id="fqPDelBtn" style="color:var(--red)" onclick="fqPeriodDelete()">🗑 Supprimer</button>
+      <span style="display:flex;gap:8px">
+        <button class="btn" onclick="closeModal('fqPeriodModal')">Fermer</button>
+        <button class="btn btn-primary" onclick="fqPeriodSave()">💾 Enregistrer</button>
+      </span>
     </div>
   </div>
 </div>
@@ -1901,7 +1943,7 @@ function applyI18n(){
 // Stocké dans la table "config" sous la clé 'frequentation' :
 // { slots:[{id,label}], cells:{ 'AAAA-MM-JJ|slotId': [{id, g:'groupe', athletes:[{name,rental}], status:'asked'|'validated'}] } }
 // (anciennes entrées {g, n} toujours lues : n = nombre de personnes sans détail)
-const FQ = { data:{ slots:[{id:'s1',label:'Matin'},{id:'s2',label:'Après-midi'}], cells:{} }, monday:null, timer:null, loaded:false, edit:null, pending:null };
+const FQ = { view:'week', data:{ slots:[{id:'s1',label:'Matin'},{id:'s2',label:'Après-midi'}], cells:{}, periods:[] }, monday:null, timer:null, loaded:false, edit:null, pending:null };
 const FQ_RENTALS = [['','Pas de location'],['Paname S','Paname S'],['Paname M','Paname M'],['Pyrhana','Pyranha Rippr']];
 
 function fqKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -1921,11 +1963,12 @@ async function fqLoad(){
       const v=data[0].value;
       if(Array.isArray(v.slots) && v.slots.length) FQ.data.slots=v.slots;
       if(v.cells && typeof v.cells==='object') FQ.data.cells=v.cells;
+      if(Array.isArray(v.periods)) FQ.data.periods=v.periods;
     }
     Object.values(FQ.data.cells).forEach(l=>l.forEach(e=>{ if(!e.id) e.id=fqNewId(); }));
     FQ.loaded=true;
   }
-  fqRender();
+  fqSetView(FQ.view);
 }
 
 function fqSave(){
@@ -2079,6 +2122,111 @@ function fqMarkValidated(participantNames){
   e.status='validated'; fqSave();
   if(S.page==='freq') fqRender();
   toast(`✅ Groupe « ${e.g||'sans nom'} » marqué comme validé dans la fréquentation.`,'success');
+}
+
+// ── Frise chronologique des périodes ──
+const FQ_DAYW = 11; // largeur d'un jour en pixels
+function fqParse(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
+function fqDayIdx(k){ return Math.round((Date.UTC(...k.split('-').map((v,i)=>i===1?v-1:+v)) - Date.UTC(START.getFullYear(),START.getMonth(),START.getDate()))/86400000); }
+function fqColor(name){ let h=0; for(const c of String(name||'')) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h},55%,42%)`; }
+
+function fqSetView(v){
+  FQ.view=v;
+  document.getElementById('fqWeekView').style.display = v==='week'?'block':'none';
+  document.getElementById('fqTimeView').style.display = v==='time'?'block':'none';
+  document.getElementById('fqTabWeek').classList.toggle('btn-primary', v==='week');
+  document.getElementById('fqTabTime').classList.toggle('btn-primary', v==='time');
+  if(v==='week') fqRender(); else fqRenderTimeline();
+}
+
+function fqRenderTimeline(){
+  const total=Math.round((Date.UTC(END.getFullYear(),END.getMonth(),END.getDate())-Date.UTC(START.getFullYear(),START.getMonth(),START.getDate()))/86400000)+1;
+  const W=total*FQ_DAYW, LBL=170;
+  const periods=[...FQ.data.periods].sort((a,b)=>a.start.localeCompare(b.start)||a.end.localeCompare(b.end));
+  const lblCss=`position:sticky;left:0;z-index:3;width:${LBL}px;min-width:${LBL}px;box-sizing:border-box;background:#f8fafc;border-right:1px solid var(--border);padding:4px 8px;font-size:.78rem;display:flex;align-items:center`;
+  // en-tête : mois
+  let months='';
+  for(let d=new Date(START.getFullYear(),START.getMonth(),1); d<=END; d=new Date(d.getFullYear(),d.getMonth()+1,1)){
+    const from=Math.max(0,fqDayIdx(fqKey(d)));
+    const next=new Date(d.getFullYear(),d.getMonth()+1,1);
+    const to=Math.min(total,fqDayIdx(fqKey(next)));
+    months+=`<div style="position:absolute;left:${from*FQ_DAYW}px;width:${(to-from)*FQ_DAYW}px;height:100%;border-left:1px solid var(--border);box-sizing:border-box;padding:4px 6px;font-size:.78rem;font-weight:700;overflow:hidden;white-space:nowrap">${d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</div>`;
+  }
+  // charge hebdomadaire = somme des athlètes des périodes qui chevauchent la semaine
+  let weeks='', maxLoad=1; const loads=[];
+  for(let w=0; w*7<total; w++){
+    const a=w*7, b=w*7+6;
+    const load=periods.reduce((acc,p)=>(fqDayIdx(p.start)<=b && fqDayIdx(p.end)>=a)?acc+(+p.n||0):acc,0);
+    loads.push(load); if(load>maxLoad) maxLoad=load;
+  }
+  loads.forEach((load,w)=>{
+    const wd=new Date(START); wd.setDate(wd.getDate()+w*7);
+    weeks+=`<div title="Semaine du ${wd.toLocaleDateString('fr-FR')} : ${load} athlète(s)" style="position:absolute;left:${w*7*FQ_DAYW}px;width:${7*FQ_DAYW}px;height:100%;box-sizing:border-box;border-left:1px solid #e5e7eb;text-align:center;font-size:.7rem;line-height:26px;background:rgba(37,99,235,${load?0.08+0.45*load/maxLoad:0});font-weight:${load?700:400};color:${load?'#1e3a8a':'#9ca3af'}">${load||''}</div>`;
+  });
+  // grille verticale légère (une ligne par semaine) pour les lignes de groupes
+  const grid=`background-image:linear-gradient(to right,#eef0f3 1px,transparent 1px);background-size:${7*FQ_DAYW}px 100%`;
+  let rows='';
+  if(!periods.length) rows=`<div style="padding:16px;color:var(--text3);font-size:.85rem">Aucune période pour le moment. Clique sur « ➕ Ajouter une période ».</div>`;
+  periods.forEach(p=>{
+    const i0=Math.max(0,fqDayIdx(p.start)), i1=Math.min(total-1,fqDayIdx(p.end));
+    const col=fqColor(p.g);
+    const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+    const txt=`${esc(p.g||'(sans nom)')} · ${+p.n||0} ath. · ${+p.am||0} matin / ${+p.pm||0} ap.-midi`;
+    const tip=`${p.g||''} — du ${fmt(p.start)} au ${fmt(p.end)}\n${+p.n||0} athlète(s), ${+p.am||0} séance(s) matin, ${+p.pm||0} séance(s) après-midi${p.note?'\n'+p.note:''}`;
+    rows+=`<div style="display:flex;height:34px;border-top:1px solid #eef0f3">
+      <div style="${lblCss}" title="${esc(tip)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(p.g||'(sans nom)')}</b><br><span style="color:var(--text3);font-size:.68rem">${fmt(p.start)} → ${fmt(p.end)}</span></span></div>
+      <div style="position:relative;width:${W}px;${grid}">
+        ${i1>=i0?`<button onclick="fqPeriodOpen('${p.id}')" title="${esc(tip)}" style="position:absolute;top:4px;height:26px;left:${i0*FQ_DAYW}px;width:${(i1-i0+1)*FQ_DAYW}px;background:${col};color:#fff;border:none;border-radius:6px;font-size:.72rem;text-align:left;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer">${(i1-i0+1)*FQ_DAYW>=230?txt:''}</button>${(i1-i0+1)*FQ_DAYW<230?`<span onclick="fqPeriodOpen('${p.id}')" style="position:absolute;top:9px;left:${(i1+1)*FQ_DAYW+6}px;font-size:.72rem;white-space:nowrap;color:#1f2937;cursor:pointer">${txt}</span>`:''}`:''}
+      </div></div>`;
+  });
+  // marqueur "aujourd'hui"
+  const ti=fqDayIdx(fqKey(new Date()));
+  const today = (ti>=0&&ti<total) ? `<div style="position:absolute;top:0;bottom:0;left:${LBL+ti*FQ_DAYW+FQ_DAYW/2}px;width:2px;background:#dc2626;opacity:.6;z-index:2;pointer-events:none" title="Aujourd'hui"></div>` : '';
+  const html=`<div style="position:relative;width:${LBL+W}px">${today}
+    <div style="display:flex;height:26px"><div style="${lblCss};font-weight:700">Mois</div><div style="position:relative;width:${W}px">${months}</div></div>
+    <div style="display:flex;height:26px;border-top:1px solid var(--border)"><div style="${lblCss};font-weight:700" title="Athlètes présents dans la semaine (toutes périodes confondues)">Athlètes / semaine</div><div style="position:relative;width:${W}px">${weeks}</div></div>
+    ${rows}</div>`;
+  const el=document.getElementById('fqTimeline'); const sx=el.scrollLeft; el.innerHTML=html;
+  el.scrollLeft = sx || (()=>{ const t=fqDayIdx(fqKey(new Date())); return t>0&&t<total ? Math.max(0,t*FQ_DAYW-200) : 0; })();
+  const sum=k=>periods.reduce((a,p)=>a+(+p[k]||0),0);
+  document.getElementById('fqTimeTotals').textContent=`${periods.length} période(s) · ${sum('n')} athlète(s) au total · ${sum('am')} séance(s) matin · ${sum('pm')} séance(s) après-midi`;
+}
+
+function fqPeriodOpen(id){
+  const p=id?FQ.data.periods.find(x=>x.id===id):null;
+  FQ.editP=id||null;
+  document.getElementById('fqPModalTitle').textContent=p?'Modifier la période':'Nouvelle période';
+  const min=fqKey(START), max=fqKey(END);
+  ['fqPStart','fqPEnd'].forEach(i=>{ const e=document.getElementById(i); e.min=min; e.max=max; });
+  document.getElementById('fqPName').value=p?p.g:'';
+  document.getElementById('fqPStart').value=p?p.start:'';
+  document.getElementById('fqPEnd').value=p?p.end:'';
+  document.getElementById('fqPN').value=p?(+p.n||0):'';
+  document.getElementById('fqPAm').value=p?(+p.am||0):'';
+  document.getElementById('fqPPm').value=p?(+p.pm||0):'';
+  document.getElementById('fqPNote').value=p?(p.note||''):'';
+  document.getElementById('fqPErr').textContent='';
+  document.getElementById('fqPDelBtn').style.display=p?'':'none';
+  document.getElementById('fqPeriodModal').classList.add('show');
+}
+function fqPeriodSave(){
+  const g=document.getElementById('fqPName').value.trim();
+  const start=document.getElementById('fqPStart').value, end=document.getElementById('fqPEnd').value;
+  const num=id=>Math.max(0,parseInt(document.getElementById(id).value,10)||0);
+  const err=document.getElementById('fqPErr');
+  if(!g){ err.textContent='Le nom du groupe est requis.'; return; }
+  if(!start||!end){ err.textContent='Les dates de début et de fin sont requises.'; return; }
+  if(end<start){ err.textContent='La date de fin doit être après le début.'; return; }
+  const obj={ g, start, end, n:num('fqPN'), am:num('fqPAm'), pm:num('fqPPm'), note:document.getElementById('fqPNote').value.trim() };
+  if(FQ.editP){ Object.assign(FQ.data.periods.find(x=>x.id===FQ.editP), obj); }
+  else FQ.data.periods.push({ id:fqNewId(), ...obj });
+  closeModal('fqPeriodModal'); fqSave(); fqRenderTimeline();
+}
+function fqPeriodDelete(){
+  if(!FQ.editP) return;
+  if(!confirm('Supprimer cette période ?')) return;
+  FQ.data.periods=FQ.data.periods.filter(x=>x.id!==FQ.editP);
+  closeModal('fqPeriodModal'); fqSave(); fqRenderTimeline();
 }
 
 function fqDelSlot(id){
