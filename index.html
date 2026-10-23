@@ -667,6 +667,7 @@ header .user-pill { color: #fff; }
     <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Planning</span></button>
     <button class="page-tab" id="pbAthletes" style="display:none" onclick="setPage('athletes')">📇 <span id="navAthletes">Athlete database</span></button>
     <button class="page-tab" id="pbSuivi" style="display:none" onclick="setPage('suivi')">📝 <span id="navSuivi">Suivi</span></button>
+    <button class="page-tab" id="pbFreq" style="display:none" onclick="setPage('freq')">📆 <span>Fréquentation</span></button>
   </div>
 
   <div class="quick-reg-card" id="quickRegPanel">
@@ -1040,6 +1041,27 @@ header .user-pill { color: #fff; }
       </div>
       <div id="adminAthMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
       <div id="adminAthleteDbList" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- Planning de fréquentation (admin) : groupes notés à la main, semaine par semaine -->
+  <div id="freqPage" style="display:none">
+    <div class="quick-reg-card">
+      <h2>📆 Planning de fréquentation</h2>
+      <p class="qr-sub">Note les groupes au fur et à mesure des demandes, créneau par créneau. Clique sur un nom ou un nombre pour le modifier, « ➕ » pour ajouter un groupe. Tout est enregistré automatiquement.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn btn-sm" onclick="fqShift(-1)">◀ Semaine préc.</button>
+        <button class="btn btn-sm" onclick="fqToday()">Aujourd'hui</button>
+        <button class="btn btn-sm" onclick="fqShift(1)">Semaine suiv. ▶</button>
+        <input type="date" class="field" id="fqDateJump" onchange="fqJump(this.value)" style="max-width:170px" title="Aller à la semaine du…">
+        <span id="fqWeekLabel" style="font-weight:700"></span>
+        <span id="fqSaveState" style="font-size:.75rem;color:var(--text3);margin-left:auto"></span>
+      </div>
+      <div id="fqGrid" style="overflow-x:auto"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-sm" onclick="fqAddSlot()">➕ Ajouter un créneau</button>
+        <span style="font-size:.75rem;color:var(--text3)">Les créneaux (lignes) sont communs à toutes les semaines : renomme-les en cliquant dessus, ✕ pour en retirer un.</span>
+      </div>
     </div>
   </div>
 
@@ -1851,15 +1873,111 @@ function applyI18n(){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // NAVIGATION PAR PAGES (Inscription rapide / Mon équipe / Planning)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ── Planning de fréquentation (admin) ──────────────────────────────────
+// Stocké dans la table "config" sous la clé 'frequentation' :
+// { slots:[{id,label}], cells:{ 'AAAA-MM-JJ|slotId': [{g:'nom du groupe', n:nombre}] } }
+const FQ = { data:{ slots:[{id:'s1',label:'Matin'},{id:'s2',label:'Après-midi'}], cells:{} }, monday:null, timer:null, loaded:false };
+
+function fqKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fqMondayOf(d){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; }
+
+async function fqLoad(){
+  if(!FQ.monday){
+    const t=new Date();
+    FQ.monday = fqMondayOf((t<START||t>END) ? START : t);
+  }
+  if(!FQ.loaded){
+    const { data, error } = await sb.from('config').select('value').eq('key','frequentation');
+    if(!error && data && data.length && data[0].value){
+      const v=data[0].value;
+      if(Array.isArray(v.slots) && v.slots.length) FQ.data.slots=v.slots;
+      if(v.cells && typeof v.cells==='object') FQ.data.cells=v.cells;
+    }
+    FQ.loaded=true;
+  }
+  fqRender();
+}
+
+function fqSave(){
+  const st=document.getElementById('fqSaveState');
+  if(st) st.textContent='⏳ Enregistrement…';
+  clearTimeout(FQ.timer);
+  FQ.timer=setTimeout(async()=>{
+    const { error } = await sb.from('config').upsert({ key:'frequentation', value:FQ.data });
+    if(st) st.textContent = error ? '⚠️ Erreur d\'enregistrement' : '✅ Enregistré';
+    if(error){ console.error('fqSave', error); toast('Erreur d\'enregistrement du planning','error'); }
+  }, 600);
+}
+
+function fqShift(n){ FQ.monday.setDate(FQ.monday.getDate()+7*n); fqRender(); }
+function fqToday(){ const t=new Date(); FQ.monday=fqMondayOf((t<START||t>END)?START:t); fqRender(); }
+function fqJump(v){ if(!v) return; const [y,m,d]=v.split('-').map(Number); FQ.monday=fqMondayOf(new Date(y,m-1,d)); fqRender(); }
+
+function fqRender(){
+  const days=[...Array(7)].map((_,i)=>{ const d=new Date(FQ.monday); d.setDate(d.getDate()+i); return d; });
+  const dn=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const fmt=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  document.getElementById('fqWeekLabel').textContent='Semaine du '+fmt(days[0])+' au '+fmt(days[6])+' '+days[6].getFullYear();
+  const slots=FQ.data.slots;
+  const colTot=days.map(d=>slots.reduce((a,sl)=>a+(FQ.data.cells[fqKey(d)+'|'+sl.id]||[]).reduce((b,e)=>b+(+e.n||0),0),0));
+  const weekTot=colTot.reduce((a,b)=>a+b,0);
+  let h='<table style="border-collapse:collapse;width:100%;min-width:900px;table-layout:fixed"><thead><tr><th style="width:120px"></th>';
+  days.forEach((d,i)=>{
+    const wk=i>=5;
+    h+=`<th style="padding:6px;border:1px solid var(--border);background:${wk?'#fef3c7':'var(--accent-light)'};font-size:.8rem">${dn[i]} ${d.getDate()}/${d.getMonth()+1}<br><span style="font-weight:400;color:var(--text3)">${colTot[i]} pers.</span></th>`;
+  });
+  h+='</tr></thead><tbody>';
+  slots.forEach(sl=>{
+    h+=`<tr><td style="padding:6px;border:1px solid var(--border);vertical-align:top;background:#f8fafc">
+      <input class="field" value="${esc(sl.label)}" style="width:100%;font-weight:700;font-size:.8rem" onchange="fqRenameSlot('${sl.id}',this.value)">
+      <button class="btn btn-sm" style="margin-top:4px;padding:1px 6px;font-size:.7rem" onclick="fqDelSlot('${sl.id}')" title="Supprimer ce créneau">✕</button></td>`;
+    days.forEach(d=>{
+      const k=fqKey(d)+'|'+sl.id, list=FQ.data.cells[k]||[];
+      const tot=list.reduce((a,e)=>a+(+e.n||0),0);
+      h+=`<td style="padding:4px;border:1px solid var(--border);vertical-align:top;background:${d.getDay()%6===0?'#fffbeb':'#fff'}">`;
+      list.forEach((e,i)=>{
+        h+=`<div style="display:flex;gap:3px;margin-bottom:3px;align-items:center">
+          <input class="field" value="${esc(e.g||'')}" placeholder="Groupe" style="flex:1;min-width:0;padding:3px 5px;font-size:.75rem" onchange="fqEdit('${k}',${i},'g',this.value)">
+          <input class="field" type="number" min="0" value="${e.n===''||e.n==null?'':+e.n}" placeholder="n" style="width:46px;padding:3px 4px;font-size:.75rem" onchange="fqEdit('${k}',${i},'n',this.value)">
+          <button class="btn btn-sm" style="padding:1px 5px;font-size:.7rem" onclick="fqDelEntry('${k}',${i})" title="Retirer">✕</button></div>`;
+      });
+      h+=`<button class="btn btn-sm" style="padding:2px 8px;font-size:.72rem" onclick="fqAddEntry('${k}')">➕</button>${tot?` <span style="font-size:.72rem;font-weight:700;color:var(--accent)">${tot} pers.</span>`:''}</td>`;
+    });
+    h+='</tr>';
+  });
+  h+=`</tbody></table><p style="margin-top:8px;font-weight:700">Total de la semaine : ${weekTot} personne(s)</p>`;
+  const grid=document.getElementById('fqGrid');
+  // conserve la position de défilement horizontale lors du re-rendu
+  const sx=grid.scrollLeft; grid.innerHTML=h; grid.scrollLeft=sx;
+}
+
+function fqAddEntry(k){ (FQ.data.cells[k] ||= []).push({g:'',n:''}); fqSave(); fqRender(); }
+function fqEdit(k,i,f,v){ const e=(FQ.data.cells[k]||[])[i]; if(!e) return; e[f]= f==='n' ? (v===''?'':Math.max(0,parseInt(v,10)||0)) : v.trim(); fqSave(); fqRender(); }
+function fqDelEntry(k,i){ const l=FQ.data.cells[k]; if(!l) return; l.splice(i,1); if(!l.length) delete FQ.data.cells[k]; fqSave(); fqRender(); }
+function fqAddSlot(){ FQ.data.slots.push({id:'s'+Date.now().toString(36),label:'Nouveau créneau'}); fqSave(); fqRender(); }
+function fqRenameSlot(id,v){ const sl=FQ.data.slots.find(x=>x.id===id); if(sl){ sl.label=v.trim()||'Créneau'; fqSave(); } }
+function fqDelSlot(id){
+  if(FQ.data.slots.length<=1){ toast('Garde au moins un créneau','error'); return; }
+  if(!confirm('Supprimer ce créneau et tous les groupes notés dedans (sur toutes les semaines) ?')) return;
+  FQ.data.slots=FQ.data.slots.filter(x=>x.id!==id);
+  Object.keys(FQ.data.cells).forEach(k=>{ if(k.endsWith('|'+id)) delete FQ.data.cells[k]; });
+  fqSave(); fqRender();
+}
+
 async function setPage(page){
   if(page==='athletes' && !S.isAdmin) page='quickreg'; // onglet réservé à l'admin
   if(page==='suivi' && !S.isAdmin) page='quickreg'; // réservé à l'admin uniquement
+  if(page==='freq' && !S.isAdmin) page='quickreg'; // réservé à l'admin uniquement
   S.page = page;
   const qr = document.getElementById('quickRegPanel');
   const team = document.getElementById('teamPage');
   const plan = document.getElementById('planningPage');
   const ath = document.getElementById('athletesPage');
   const suivi = document.getElementById('suiviPage');
+  const freqP = document.getElementById('freqPage');
+  if(freqP) freqP.style.display = page==='freq' ? 'block' : 'none';
+  const pbF = document.getElementById('pbFreq');
+  if(pbF) pbF.classList.toggle('active', page==='freq');
   if(qr)    qr.style.display    = page==='quickreg' ? 'block' : 'none';
   if(team)  team.style.display  = page==='team'     ? 'block' : 'none';
   if(plan)  plan.style.display  = page==='planning' ? 'block' : 'none';
@@ -1876,6 +1994,7 @@ async function setPage(page){
   if(pbA) pbA.classList.toggle('active', page==='athletes');
   if(pbS) pbS.classList.toggle('active', page==='suivi');
   if(page==='suivi' && S.isAdmin && typeof refreshPendingBadge==='function'){ try{ refreshPendingBadge(); }catch(e){} try{ renderSlotRequests(); }catch(e){} }
+  if(page==='freq' && S.isAdmin){ await fqLoad(); }
   if(page==='team'){
     renderMyTeam();
     renderTeamPage();
@@ -3004,6 +3123,8 @@ async function onAuthed(session){
   if(pbT) pbT.style.display = S.isReadonly ? 'none' : '';
   if(pbA) pbA.style.display = S.isAdmin ? '' : 'none';
   if(pbS) pbS.style.display = S.isAdmin ? '' : 'none'; // réservé à l'admin uniquement
+  const pbFq = document.getElementById('pbFreq');
+  if(pbFq) pbFq.style.display = S.isAdmin ? '' : 'none';
   setPage(S.isReadonly ? 'planning' : 'quickreg');
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
