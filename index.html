@@ -1053,6 +1053,7 @@ header .user-pill { color: #fff; }
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <button class="btn btn-sm btn-primary" id="fqAddBtn" onclick="fqPeriodOpen()">➕ Déclarer mon groupe</button>
         <button class="btn btn-sm" onclick="fqPrint()">🖨️ Imprimer / PDF</button>
+        <button class="btn btn-sm" id="fqImportBtn" style="display:none;border-color:#16a34a;color:#15803d" onclick="fqImportOld()">♻️ Récupérer mes anciennes entrées</button>
         <button class="btn btn-sm" id="fqReqBtn" style="display:none;border-color:#7c3aed;color:#7c3aed" onclick="setPage('suivi')"></button>
         <span id="fqSaveState" style="font-size:.75rem;color:var(--text3);margin-left:auto"></span>
       </div>
@@ -1271,6 +1272,10 @@ header .user-pill { color: #fff; }
         <p style="font-size:.74rem;color:var(--text3);margin:4px 0 0">Les cases cochées sont inscrites sur chaque jour ouvert de la période. En-tête de colonne = tout cocher pour la team.</p>
       </div>
       <div><label>Note (facultatif)</label><input class="field" id="fqPNote" type="text" style="width:100%"></div>
+      <label id="fqNoteOnlyWrap" style="display:none;gap:8px;align-items:flex-start;cursor:pointer;font-size:.82rem;padding:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
+        <input type="checkbox" id="fqNoteOnly" style="margin-top:3px" onchange="fqNoteOnlyChange()">
+        <span><b>Admin : noter dans la frise seulement</b> (aucune inscription automatique n'est créée, pratique pour garder une trace d'une demande avant de la traiter).</span>
+      </label>
       <p id="fqPPreview" style="font-size:.8rem;color:var(--text2);margin:0"></p>
       <p id="fqPErr" style="color:var(--red);font-size:.8rem;margin:0"></p>
     </div>
@@ -1925,10 +1930,13 @@ function fqParse(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m
 function fqDayIdx(k){ const [y,m,d]=k.split('-').map(Number); return Math.round((Date.UTC(y,m-1,d)-Date.UTC(START.getFullYear(),START.getMonth(),START.getDate()))/86400000); }
 function fqColor(name){ let h=0; for(const c of String(name||'')) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h},55%,42%)`; }
 function fqUuid(){ return crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()); }
+function fqN(p){ return Array.isArray(p.athletes)&&p.athletes.length ? p.athletes.length : (+(p.summary&&p.summary.n)||0); }
 function fqIsMine(p){ return !!(S.session && p.user_id===S.session.user.id); }
 function fqCanSee(p){ return S.isAdmin || fqIsMine(p); }
 function fqPendingFor(p){ return (FQ.reqs||[]).filter(r=>r.user_id===p.user_id && r.date>=p.start_date && r.date<=p.end_date).length; }
 function fqStatus(p){
+  if(p.summary&&p.summary.noteOnly) return {icon:'📝',txt:'Noté dans la frise (sans inscription automatique)'};
+  if(p.summary&&p.summary.imported) return {icon:p.summary.validated?'✅':'📝',txt:p.summary.validated?'Ancienne saisie, validée':'Ancienne saisie récupérée'};
   const pend=fqPendingFor(p);
   if(pend) return {icon:'🕓',txt:`${pend} demande(s) de créneau en attente de l'admin`};
   if(p.summary && p.summary.unplaced && p.summary.unplaced.length) return {icon:'⚠️',txt:`${p.summary.unplaced.length} séance(s) non placée(s)`};
@@ -1943,6 +1951,56 @@ async function fqLoad(){
   const rb=document.getElementById('fqReqBtn');
   if(rb){ rb.style.display = (S.isAdmin && FQ.reqs.length) ? '' : 'none'; rb.textContent=`📲 ${FQ.reqs.length} demande(s) de créneau à valider (voir Suivi)`; }
   fqRenderTimeline();
+  const ib=document.getElementById('fqImportBtn');
+  if(ib){ const n=FQ.err?0:(await fqImportable()).length; ib.style.display=n?'':'none'; ib.textContent=`♻️ Récupérer mes anciennes entrées (${n})`; }
+}
+
+// ── Récupération des anciennes saisies (ancien planning de fréquentation : config 'frequentation') ──
+async function fqOldRows(){
+  const { data, error } = await sb.from('config').select('value').eq('key','frequentation');
+  if(error||!data||!data.length||!data[0].value) return [];
+  const v=data[0].value, out=[];
+  (Array.isArray(v.periods)?v.periods:[]).forEach(o=>{
+    if(!o||!o.start||!o.end) return;
+    out.push({ g:o.g||'(sans nom)', start_date:o.start, end_date:o.end, athletes:[], am:(+o.am||0)>0, pm:(+o.pm||0)>0, note:o.note||null,
+      summary:{imported:true,src:'p:'+(o.id||o.start+o.g),n:+o.n||0,am:+o.am||0,pm:+o.pm||0} });
+  });
+  const labels={}; (Array.isArray(v.slots)?v.slots:[]).forEach(sl=>labels[sl.id]=String(sl.label||''));
+  const byKey={};
+  Object.entries(v.cells||{}).forEach(([k,list])=>{
+    const [date,slotId]=k.split('|'); const lab=labels[slotId]||'';
+    const half=/apr|pm|soir/i.test(lab)?'pm':'am';
+    (list||[]).forEach(e=>{
+      const kk=date+'|'+(e.g||'');
+      const r=(byKey[kk] ||= { g:e.g||'(sans nom)', start_date:date, end_date:date, athletes:[], am:false, pm:false, note:null,
+        summary:{imported:true,src:'c:'+kk,n:0,am:0,pm:0,validated:true,_c:0} });
+      r[half]=true; r.summary[half]+=1;
+      if(e.status!=='validated') r.summary.validated=false;
+      const names=(e.athletes||[]).map(a=>a.name).filter(Boolean);
+      if(names.length) names.forEach(nm=>{ let x=r.athletes.find(a=>a.name===nm); if(!x){ x={name:nm,am:false,pm:false,mu:false}; r.athletes.push(x); } x[half]=true; });
+      else r.summary._c=Math.max(r.summary._c,+e.n||0);
+    });
+  });
+  Object.values(byKey).forEach(r=>{ r.summary.n=r.athletes.length||r.summary._c; delete r.summary._c; out.push(r); });
+  return out;
+}
+async function fqImportable(){
+  if(!S.isAdmin) return [];
+  try{
+    const old=await fqOldRows();
+    const have=new Set(FQ.rows.map(r=>r.summary&&r.summary.src).filter(Boolean));
+    return old.filter(o=>!have.has(o.summary.src));
+  }catch(e){ return []; }
+}
+async function fqImportOld(){
+  if(!S.isAdmin) return;
+  const todo=await fqImportable();
+  if(!todo.length){ toast('Aucune ancienne entrée à récupérer.','success'); return; }
+  const rows=todo.map(o=>({ ...o, user_id:S.session.user.id, owner_name:S.profile?.full_name||'Admin' }));
+  const { error } = await sb.from('frise_periods').insert(rows);
+  if(error){ toast('Erreur : '+error.message,'error'); return; }
+  toast(`♻️ ${rows.length} ancienne(s) entrée(s) récupérée(s) dans la frise.`,'success');
+  await fqLoad();
 }
 
 function fqRenderTimeline(){
@@ -1954,8 +2012,8 @@ function fqRenderTimeline(){
   const W=total*FQ_DAYW, LBL=170;
   const periods=[...FQ.rows].sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
   const lblCss=`position:sticky;left:0;z-index:3;width:${LBL}px;min-width:${LBL}px;box-sizing:border-box;background:#f8fafc;border-right:1px solid var(--border);padding:4px 8px;font-size:.78rem;display:flex;align-items:center`;
-  const nOf=p=>Array.isArray(p.athletes)?p.athletes.length:0;
-  const halvesOf=p=>{ const a=fqAths(p); return (a.some(x=>x.am)?'🌅':'')+(a.some(x=>x.pm)?'🌇':'')+(a.some(x=>x.mu)?'💪':''); };
+  const nOf=fqN;
+  const halvesOf=p=>{ const a=fqAths(p); if(!a.length) return (p.am?'🌅':'')+(p.pm?'🌇':''); return (a.some(x=>x.am)?'🌅':'')+(a.some(x=>x.pm)?'🌇':'')+(a.some(x=>x.mu)?'💪':''); };
   let months='';
   for(let d=new Date(START.getFullYear(),START.getMonth(),1); d<=END; d=new Date(d.getFullYear(),d.getMonth()+1,1)){
     const from=Math.max(0,fqDayIdx(fqKey(d)));
@@ -2086,10 +2144,17 @@ function fqPeriodOpen(){
   document.getElementById('fqAthFilter').value='';
   FQS.sel={};
   fqRenderAthTable();
+  const no=document.getElementById('fqNoteOnly'); if(no) no.checked=false;
+  document.getElementById('fqNoteOnlyWrap').style.display=S.isAdmin?'flex':'none';
+  fqNoteOnlyChange();
   document.getElementById('fqPSubmit').disabled=false;
   document.getElementById('fqPeriodModal').classList.add('show');
 }
 
+function fqNoteOnlyChange(){
+  const on=S.isAdmin && document.getElementById('fqNoteOnly').checked;
+  document.getElementById('fqPSubmit').textContent = on ? '📝 Noter dans la frise' : '✅ Valider et inscrire automatiquement';
+}
 async function fqPeriodSubmit(){
   const err=document.getElementById('fqPErr'); err.textContent='';
   const g=document.getElementById('fqPName').value.trim();
@@ -2100,7 +2165,8 @@ async function fqPeriodSubmit(){
   if(end<start){ err.textContent='La date de fin doit être après le début.'; return; }
   if(!athletes.length){ err.textContent='Coche au moins un athlète avec au moins une séance (kayak matin, kayak après-midi ou muscu).'; return; }
   if(!fqOpenDays(start,end)){ err.textContent='Aucun jour ouvert dans cette période (ou hors de ton séjour).'; return; }
-  const btn=document.getElementById('fqPSubmit'); btn.disabled=true; btn.textContent='⏳ Inscription en cours…';
+  const noteOnly=S.isAdmin && document.getElementById('fqNoteOnly').checked;
+  const btn=document.getElementById('fqPSubmit'); btn.disabled=true; btn.textContent=noteOnly?'⏳ Enregistrement…':'⏳ Inscription en cours…';
   const row={ user_id:S.session.user.id, owner_name:S.profile?.full_name||S.session.user.email, g, start_date:start, end_date:end,
     athletes, am:athletes.some(a=>a.am), pm:athletes.some(a=>a.pm), note:document.getElementById('fqPNote').value.trim()||null, group_id:fqUuid() };
   try{
@@ -2108,7 +2174,8 @@ async function fqPeriodSubmit(){
     if(ins.error) throw ins.error;
     const saved=ins.data;
     let summary;
-    try{ summary=await fqAutoRegister(saved); }
+    if(noteOnly) summary={noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0};
+    else try{ summary=await fqAutoRegister(saved); }
     catch(e){ console.error('fqAutoRegister',e); summary={sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0,error:String(e?.message||e)}; }
     await sb.from('frise_periods').update({summary}).eq('id',saved.id);
     closeModal('fqPeriodModal');
@@ -2118,7 +2185,7 @@ async function fqPeriodSubmit(){
   }catch(e){
     err.textContent='Erreur : '+(e?.message||e)+(/frise_periods/i.test(e?.message||'')?' — la table « frise_periods » doit être créée dans Supabase.':'');
   }
-  btn.disabled=false; btn.textContent='✅ Valider et inscrire automatiquement';
+  btn.disabled=false; fqNoteOnlyChange();
 }
 
 // Inscription automatique, par jour ouvert et par séance cochée (kayak matin, kayak après-midi, muscu).
@@ -2193,7 +2260,8 @@ function fqDetail(id){
   if(fqCanSee(p)) h+=`<table style="border-collapse:collapse;width:100%;margin-bottom:8px;font-size:.82rem">${aths.map(a=>`<tr><td style="padding:2px 6px;border-top:1px solid #eef0f3">${esc(a.name)}</td><td style="padding:2px 6px;border-top:1px solid #eef0f3;text-align:right">${flag(a)}</td></tr>`).join('')}</table>
     <p style="font-size:.72rem;color:var(--text3);margin:0 0 6px">🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>`;
   h+=`<p style="margin:0 0 6px"><b>État :</b> ${esc(st.txt)}</p>`;
-  if(fqCanSee(p) && p.summary){
+  if(p.summary&&p.summary.imported&&!aths.length) h+=`<p style="margin:0 0 6px"><b>Effectif :</b> ${fqN(p)} athlète(s) · séances : ${p.summary.am||0} matin / ${p.summary.pm||0} après-midi <span style="color:var(--text3)">(saisie récupérée)</span></p>`;
+  if(fqCanSee(p) && p.summary && !p.summary.noteOnly && !p.summary.imported){
     h+=`<ul style="margin:0 0 6px;padding-left:18px">
       <li>✅ ${sm.sessions||0} séance(s) inscrite(s) directement (${sm.seats||0} inscriptions individuelles)</li>
       ${sm.requested?`<li>🕓 ${sm.requested} séance(s) sur créneau suivant : demande envoyée à l'admin, à valider</li>`:''}
@@ -2218,11 +2286,11 @@ function fqPrint(){
   if(!rows.length) h+='<p class="print-empty">Aucun groupe déclaré.</p>';
   else{
     h+=`<table class="print-sheet"><thead><tr><th>Groupe</th><th>Référent</th><th>Du</th><th>Au</th><th>Athlètes</th><th>Kayak matin</th><th>Kayak ap.-midi</th><th>Muscu</th><th>État</th></tr></thead><tbody>`;
-    rows.forEach(p=>{ const a=fqAths(p);
-      h+=`<tr><td><b>${esc(p.g||'')}</b></td><td>${esc(p.owner_name||'')}</td><td>${fmt(p.start_date)}</td><td>${fmt(p.end_date)}</td><td style="text-align:center">${a.length}</td><td style="text-align:center">${a.filter(x=>x.am).length}</td><td style="text-align:center">${a.filter(x=>x.pm).length}</td><td style="text-align:center">${a.filter(x=>x.mu).length}</td><td>${esc(fqStatus(p).icon+' '+fqStatus(p).txt)}</td></tr>`; });
+    rows.forEach(p=>{ const a=fqAths(p), sm=p.summary||{}, imp=!a.length&&sm.imported;
+      h+=`<tr><td><b>${esc(p.g||'')}</b></td><td>${esc(p.owner_name||'')}</td><td>${fmt(p.start_date)}</td><td>${fmt(p.end_date)}</td><td style="text-align:center">${fqN(p)}</td><td style="text-align:center">${imp?(sm.am||0)+' séances':a.filter(x=>x.am).length}</td><td style="text-align:center">${imp?(sm.pm||0)+' séances':a.filter(x=>x.pm).length}</td><td style="text-align:center">${a.filter(x=>x.mu).length}</td><td>${esc(fqStatus(p).icon+' '+fqStatus(p).txt)}</td></tr>`; });
     h+='</tbody></table>';
     rows.filter(fqCanSee).forEach(p=>{
-      const a=fqAths(p);
+      const a=fqAths(p); if(!a.length) return;
       h+=`<div class="print-section-title" style="margin-top:16px;page-break-inside:avoid">${esc(p.g||'')} — ${fmt(p.start_date)} → ${fmt(p.end_date)}</div>
         <table class="print-sheet" style="page-break-inside:avoid"><thead><tr><th>Athlète</th><th>Kayak matin</th><th>Kayak ap.-midi</th><th>Muscu</th></tr></thead><tbody>
         ${a.map(x=>`<tr><td>${esc(x.name)}</td><td style="text-align:center">${tick(x.am)}</td><td style="text-align:center">${tick(x.pm)}</td><td style="text-align:center">${tick(x.mu)}</td></tr>`).join('')}</tbody></table>`;
@@ -2236,11 +2304,11 @@ function fqPrint(){
 
 async function fqPeriodDelete(){
   const p=FQ.cur; if(!p||!fqCanSee(p)) return;
-  if(!confirm(`Supprimer le groupe « ${p.g} » ?\n\nSes inscriptions automatiques et ses demandes de créneau en attente seront aussi supprimées.`)) return;
+  if(!confirm(`Supprimer le groupe « ${p.g} » ?${p.group_id?'\n\nSes inscriptions automatiques et ses demandes de créneau en attente seront aussi supprimées.':''}`)) return;
   try{
     if(p.group_id){ const r=await sb.from('inscriptions').delete().eq('group_id',p.group_id); if(r.error) console.warn(r.error); }
-    const rq=await sb.from('slot_requests').delete().eq('user_id',p.user_id).eq('status','pending').gte('date',p.start_date).lte('date',p.end_date);
-    if(rq && rq.error) console.warn(rq.error);
+    if(p.group_id){ const rq=await sb.from('slot_requests').delete().eq('user_id',p.user_id).eq('status','pending').gte('date',p.start_date).lte('date',p.end_date);
+      if(rq && rq.error) console.warn(rq.error); }
     const del=await sb.from('frise_periods').delete().eq('id',p.id);
     if(del.error) throw del.error;
     closeModal('fqDetailModal');
