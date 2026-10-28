@@ -733,6 +733,7 @@ header .user-pill { color: #fff; }
         </div>
         <p style="font-size:.72rem;color:var(--text3);margin-top:5px" id="qrTeamHint"></p>
       </div>
+      <input class="field" id="qrMemberFilter" type="text" placeholder="🔎 Filtrer par nom…" style="width:100%;margin-bottom:8px" oninput="renderMdregMembers()">
       <div id="mdregMembers"></div>
       <div id="qrOtherWrap" style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm)">
         <div style="font-size:.78rem;font-weight:600;margin-bottom:6px">➕ Ajouter une personne d'un autre groupe (base athlètes)</div>
@@ -1048,16 +1049,17 @@ header .user-pill { color: #fff; }
   <div id="freqPage" style="display:none">
     <div class="quick-reg-card">
       <h2>🧭 Frise des groupes</h2>
-      <p class="qr-sub">Déclare ton groupe : période, athlètes et séances (matin et/ou après-midi). L'inscription est ensuite faite automatiquement sur les créneaux : tout le groupe sur la même séance quand la place le permet, sinon une demande d'ouverture du créneau suivant est envoyée à l'admin. Tu vois ici tous les groupes (lecture seule pour ceux des autres).</p>
+      <p class="qr-sub">Déclare ton groupe : période, puis coche pour chaque athlète ses séances (kayak matin, kayak après-midi, muscu). L'inscription est ensuite faite automatiquement sur les créneaux : tout le groupe sur la même séance quand la place le permet, sinon une demande d'ouverture du créneau suivant est envoyée à l'admin. Tu vois ici tous les groupes (lecture seule pour ceux des autres).</p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <button class="btn btn-sm btn-primary" id="fqAddBtn" onclick="fqPeriodOpen()">➕ Déclarer mon groupe</button>
+        <button class="btn btn-sm" onclick="fqPrint()">🖨️ Imprimer / PDF</button>
         <button class="btn btn-sm" id="fqReqBtn" style="display:none;border-color:#7c3aed;color:#7c3aed" onclick="setPage('suivi')"></button>
         <span id="fqSaveState" style="font-size:.75rem;color:var(--text3);margin-left:auto"></span>
       </div>
       <div id="fqNotice"></div>
       <div id="fqTimeline" style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"></div>
       <div id="fqTimeTotals" style="margin-top:10px;font-weight:700"></div>
-      <p style="font-size:.72rem;color:var(--text3);margin-top:6px">Légende : ✅ inscrit · 🕓 demande en attente de validation de l'admin · ⚠️ des séances n'ont pas pu être placées · 🌅 matin · 🌇 après-midi</p>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:6px">Légende : ✅ inscrit · 🕓 demande en attente de validation de l'admin · ⚠️ des séances n'ont pas pu être placées · 🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>
     </div>
   </div>
 
@@ -1098,6 +1100,10 @@ header .user-pill { color: #fff; }
   <div class="modal-box" style="max-width:96vw;width:96vw;max-height:90vh;overflow:auto">
     <h3 id="gpModalTitle">👥 Qui est déjà inscrit ?</h3>
     <p id="gpModalSub" style="font-size:.78rem;color:var(--text3);margin-bottom:10px"></p>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn btn-sm btn-primary" id="gpTabKayak" onclick="gpSetAct('kayak')">🚣 Kayak</button>
+      <button class="btn btn-sm" id="gpTabMuscu" onclick="gpSetAct('muscu')">🏋️ Muscu</button>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="date" class="field" id="gpStartDate" style="width:160px" min="2026-07-06" max="2027-03-31">
       <select class="field" id="gpDays" style="width:140px">
@@ -1250,7 +1256,7 @@ header .user-pill { color: #fff; }
 
 <!-- Modal déclaration de groupe (frise) -->
 <div class="modal-bg" id="fqPeriodModal">
-  <div class="modal-box" style="max-width:520px">
+  <div class="modal-box" style="max-width:760px">
     <h3>🧭 Déclarer mon groupe</h3>
     <div class="modal-fields">
       <div><label>Nom du groupe *</label><input class="field" id="fqPName" type="text" placeholder="Ex : Club de Lyon" style="width:100%"></div>
@@ -1258,18 +1264,11 @@ header .user-pill { color: #fff; }
         <div><label>Du *</label><input class="field" id="fqPStart" type="date" style="width:100%" onchange="fqPreview()"></div>
         <div><label>Au *</label><input class="field" id="fqPEnd" type="date" style="width:100%" onchange="fqPreview()"></div>
       </div>
-      <div id="fqTeamPickWrap" style="display:none"><label>Équipe</label><select class="field" id="fqTeamPick" style="width:100%" onchange="fqRenderAthPick()"></select></div>
       <div>
-        <label>Athlètes * <span style="font-weight:400;font-size:.75rem">(au moins un)</span></label>
-        <div id="fqAthPick" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px"></div>
-      </div>
-      <div>
-        <label>Séances * <span style="font-weight:400;font-size:.75rem">(au moins une)</span></label>
-        <div style="display:flex;gap:16px;flex-wrap:wrap">
-          <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="fqPAm" onchange="fqPreview()"> 🌅 Matin</label>
-          <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="fqPPm" onchange="fqPreview()"> 🌇 Après-midi</label>
-        </div>
-        <p style="font-size:.74rem;color:var(--text3);margin:4px 0 0">Le groupe est inscrit sur chaque jour ouvert de la période, pour les demi-journées cochées.</p>
+        <label>Athlètes et séances * <span style="font-weight:400;font-size:.75rem">(coche pour chaque athlète : Kayak matin, Kayak après-midi, Muscu — au moins une case)</span></label>
+        <input class="field" id="fqAthFilter" type="text" placeholder="🔎 Filtrer par nom…" style="width:100%;margin-bottom:6px" oninput="fqRenderAthTable()">
+        <div id="fqAthTable" style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
+        <p style="font-size:.74rem;color:var(--text3);margin:4px 0 0">Les cases cochées sont inscrites sur chaque jour ouvert de la période. En-tête de colonne = tout cocher pour la team.</p>
       </div>
       <div><label>Note (facultatif)</label><input class="field" id="fqPNote" type="text" style="width:100%"></div>
       <p id="fqPPreview" style="font-size:.8rem;color:var(--text2);margin:0"></p>
@@ -1956,6 +1955,7 @@ function fqRenderTimeline(){
   const periods=[...FQ.rows].sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
   const lblCss=`position:sticky;left:0;z-index:3;width:${LBL}px;min-width:${LBL}px;box-sizing:border-box;background:#f8fafc;border-right:1px solid var(--border);padding:4px 8px;font-size:.78rem;display:flex;align-items:center`;
   const nOf=p=>Array.isArray(p.athletes)?p.athletes.length:0;
+  const halvesOf=p=>{ const a=fqAths(p); return (a.some(x=>x.am)?'🌅':'')+(a.some(x=>x.pm)?'🌇':'')+(a.some(x=>x.mu)?'💪':''); };
   let months='';
   for(let d=new Date(START.getFullYear(),START.getMonth(),1); d<=END; d=new Date(d.getFullYear(),d.getMonth()+1,1)){
     const from=Math.max(0,fqDayIdx(fqKey(d)));
@@ -1980,9 +1980,9 @@ function fqRenderTimeline(){
   periods.forEach(p=>{
     const i0=Math.max(0,fqDayIdx(p.start_date)), i1=Math.min(total-1,fqDayIdx(p.end_date));
     const col=fqColor(p.g), st=fqStatus(p), mine=fqIsMine(p);
-    const halves=(p.am?'🌅':'')+(p.pm?'🌇':'');
+    const halves=halvesOf(p);
     const txt=`${st.icon} ${esc(p.g||'(sans nom)')} · ${nOf(p)} ath. · ${halves}`;
-    const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${nOf(p)} athlète(s)${p.am?', matin':''}${p.pm?', après-midi':''}\n${st.txt}`;
+    const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${nOf(p)} athlète(s) ${halves}\n${st.txt}`;
     const wBar=(i1-i0+1)*FQ_DAYW, long=wBar>=230;
     rows+=`<div style="display:flex;height:34px;border-top:1px solid #eef0f3">
       <div style="${lblCss}" title="${esc(tip)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(p.g||'(sans nom)')}</b>${mine?' <span style="color:var(--accent)">· moi</span>':''}<br><span style="color:var(--text3);font-size:.68rem">${fmt(p.start_date)} → ${fmt(p.end_date)}</span></span></div>
@@ -2001,26 +2001,61 @@ function fqRenderTimeline(){
   document.getElementById('fqTimeTotals').textContent=`${periods.length} groupe(s) · ${periods.reduce((a,p)=>a+nOf(p),0)} athlète(s) déclaré(s)`;
 }
 
-// ── Déclaration d'un groupe ──
-function fqPool(teamId){
-  const out=[]; const add=n=>{ n=String(n||'').trim(); if(n && !out.includes(n)) out.push(n); };
+// ── Déclaration d'un groupe : tableau par team, cases Kayak matin / Kayak après-midi / Muscu ──
+// athletes (jsonb) = [{name, am, pm, mu}] ; anciennes lignes = tableau de noms (am/pm repris de la ligne).
+function fqAths(p){
+  return (p.athletes||[]).map(a=> typeof a==='string' ? {name:a, am:!!p.am, pm:!!p.pm, mu:false} : {name:a.name, am:!!a.am, pm:!!a.pm, mu:!!a.mu});
+}
+function fqTeamsList(){
+  const out=[], seen=new Set();
+  const push=(name,members)=>{ const ms=members.filter(n=>n&&!seen.has(n)); ms.forEach(n=>seen.add(n)); if(ms.length) out.push({name,members:ms}); };
+  const names=tm=>(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean);
   if(S.isAdmin){
-    if(teamId){ const tm=(S.teams||[]).find(x=>x.id===teamId); (tm?.members||[]).forEach(m=>m.athlete&&add(m.athlete.full_name)); }
-    else (S.athletes||[]).forEach(a=>add(a.full_name));
+    (S.teams||[]).forEach(tm=>push(tm.name,names(tm)));
+    push('Autres athlètes',(S.athletes||[]).map(a=>a.full_name));
   } else {
-    (S.myTeam?.members||[]).forEach(m=>m.athlete&&add(m.athlete.full_name));
-    add(S.profile?.full_name||S.session?.user?.email);
+    if(S.myTeam) push(S.myTeam.name||'Mon équipe',names(S.myTeam));
+    push('Moi',[S.profile?.full_name||S.session?.user?.email]);
   }
   return out;
 }
-function fqRenderAthPick(){
-  const tp=document.getElementById('fqTeamPick');
-  const names=fqPool(S.isAdmin && tp ? tp.value : null);
-  const keep=new Set([...document.querySelectorAll('#fqAthPick input:checked')].map(i=>i.value));
-  const box=document.getElementById('fqAthPick');
-  if(!names.length){ box.innerHTML=`<p style="font-size:.8rem;color:var(--text3);margin:0">Aucun athlète disponible : ton équipe n'est pas encore configurée par l'administrateur.</p>`; return; }
-  box.innerHTML=names.map(n=>`<label style="display:flex;gap:8px;align-items:center;padding:3px 2px;cursor:pointer"><input type="checkbox" value="${esc(n)}" ${keep.has(n)?'checked':''} onchange="fqPreview()"> ${esc(n)}</label>`).join('');
+const FQS = { sel:{}, names:[], teams:[] };   // sélection en cours : nom -> {am,pm,mu}
+function fqRenderAthTable(){
+  FQS.teams=fqTeamsList(); FQS.names=[];
+  const f=(document.getElementById('fqAthFilter')?.value||'').trim().toLowerCase();
+  const box=document.getElementById('fqAthTable');
+  if(!FQS.teams.length){ box.innerHTML=`<p style="padding:10px;font-size:.8rem;color:var(--text3);margin:0">Aucun athlète disponible : ton équipe n'est pas encore configurée par l'administrateur.</p>`; fqPreview(); return; }
+  const cb=(on,fn)=>`<input type="checkbox" ${on?'checked':''} onchange="${fn}">`;
+  let h='';
+  FQS.teams.forEach((tm,ti)=>{
+    const rowsH=[]; const vis=[];
+    tm.members.forEach(n=>{
+      if(f && !n.toLowerCase().includes(f)) return;
+      const i=FQS.names.length; FQS.names.push(n); vis.push(n);
+      const c=FQS.sel[n]||{};
+      rowsH.push(`<tr><td style="padding:4px 8px;border-top:1px solid #eef0f3"><label style="cursor:pointer" onclick="fqTickRow(${i})" title="Cliquer : toute la ligne">${esc(n)}</label></td>
+        <td style="text-align:center;border-top:1px solid #eef0f3">${cb(c.am,`fqTick(${i},'am',this.checked)`)}</td>
+        <td style="text-align:center;border-top:1px solid #eef0f3">${cb(c.pm,`fqTick(${i},'pm',this.checked)`)}</td>
+        <td style="text-align:center;border-top:1px solid #eef0f3">${cb(c.mu,`fqTick(${i},'mu',this.checked)`)}</td></tr>`);
+    });
+    if(!rowsH.length) return;
+    const all=col=>vis.length&&vis.every(n=>FQS.sel[n]&&FQS.sel[n][col]);
+    const hd=(col,lab)=>`<th style="width:96px;padding:4px;font-size:.72rem;text-align:center"><label style="cursor:pointer;display:block">${lab}<br><input type="checkbox" ${all(col)?'checked':''} onchange="fqTickTeam(${ti},'${col}',this.checked)"></label></th>`;
+    h+=`<table style="width:100%;border-collapse:collapse;margin-bottom:8px"><thead><tr style="background:var(--accent-light)">
+      <th style="text-align:left;padding:6px 8px;font-size:.8rem">👥 ${esc(tm.name)} <span style="font-weight:400;color:var(--text3)">(${tm.members.length})</span></th>${hd('am','🌅 Kayak<br>matin')}${hd('pm','🌇 Kayak<br>ap.-midi')}${hd('mu','💪<br>Muscu')}</tr></thead><tbody>${rowsH.join('')}</tbody></table>`;
+  });
+  const sx=box.scrollTop; box.innerHTML=h||`<p style="padding:10px;font-size:.8rem;color:var(--text3);margin:0">Aucun nom ne correspond.</p>`; box.scrollTop=sx;
   fqPreview();
+}
+function fqTick(i,col,v){ const n=FQS.names[i]; (FQS.sel[n] ||= {})[col]=v; fqRenderAthTable(); }
+function fqTickRow(i){ const n=FQS.names[i]; const c=(FQS.sel[n] ||= {}); const on=!(c.am&&c.pm&&c.mu); c.am=c.pm=c.mu=on; fqRenderAthTable(); }
+function fqTickTeam(ti,col,v){
+  const f=(document.getElementById('fqAthFilter')?.value||'').trim().toLowerCase();
+  FQS.teams[ti].members.forEach(n=>{ if(f && !n.toLowerCase().includes(f)) return; (FQS.sel[n] ||= {})[col]=v; });
+  fqRenderAthTable();
+}
+function fqChosen(){
+  return Object.entries(FQS.sel).filter(([n,c])=>c&&(c.am||c.pm||c.mu)).map(([name,c])=>({name,am:!!c.am,pm:!!c.pm,mu:!!c.mu}));
 }
 function fqOpenDays(start,end){
   const stay=(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date)?[S.profile.arrival_date,S.profile.departure_date]:null;
@@ -2034,12 +2069,11 @@ function fqOpenDays(start,end){
 }
 function fqPreview(){
   const s=document.getElementById('fqPStart').value, e=document.getElementById('fqPEnd').value;
-  const am=document.getElementById('fqPAm').checked, pm=document.getElementById('fqPPm').checked;
-  const nAth=document.querySelectorAll('#fqAthPick input:checked').length;
+  const ch=fqChosen();
   const el=document.getElementById('fqPPreview');
-  if(!s||!e||e<s||(!am&&!pm)){ el.textContent=''; return; }
-  const days=fqOpenDays(s,e), sess=days*((am?1:0)+(pm?1:0));
-  el.textContent=`→ ${days} jour(s) ouvert(s), ${sess} séance(s) à inscrire pour ${nAth} athlète(s).`;
+  if(!s||!e||e<s||!ch.length){ el.textContent=''; return; }
+  const days=fqOpenDays(s,e), per=ch.reduce((a,c)=>a+(c.am?1:0)+(c.pm?1:0)+(c.mu?1:0),0);
+  el.textContent=`→ ${days} jour(s) ouvert(s), ${ch.length} athlète(s), ${days*per} inscription(s) individuelle(s) à créer.`;
 }
 function fqPeriodOpen(){
   if(!S.session){ toast('Connecte-toi pour déclarer un groupe.','error'); return; }
@@ -2048,15 +2082,10 @@ function fqPeriodOpen(){
   const max=S.isAdmin?fqKey(END):(S.profile?.departure_date||fqKey(END));
   ['fqPStart','fqPEnd'].forEach(i=>{ const e=document.getElementById(i); e.min=min; e.max=max; e.value=''; });
   document.getElementById('fqPName').value=S.isAdmin?'':(S.myTeam?.name||'');
-  document.getElementById('fqPAm').checked=false; document.getElementById('fqPPm').checked=false;
   document.getElementById('fqPNote').value=''; document.getElementById('fqPErr').textContent='';
-  const wrap=document.getElementById('fqTeamPickWrap'), tp=document.getElementById('fqTeamPick');
-  if(S.isAdmin){
-    wrap.style.display='block';
-    tp.innerHTML='<option value="">Tous les athlètes</option>'+(S.teams||[]).map(t2=>`<option value="${t2.id}">${esc(t2.name)} (${(t2.members||[]).length})</option>`).join('');
-  } else wrap.style.display='none';
-  document.getElementById('fqAthPick').innerHTML='';
-  fqRenderAthPick();
+  document.getElementById('fqAthFilter').value='';
+  FQS.sel={};
+  fqRenderAthTable();
   document.getElementById('fqPSubmit').disabled=false;
   document.getElementById('fqPeriodModal').classList.add('show');
 }
@@ -2065,17 +2094,15 @@ async function fqPeriodSubmit(){
   const err=document.getElementById('fqPErr'); err.textContent='';
   const g=document.getElementById('fqPName').value.trim();
   const start=document.getElementById('fqPStart').value, end=document.getElementById('fqPEnd').value;
-  const am=document.getElementById('fqPAm').checked, pm=document.getElementById('fqPPm').checked;
-  const athletes=[...document.querySelectorAll('#fqAthPick input:checked')].map(i=>i.value);
+  const athletes=fqChosen();
   if(!g){ err.textContent='Le nom du groupe est requis.'; return; }
   if(!start||!end){ err.textContent='Les dates de début et de fin sont requises.'; return; }
   if(end<start){ err.textContent='La date de fin doit être après le début.'; return; }
-  if(!athletes.length){ err.textContent='Coche au moins un athlète.'; return; }
-  if(!am&&!pm){ err.textContent='Choisis au moins une séance : matin et/ou après-midi.'; return; }
+  if(!athletes.length){ err.textContent='Coche au moins un athlète avec au moins une séance (kayak matin, kayak après-midi ou muscu).'; return; }
   if(!fqOpenDays(start,end)){ err.textContent='Aucun jour ouvert dans cette période (ou hors de ton séjour).'; return; }
   const btn=document.getElementById('fqPSubmit'); btn.disabled=true; btn.textContent='⏳ Inscription en cours…';
   const row={ user_id:S.session.user.id, owner_name:S.profile?.full_name||S.session.user.email, g, start_date:start, end_date:end,
-    athletes, am, pm, note:document.getElementById('fqPNote').value.trim()||null, group_id:fqUuid() };
+    athletes, am:athletes.some(a=>a.am), pm:athletes.some(a=>a.pm), note:document.getElementById('fqPNote').value.trim()||null, group_id:fqUuid() };
   try{
     const ins=await sb.from('frise_periods').insert(row).select().single();
     if(ins.error) throw ins.error;
@@ -2086,7 +2113,7 @@ async function fqPeriodSubmit(){
     await sb.from('frise_periods').update({summary}).eq('id',saved.id);
     closeModal('fqPeriodModal');
     await fqLoad();
-    try{ renderDayPanel(); renderCal(); }catch(e){}
+    try{ renderDayPanel(); renderCal(); renderMuscuDayPanel(); }catch(e){}
     fqDetail(saved.id);
   }catch(e){
     err.textContent='Erreur : '+(e?.message||e)+(/frise_periods/i.test(e?.message||'')?' — la table « frise_periods » doit être créée dans Supabase.':'');
@@ -2094,74 +2121,83 @@ async function fqPeriodSubmit(){
   btn.disabled=false; btn.textContent='✅ Valider et inscrire automatiquement';
 }
 
-// Inscription automatique : par jour ouvert et par demi-journée cochée.
-//  1. on prend le premier créneau (ordre de priorité, kayak cross exclus, bloqués exclus) encore ouvert ;
-//  2. s'il reste assez de places pour TOUT le groupe → inscription directe ;
-//  3. sinon → demande d'ouverture d'un créneau suivant (avec assez de place) envoyée à l'admin (table slot_requests).
+// Inscription automatique, par jour ouvert et par séance cochée (kayak matin, kayak après-midi, muscu).
+//  Kayak : premier créneau encore ouvert (ordre de priorité, KX et bloqués exclus) ; si tout le groupe y tient → inscription directe,
+//          sinon → demande d'ouverture du créneau suivant à l'admin (table slot_requests).
+//  Muscu : premier créneau où tout le groupe tient ; sinon demande à l'admin pour le créneau suivant.
 async function fqAutoRegister(p){
   await load();
-  const names=(p.athletes||[]).map(a=>typeof a==='string'?a:a.name);
+  const aths=fqAths(p);
   const stay=(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date)?[S.profile.arrival_date,S.profile.departure_date]:null;
   const referent=p.owner_name||S.profile?.full_name||'';
+  const nat=S.profile?.nationality||null;
   const added={}, rows=[], reqs=[];
   const sum={sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0};
-  const free=(k,s)=>cap(s,k)-getSlot(k,s).length-(added[k+'|'+s]||0);
+  const free=(k,s,act)=>cap(s,k,act)-getSlot(k,s,act).length-(added[act+'|'+k+'|'+s]||0);
   for(let d=fqParse(p.start_date); fqKey(d)<=p.end_date; d.setDate(d.getDate()+1)){
     const k=fqKey(d);
     if(isClosed(d)||outOfRange(d)||(stay&&(k<stay[0]||k>stay[1]))){ sum.skipped++; continue; }
-    for(const half of ['am','pm']){
-      if(!p[half]) continue;
-      const base=half==='am'?morningSlots(k):afternoonSlots(k);
-      const chain=base.filter(s=>!isKayakCross(k,s)&&!getKayakSlotCfg(k,s).blocked);
+    for(const half of ['am','pm','mu']){
+      const names=aths.filter(a=>a[half]).map(a=>a.name);
+      if(!names.length) continue;
+      const act=half==='mu'?'muscu':'kayak';
+      const chain = half==='mu'
+        ? S.muscuSlots.filter(s=>!getMuscuSlotCfg(k,s).blocked)
+        : (half==='am'?morningSlots(k):afternoonSlots(k)).filter(s=>!isKayakCross(k,s)&&!getKayakSlotCfg(k,s).blocked);
       if(!chain.length){ sum.unplaced.push({date:k,half}); continue; }
-      const elig=names.filter(n=>{ if(alreadyRegisteredInCategory(k,chain[0],'kayak',n)){ sum.dups++; return false; } return true; });
+      const elig=names.filter(n=>{ if(alreadyRegisteredInCategory(k,chain[0],act,n)){ sum.dups++; return false; } return true; });
       if(!elig.length) continue;
       const need=elig.length;
-      const i=chain.findIndex(s=>free(k,s)>0);
+      const i=chain.findIndex(s=>free(k,s,act)>0);
       if(i<0){ sum.unplaced.push({date:k,half}); continue; }
-      if(free(k,chain[i])>=need){
-        const slot=chain[i]; added[k+'|'+slot]=(added[k+'|'+slot]||0)+need;
+      let direct=-1;
+      if(act==='kayak'){ if(free(k,chain[i],act)>=need) direct=i; }          // kayak : on respecte la priorité des créneaux
+      else direct=chain.findIndex(s=>free(k,s,act)>=need);                    // muscu : pas de priorité, 1er créneau où tout le groupe tient
+      if(direct>=0){
+        const slot=chain[direct]; added[act+'|'+k+'|'+slot]=(added[act+'|'+k+'|'+slot]||0)+need;
         elig.forEach(n=>rows.push({ date:k, creneau:slot, nom:n, role:'Athlète', user_id:p.user_id, group_id:p.group_id, referent_name:referent,
-          kayak_rental:false, kayak_model:null, dossard:null, nationalite:null, activity:'kayak' }));
+          kayak_rental:false, kayak_model:null, dossard:null, nationalite:act==='muscu'?nat:null, activity:act }));
         sum.sessions++; sum.seats+=need;
       } else {
-        // pas assez de place pour le groupe entier → créneau suivant, à valider par l'admin
         let j=-1;
-        for(let x=i+1;x<chain.length;x++){ if(free(k,chain[x])>=need){ j=x; break; } }
+        for(let x=i+1;x<chain.length;x++){ if(free(k,chain[x],act)>=need){ j=x; break; } }
         if(j<0 && i+1<chain.length) j=i+1;
         if(j<0){ sum.unplaced.push({date:k,half}); continue; }
-        reqs.push({ date:k, from_creneau:chain[i], to_creneau:chain[j], activity:'kayak', names:elig, requester:referent, user_id:p.user_id, status:'pending' });
+        reqs.push({ date:k, from_creneau:chain[i], to_creneau:chain[j], activity:act, names:elig, requester:referent, user_id:p.user_id, status:'pending' });
         sum.requested++;
       }
     }
   }
   for(let a=0;a<rows.length;a+=200){
     const inserted=await sbInsertMany(rows.slice(a,a+200));
-    inserted.forEach(r=>getSlot(r.date,r.creneau).push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental, kayakModel:r.kayak_model, dossard:r.dossard, nationality:r.nationalite }));
+    inserted.forEach(r=>getSlot(r.date,r.creneau,r.activity||'kayak').push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental, kayakModel:r.kayak_model, dossard:r.dossard, nationality:r.nationalite }));
   }
   if(reqs.length){
     const { error } = await sb.from('slot_requests').insert(reqs);
-    if(error){ console.warn('slot_requests',error); sum.requestError=error.message; sum.unplaced.push(...reqs.map(r=>({date:r.date,half:'?'}))); sum.requested=0; }
+    if(error){ console.warn('slot_requests',error); sum.requestError=error.message; sum.unplaced.push(...reqs.map(r=>({date:r.date,half:r.activity==='muscu'?'mu':'?'}))); sum.requested=0; }
   }
   return sum;
 }
 
+const FQ_HALF={am:' matin',pm:' ap.-midi',mu:' muscu'};
 function fqDetail(id){
   const p=FQ.rows.find(x=>x.id===id); if(!p) return;
   FQ.cur=p;
   const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'long'});
-  const sm=p.summary||{}, st=fqStatus(p);
+  const sm=p.summary||{}, st=fqStatus(p), aths=fqAths(p);
+  const flag=(a)=>[a.am?'🌅':'',a.pm?'🌇':'',a.mu?'💪':''].join(' ').trim();
   document.getElementById('fqDTitle').textContent=`${st.icon} ${p.g||'Groupe'}`;
   let h=`<p style="margin:0 0 6px"><b>Période :</b> ${fmt(p.start_date)} → ${fmt(p.end_date)}<br>
-    <b>Athlètes :</b> ${(p.athletes||[]).length}${fqCanSee(p)?` — ${esc((p.athletes||[]).join(', '))}`:''}<br>
-    <b>Séances :</b> ${[p.am?'🌅 matin':'',p.pm?'🌇 après-midi':''].filter(Boolean).join(' + ')}<br>
-    <b>Référent :</b> ${esc(p.owner_name||'')}${p.note?`<br><b>Note :</b> ${esc(p.note)}`:''}</p>
-    <p style="margin:0 0 6px"><b>État :</b> ${esc(st.txt)}</p>`;
+    <b>Athlètes :</b> ${aths.length}<br>
+    <b>Référent :</b> ${esc(p.owner_name||'')}${p.note?`<br><b>Note :</b> ${esc(p.note)}`:''}</p>`;
+  if(fqCanSee(p)) h+=`<table style="border-collapse:collapse;width:100%;margin-bottom:8px;font-size:.82rem">${aths.map(a=>`<tr><td style="padding:2px 6px;border-top:1px solid #eef0f3">${esc(a.name)}</td><td style="padding:2px 6px;border-top:1px solid #eef0f3;text-align:right">${flag(a)}</td></tr>`).join('')}</table>
+    <p style="font-size:.72rem;color:var(--text3);margin:0 0 6px">🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>`;
+  h+=`<p style="margin:0 0 6px"><b>État :</b> ${esc(st.txt)}</p>`;
   if(fqCanSee(p) && p.summary){
     h+=`<ul style="margin:0 0 6px;padding-left:18px">
-      <li>✅ ${sm.sessions||0} séance(s) inscrite(s) directement (${sm.seats||0} places)</li>
+      <li>✅ ${sm.sessions||0} séance(s) inscrite(s) directement (${sm.seats||0} inscriptions individuelles)</li>
       ${sm.requested?`<li>🕓 ${sm.requested} séance(s) sur créneau suivant : demande envoyée à l'admin, à valider</li>`:''}
-      ${(sm.unplaced||[]).length?`<li>⚠️ ${sm.unplaced.length} séance(s) non placée(s) (créneaux complets ou fermés) : ${esc(sm.unplaced.slice(0,6).map(u=>fqParse(u.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+(u.half==='am'?' matin':u.half==='pm'?' ap.-midi':'')).join(', '))}${sm.unplaced.length>6?'…':''}</li>`:''}
+      ${(sm.unplaced||[]).length?`<li>⚠️ ${sm.unplaced.length} séance(s) non placée(s) (créneaux complets ou fermés) : ${esc(sm.unplaced.slice(0,6).map(u=>fqParse(u.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+(FQ_HALF[u.half]||'')).join(', '))}${sm.unplaced.length>6?'…':''}</li>`:''}
       ${sm.dups?`<li>ℹ️ ${sm.dups} inscription(s) déjà existante(s) ignorée(s)</li>`:''}
       ${sm.error?`<li style="color:var(--red)">❌ ${esc(sm.error)}</li>`:''}
       ${sm.requestError?`<li style="color:var(--red)">❌ Demandes non enregistrées : ${esc(sm.requestError)}</li>`:''}
@@ -2170,6 +2206,32 @@ function fqDetail(id){
   document.getElementById('fqDBody').innerHTML=h;
   document.getElementById('fqDDel').style.display=fqCanSee(p)&&!S.isReadonly?'':'none';
   document.getElementById('fqDetailModal').classList.add('show');
+}
+
+// ── Impression / PDF de la frise (le navigateur propose « Enregistrer au format PDF ») ──
+function fqPrint(){
+  const rows=[...FQ.rows].sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
+  const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
+  const tick=v=>v?'✔':'';
+  let h=`<div class="print-title">🧭 Frise des groupes — Winter Training Réunion 2026-2027</div>
+    <div class="print-sub">Édité le ${new Date().toLocaleDateString('fr-FR')}</div>`;
+  if(!rows.length) h+='<p class="print-empty">Aucun groupe déclaré.</p>';
+  else{
+    h+=`<table class="print-sheet"><thead><tr><th>Groupe</th><th>Référent</th><th>Du</th><th>Au</th><th>Athlètes</th><th>Kayak matin</th><th>Kayak ap.-midi</th><th>Muscu</th><th>État</th></tr></thead><tbody>`;
+    rows.forEach(p=>{ const a=fqAths(p);
+      h+=`<tr><td><b>${esc(p.g||'')}</b></td><td>${esc(p.owner_name||'')}</td><td>${fmt(p.start_date)}</td><td>${fmt(p.end_date)}</td><td style="text-align:center">${a.length}</td><td style="text-align:center">${a.filter(x=>x.am).length}</td><td style="text-align:center">${a.filter(x=>x.pm).length}</td><td style="text-align:center">${a.filter(x=>x.mu).length}</td><td>${esc(fqStatus(p).icon+' '+fqStatus(p).txt)}</td></tr>`; });
+    h+='</tbody></table>';
+    rows.filter(fqCanSee).forEach(p=>{
+      const a=fqAths(p);
+      h+=`<div class="print-section-title" style="margin-top:16px;page-break-inside:avoid">${esc(p.g||'')} — ${fmt(p.start_date)} → ${fmt(p.end_date)}</div>
+        <table class="print-sheet" style="page-break-inside:avoid"><thead><tr><th>Athlète</th><th>Kayak matin</th><th>Kayak ap.-midi</th><th>Muscu</th></tr></thead><tbody>
+        ${a.map(x=>`<tr><td>${esc(x.name)}</td><td style="text-align:center">${tick(x.am)}</td><td style="text-align:center">${tick(x.pm)}</td><td style="text-align:center">${tick(x.mu)}</td></tr>`).join('')}</tbody></table>`;
+    });
+  }
+  document.getElementById('printArea').innerHTML=h;
+  const st=document.createElement('style'); st.id='fqPrintStyle'; st.textContent='@page{size:landscape;margin:10mm}'; document.head.appendChild(st);
+  window.addEventListener('afterprint',()=>{ st.remove(); },{once:true});
+  window.print();
 }
 
 async function fqPeriodDelete(){
@@ -4736,14 +4798,25 @@ function openMultiReg(preDate, preSlot, act){
   if(!S.isAdmin && S.myTeam){
     (S.myTeam.members||[]).forEach(m=>{
       if(m.athlete && !MR.knownMembers.some(km=>km.name===m.athlete.full_name)){
-        MR.knownMembers.push({ name:m.athlete.full_name, role:m.athlete.role||'Athlète', rental:m.athlete.default_rental||'' });
+        MR.knownMembers.push({ name:m.athlete.full_name, role:m.athlete.role||'Athlète', rental:m.athlete.default_rental||'', team:S.myTeam.name||'Mon équipe' });
       }
+    });
+  }
+  if(S.isAdmin){
+    // Admin : toutes les teams en cartes, puis les athlètes sans team
+    (S.teams||[]).forEach(tm=>(tm.members||[]).forEach(m=>{
+      if(m.athlete && !MR.knownMembers.some(km=>km.name===m.athlete.full_name))
+        MR.knownMembers.push({ name:m.athlete.full_name, role:m.athlete.role||'Athlète', rental:m.athlete.default_rental||'', team:tm.name });
+    }));
+    (S.athletes||[]).forEach(a=>{
+      if(a.full_name && !MR.knownMembers.some(km=>km.name===a.full_name))
+        MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète', rental:a.default_rental||'', team:'Autres athlètes' });
     });
   }
   const selfName = S.profile?.full_name||S.session.user.email;
   if(!MR.knownMembers.some(km=>km.name===selfName)){
     const selfAthlete = (S.athletes||[]).find(a=>a.full_name===selfName);
-    MR.knownMembers.unshift({ name:selfName, role:'Athlète', rental:selfAthlete?.default_rental||'' });
+    MR.knownMembers.unshift({ name:selfName, role:'Athlète', rental:selfAthlete?.default_rental||'', team:'Moi' });
   }
   MR.selectedMembers.add(selfName);
 
@@ -4971,7 +5044,7 @@ function populateQrTeamSelect(){
   const wrap = document.getElementById('qrTeamLoader');
   const sel = document.getElementById('qrTeamSelect');
   if(!wrap || !sel) return;
-  if(!S.isAdmin){ wrap.style.display='none'; return; } // auto-chargé depuis la base athlètes pour les référents
+  wrap.style.display='none'; return; // remplacé par les cartes de teams (renderMdregMembers)
   const teams = teamsAvailableForQuickReg();
   document.getElementById('qrLoadTeamBtn') && (document.getElementById('qrLoadTeamBtn').textContent = t('qrLoadTeamBtn'));
   document.getElementById('qrTeamHint') && (document.getElementById('qrTeamHint').textContent = t('qrTeamHint'));
@@ -5008,36 +5081,65 @@ function mrLoadTeamMembers(){
 }
 
 function renderMdregMembers(){
-  const el = document.getElementById('mdregMembers');
+  const el=document.getElementById('mdregMembers');
   refreshOtherAthletesList();
-  const showRental = mrHasKayakCrossSelected();
+  const showRental=mrHasKayakCrossSelected();
   if(!MR.knownMembers.length){
-    el.innerHTML = `<p style="font-size:.8rem;color:var(--text3)">${t('qrNoMembers')}</p>`;
+    el.innerHTML=`<p style="font-size:.8rem;color:var(--text3)">${t('qrNoMembers')}</p>`;
     return;
   }
-  el.innerHTML = MR.knownMembers.map((m,i)=>{
-    const pid = 'k'+i;
-    const sel = MR.selectedMembers.has(m.name);
-    // Location : si l'utilisateur n'a pas encore touché le menu pour cette séance,
-    // on applique la location par défaut de l'athlète (point 9). S'il l'a modifiée
-    // (y compris pour la retirer / "Pas de location"), sa dernière valeur est gardée.
-    const touched = MR.extras[pid] && Object.prototype.hasOwnProperty.call(MR.extras[pid],'rental');
-    const effectiveRental = touched ? MR.extras[pid].rental : (m.rental||'');
-    return `<div class="mdreg-member-row">
-      <label class="mdreg-member${sel?' mdreg-selected':''}" onclick="mdregToggleMember('${esc(m.name)}',${i})">
-        <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();mdregToggleMember('${esc(m.name)}',${i})">
-        <span style="flex:1">${esc(m.name)}</span>
-        <span style="font-size:.72rem;color:var(--text3)">${roleDisplay(m.role)}</span>
+  const f=(document.getElementById('qrMemberFilter')?.value||'').trim().toLowerCase();
+  // regroupement par team (ordre d'apparition), index d'origine conservé pour les cases de location
+  const groups=[]; const byTeam={};
+  MR.knownMembers.forEach((m,i)=>{
+    const tn=m.team||'Autres athlètes';
+    if(!byTeam[tn]){ byTeam[tn]={name:tn,items:[]}; groups.push(byTeam[tn]); }
+    byTeam[tn].items.push({m,i});
+  });
+  MR._teamsView=groups.map(g=>g.items.map(x=>x.m.name));
+  const nSel=MR.selectedMembers.size;
+  let h=`<div style="font-size:.8rem;margin-bottom:8px"><b>${nSel}</b> athlète(s) sélectionné(s)${nSel?` <button class="btn btn-sm" style="margin-left:6px;padding:1px 8px" onclick="mdregClearSel()">Tout décocher</button>`:''}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px">`;
+  groups.forEach((g,gi)=>{
+    const shown=g.items.filter(x=>!f||x.m.name.toLowerCase().includes(f));
+    if(!shown.length) return;
+    const selN=g.items.filter(x=>MR.selectedMembers.has(x.m.name)).length;
+    const allOn=selN===g.items.length;
+    h+=`<div style="border:1.5px solid ${selN?'var(--accent)':'var(--border)'};border-radius:10px;overflow:hidden;background:#fff">
+      <label style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:${selN?'var(--accent-light)':'#f8fafc'};cursor:pointer;font-weight:700;font-size:.85rem">
+        <input type="checkbox" ${allOn?'checked':''} onchange="mdregToggleTeam(${gi},this.checked)">
+        <span style="flex:1">👥 ${esc(g.name)}</span>
+        <span style="font-weight:600;font-size:.72rem;color:var(--text3)">${selN}/${g.items.length}</span>
       </label>
-      ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
-        <option value="" ${!effectiveRental?'selected':''}>${t('rentalNone')}</option>
-        <option value="Pyrhana" ${effectiveRental==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
-        <option value="Paname S" ${effectiveRental==='Paname S'?'selected':''}>${t('rentalPanameS')}</option>
-        <option value="Paname M" ${effectiveRental==='Paname M'?'selected':''}>${t('rentalPanameM')}</option>
-      </select>`:''}
-    </div>`;
-  }).join('');
+      <div style="padding:4px 6px">`;
+    shown.forEach(({m,i})=>{
+      const pid='k'+i, sel=MR.selectedMembers.has(m.name);
+      const touched=MR.extras[pid]&&Object.prototype.hasOwnProperty.call(MR.extras[pid],'rental');
+      const eff=touched?MR.extras[pid].rental:(m.rental||'');
+      h+=`<div class="mdreg-member-row" style="display:flex;gap:6px;align-items:center;padding:2px 0">
+        <label class="mdreg-member${sel?' mdreg-selected':''}" style="flex:1;margin:0" onclick="mdregToggleMemberIdx(${i})">
+          <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();mdregToggleMemberIdx(${i})">
+          <span style="flex:1">${esc(m.name)}</span>
+          <span style="font-size:.7rem;color:var(--text3)">${roleDisplay(m.role)}</span>
+        </label>
+        ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
+          <option value="" ${!eff?'selected':''}>${t('rentalNone')}</option>
+          <option value="Pyrhana" ${eff==='Pyrhana'?'selected':''}>${t('rentalPyrhana')}</option>
+          <option value="Paname S" ${eff==='Paname S'?'selected':''}>${t('rentalPanameS')}</option>
+          <option value="Paname M" ${eff==='Paname M'?'selected':''}>${t('rentalPanameM')}</option>
+        </select>`:''}
+      </div>`;
+    });
+    h+='</div></div>';
+  });
+  el.innerHTML=h+'</div>';
 }
+function mdregToggleMemberIdx(i){ const m=MR.knownMembers[i]; if(m) mdregToggleMember(m.name,i); }
+function mdregToggleTeam(gi,on){
+  (MR._teamsView[gi]||[]).forEach(n=>{ if(on) MR.selectedMembers.add(n); else MR.selectedMembers.delete(n); });
+  renderMdregMembers(); updateMdregSummary();
+}
+function mdregClearSel(){ MR.selectedMembers.clear(); renderMdregMembers(); updateMdregSummary(); }
 
 
 // Ajout d'une personne de la base athlètes (même d'un autre groupe) : choix uniquement parmi les noms existants.
@@ -5057,7 +5159,7 @@ function mdregAddOther(){
   const a = (S.athletes||[]).find(x=>(x.full_name||'').trim().toLowerCase()===v);
   if(!a){ toast("Nom introuvable dans la base : choisis un nom proposé dans la liste.",'error'); return; }
   if(!MR.knownMembers.some(m=>m.name===a.full_name)){
-    MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète', rental:a.default_rental||'' });
+    MR.knownMembers.push({ name:a.full_name, role:a.role||'Athlète', rental:a.default_rental||'', team:'Autres athlètes' });
   }
   MR.selectedMembers.add(a.full_name);
   inp.value='';
@@ -6407,7 +6509,16 @@ function refreshGlobalPlanning(){
   renderGlobalPlanning(start, days);
 }
 
+const GP={act:'kayak'};
+function gpSetAct(a){
+  GP.act=a;
+  document.getElementById('gpTabKayak').classList.toggle('btn-primary',a==='kayak');
+  document.getElementById('gpTabMuscu').classList.toggle('btn-primary',a==='muscu');
+  refreshGlobalPlanning();
+}
 function renderGlobalPlanning(start, days){
+  const act=GP.act;
+  const daySlotsOf=k=>act==='muscu'?S.muscuSlots:allSlots(k);
   const dates = [];
   for(let i=0;i<days;i++){
     const d = new Date(start); d.setDate(start.getDate()+i);
@@ -6420,7 +6531,7 @@ function renderGlobalPlanning(start, days){
   const seen = new Set();
   dates.forEach(d=>{
     const k = dk(d);
-    [...morningSlots(k), ...afternoonSlots(k)].forEach(s=>{
+    (act==='muscu'?S.muscuSlots:[...morningSlots(k), ...afternoonSlots(k)]).forEach(s=>{
       if(!seen.has(s)){ seen.add(s); slotOrder.push(s); }
     });
   });
@@ -6430,8 +6541,8 @@ function renderGlobalPlanning(start, days){
   const slotsWithRegs = slotOrder.filter(slot=>{
     return dates.some(d=>{
       const k = dk(d);
-      if(isClosed(d) || !allSlots(k).includes(slot)) return false;
-      return getSlot(k, slot).length > 0;
+      if(isClosed(d) || !daySlotsOf(k).includes(slot)) return false;
+      return getSlot(k, slot, act).length > 0;
     });
   });
 
@@ -6460,19 +6571,19 @@ function renderGlobalPlanning(start, days){
         h += `<td style="border:1px solid var(--border);padding:6px 8px;background:#f9fafb"></td>`;
         return;
       }
-      const daySlots = allSlots(k);
+      const daySlots = daySlotsOf(k);
       if(!daySlots.includes(slot)){
         h += `<td style="border:1px solid var(--border);padding:6px 8px;background:#fafafa"></td>`;
         return;
       }
-      const aths = getSlot(k, slot);
+      const aths = getSlot(k, slot, act);
       if(!aths.length){
         // Case vide : on n'affiche rien pour rester lisible (pas de "0/15")
         h += `<td style="border:1px solid var(--border);padding:6px 8px"></td>`;
         return;
       }
-      const c = cap(slot, k);
-      const kx = isKayakCross(k, slot);
+      const c = cap(slot, k, act);
+      const kx = act==='kayak' && isKayakCross(k, slot);
       const pct = Math.min(1, aths.length / c);
       const bg = kx ? '#fff7ed' : (pct>=1 ? 'var(--red-light)' : pct>=.6 ? 'var(--orange-light)' : 'var(--green-light)');
       const names = aths.map(a=>esc(a.name)).join('<br>');
