@@ -1049,9 +1049,10 @@ header .user-pill { color: #fff; }
   <div id="freqPage" style="display:none">
     <div class="quick-reg-card">
       <h2>🧭 Frise des groupes</h2>
-      <p class="qr-sub">Déclare ton groupe : période, puis coche pour chaque athlète ses séances (kayak matin, kayak après-midi, muscu). L'inscription est ensuite faite automatiquement sur les créneaux : tout le groupe sur la même séance quand la place le permet, sinon une demande d'ouverture du créneau suivant est envoyée à l'admin. Tu vois ici tous les groupes (lecture seule pour ceux des autres).</p>
+      <p class="qr-sub" id="fqIntro"></p>
+      <label id="fqRestrictWrap" style="display:none;gap:8px;align-items:center;cursor:pointer;font-size:.82rem;margin-bottom:10px;padding:8px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px"><input type="checkbox" id="fqRestrict" onchange="fqToggleRestrict(this.checked)"> 🔒 <span><b>Restreindre l'inscription des athlètes à leur période</b> : un athlète ne peut s'inscrire que sur les jours des périodes où il figure.</span></label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <button class="btn btn-sm btn-primary" id="fqAddBtn" onclick="fqPeriodOpen()">➕ Déclarer mon groupe</button>
+        <button class="btn btn-sm btn-primary" id="fqAddBtn" style="display:none" onclick="fqPeriodOpen()">➕ Ajouter un groupe</button>
         <button class="btn btn-sm" onclick="fqPrint()">🖨️ Imprimer / PDF</button>
         <button class="btn btn-sm" id="fqImportBtn" style="display:none;border-color:#16a34a;color:#15803d" onclick="fqImportOld()">♻️ Récupérer mes anciennes entrées</button>
         <button class="btn btn-sm" id="fqReqBtn" style="display:none;border-color:#7c3aed;color:#7c3aed" onclick="setPage('suivi')"></button>
@@ -1258,7 +1259,7 @@ header .user-pill { color: #fff; }
 <!-- Modal déclaration de groupe (frise) -->
 <div class="modal-bg" id="fqPeriodModal">
   <div class="modal-box" style="max-width:760px">
-    <h3>🧭 Déclarer mon groupe</h3>
+    <h3 id="fqPTitle">🧭 Groupe</h3>
     <div class="modal-fields">
       <div><label>Nom du groupe *</label><input class="field" id="fqPName" type="text" placeholder="Ex : Club de Lyon" style="width:100%"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -1266,15 +1267,15 @@ header .user-pill { color: #fff; }
         <div><label>Au *</label><input class="field" id="fqPEnd" type="date" style="width:100%" onchange="fqPreview()"></div>
       </div>
       <div>
-        <label>Athlètes et séances * <span style="font-weight:400;font-size:.75rem">(coche pour chaque athlète : Kayak matin, Kayak après-midi, Muscu — au moins une case)</span></label>
+        <label>Athlètes * <span style="font-weight:400;font-size:.75rem">(au moins une case cochée par athlète du groupe ; les colonnes servent à l'inscription automatique)</span></label>
         <input class="field" id="fqAthFilter" type="text" placeholder="🔎 Filtrer par nom…" style="width:100%;margin-bottom:6px" oninput="fqRenderAthTable()">
         <div id="fqAthTable" style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
         <p style="font-size:.74rem;color:var(--text3);margin:4px 0 0">Les cases cochées sont inscrites sur chaque jour ouvert de la période. En-tête de colonne = tout cocher pour la team.</p>
       </div>
       <div><label>Note (facultatif)</label><input class="field" id="fqPNote" type="text" style="width:100%"></div>
-      <label id="fqNoteOnlyWrap" style="display:none;gap:8px;align-items:flex-start;cursor:pointer;font-size:.82rem;padding:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
-        <input type="checkbox" id="fqNoteOnly" style="margin-top:3px" onchange="fqNoteOnlyChange()">
-        <span><b>Admin : noter dans la frise seulement</b> (aucune inscription automatique n'est créée, pratique pour garder une trace d'une demande avant de la traiter).</span>
+      <label id="fqNoteOnlyWrap" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:.82rem;padding:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
+        <input type="checkbox" id="fqAutoReg" style="margin-top:3px" onchange="fqNoteOnlyChange()">
+        <span><b>Inscrire aussi automatiquement sur les créneaux</b> (cases cochées du tableau). Décoché : le groupe est seulement enregistré dans la frise et les athlètes s'inscrivent eux-mêmes sur leur période.</span>
       </label>
       <p id="fqPPreview" style="font-size:.8rem;color:var(--text2);margin:0"></p>
       <p id="fqPErr" style="color:var(--red);font-size:.8rem;margin:0"></p>
@@ -1292,8 +1293,9 @@ header .user-pill { color: #fff; }
     <h3 id="fqDTitle">Groupe</h3>
     <div id="fqDBody" style="font-size:.88rem;line-height:1.5"></div>
     <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px">
-      <button class="btn" id="fqDDel" style="color:var(--red)" onclick="fqPeriodDelete()">🗑 Supprimer le groupe et ses inscriptions</button>
-      <button class="btn" onclick="closeModal('fqDetailModal')">Fermer</button>
+      <button class="btn" id="fqDDel" style="color:var(--red)" onclick="fqPeriodDelete()">🗑 Supprimer</button>
+      <span style="display:flex;gap:8px"><button class="btn" id="fqDEdit" onclick="fqEditCurrent()">✏️ Modifier</button>
+      <button class="btn" onclick="closeModal('fqDetailModal')">Fermer</button></span>
     </div>
   </div>
 </div>
@@ -1922,7 +1924,7 @@ function applyI18n(){
 // ── Frise des groupes ──────────────────────────────────────────────────
 // Table Supabase "frise_periods" (voir SQL fourni). Chaque ligne = un groupe déclaré :
 // g, start_date, end_date, athletes [noms], am, pm, note, user_id, owner_name, group_id, summary.
-const FQ = { rows:[], reqs:[], err:'', cur:null };
+const FQ = { rows:[], reqs:[], err:'', cur:null, ok:false, editId:null };
 const FQ_DAYW = 11; // largeur d'un jour en pixels
 
 function fqKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -1931,11 +1933,34 @@ function fqDayIdx(k){ const [y,m,d]=k.split('-').map(Number); return Math.round(
 function fqColor(name){ let h=0; for(const c of String(name||'')) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h},55%,42%)`; }
 function fqUuid(){ return crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()); }
 function fqN(p){ return Array.isArray(p.athletes)&&p.athletes.length ? p.athletes.length : (+(p.summary&&p.summary.n)||0); }
+function fqNorm(n){ return String(n||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').split(/[\s,\-]+/).filter(Boolean).sort().join(' '); }
+async function fqLoadRows(){
+  try{
+    const { data, error } = await sb.from('frise_periods').select('*').order('start_date',{ascending:true});
+    if(error){ FQ.rows=[]; FQ.err=error.message||'erreur'; FQ.ok=false; } else { FQ.rows=data||[]; FQ.err=''; FQ.ok=true; }
+  }catch(e){ FQ.ok=false; }
+}
+// Règle : un athlète (hors admin) ne peut être inscrit que sur une période de la frise où il figure.
+// Si la table n'est pas disponible ou si l'admin a désactivé la restriction, aucune limite n'est appliquée ici.
+function friseRestrictActive(){ return !S.isAdmin && S.friseRestrict!==false && FQ.ok===true; }
+function friseWindows(name){
+  const key=fqNorm(name);
+  return (FQ.rows||[]).filter(p=>fqAths(p).some(a=>fqNorm(a.name)===key)).map(p=>({from:p.start_date,to:p.end_date,g:p.g}));
+}
+function friseAllows(name,dateK){
+  if(!friseRestrictActive()) return true;
+  return friseWindows(name).some(w=>dateK>=w.from&&dateK<=w.to);
+}
+function friseInfo(name){
+  const w=friseWindows(name); const f=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  return w.length ? w.map(x=>`${f(x.from)} → ${f(x.to)}`).join(' · ') : '';
+}
 function fqIsMine(p){ return !!(S.session && p.user_id===S.session.user.id); }
-function fqCanSee(p){ return S.isAdmin || fqIsMine(p); }
+function fqCanSee(p){ return true; }   // noms visibles par tous les utilisateurs connectés
+function fqCanEdit(){ return !!S.isAdmin; }
 function fqPendingFor(p){ return (FQ.reqs||[]).filter(r=>r.user_id===p.user_id && r.date>=p.start_date && r.date<=p.end_date).length; }
 function fqStatus(p){
-  if(p.summary&&p.summary.noteOnly) return {icon:'📝',txt:'Noté dans la frise (sans inscription automatique)'};
+  if(p.summary&&p.summary.noteOnly) return {icon:'📅',txt:'Période enregistrée : les athlètes peuvent s\'inscrire dessus'};
   if(p.summary&&p.summary.imported) return {icon:p.summary.validated?'✅':'📝',txt:p.summary.validated?'Ancienne saisie, validée':'Ancienne saisie récupérée'};
   const pend=fqPendingFor(p);
   if(pend) return {icon:'🕓',txt:`${pend} demande(s) de créneau en attente de l'admin`};
@@ -1944,10 +1969,15 @@ function fqStatus(p){
 }
 
 async function fqLoad(){
-  const { data, error } = await sb.from('frise_periods').select('*').order('start_date',{ascending:true});
-  if(error){ FQ.rows=[]; FQ.err=error.message||'erreur'; } else { FQ.rows=data||[]; FQ.err=''; }
+  await fqLoadRows();
   try{ const r=await sb.from('slot_requests').select('*').eq('status','pending'); FQ.reqs=(r&&r.data)||[]; }catch(e){ FQ.reqs=[]; }
-  const add=document.getElementById('fqAddBtn'); if(add) add.style.display = S.isReadonly ? 'none' : '';
+  const add=document.getElementById('fqAddBtn'); if(add) add.style.display = S.isAdmin ? '' : 'none';
+  const intro=document.getElementById('fqIntro');
+  if(intro) intro.textContent = S.isAdmin
+    ? "Tu gères la frise : pour chaque demande, saisis le nom du groupe, ses athlètes et la période sur laquelle ils viennent. Les athlètes ne peuvent ensuite s'inscrire (inscription rapide) que sur les jours de leur période. Tu peux aussi inscrire le groupe automatiquement sur les créneaux (kayak matin / après-midi, muscu)."
+    : "Voici les groupes présents sur chaque période. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.";
+  const rw=document.getElementById('fqRestrictWrap');
+  if(rw){ rw.style.display=S.isAdmin?'flex':'none'; document.getElementById('fqRestrict').checked=S.friseRestrict!==false; }
   const rb=document.getElementById('fqReqBtn');
   if(rb){ rb.style.display = (S.isAdmin && FQ.reqs.length) ? '' : 'none'; rb.textContent=`📲 ${FQ.reqs.length} demande(s) de créneau à valider (voir Suivi)`; }
   fqRenderTimeline();
@@ -2037,7 +2067,7 @@ function fqRenderTimeline(){
   if(!periods.length) rows=`<div style="padding:16px;color:var(--text3);font-size:.85rem">Aucun groupe déclaré pour le moment.</div>`;
   periods.forEach(p=>{
     const i0=Math.max(0,fqDayIdx(p.start_date)), i1=Math.min(total-1,fqDayIdx(p.end_date));
-    const col=fqColor(p.g), st=fqStatus(p), mine=fqIsMine(p);
+    const col=fqColor(p.g), st=fqStatus(p), mine=false;
     const halves=halvesOf(p);
     const txt=`${st.icon} ${esc(p.g||'(sans nom)')} · ${nOf(p)} ath. · ${halves}`;
     const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${nOf(p)} athlète(s) ${halves}\n${st.txt}`;
@@ -2066,6 +2096,7 @@ function fqAths(p){
 }
 function fqTeamsList(){
   const out=[], seen=new Set();
+  // (les noms déjà saisis mais absents de la base sont repris à la fin)
   const push=(name,members)=>{ const ms=members.filter(n=>n&&!seen.has(n)); ms.forEach(n=>seen.add(n)); if(ms.length) out.push({name,members:ms}); };
   const names=tm=>(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean);
   if(S.isAdmin){
@@ -2075,6 +2106,7 @@ function fqTeamsList(){
     if(S.myTeam) push(S.myTeam.name||'Mon équipe',names(S.myTeam));
     push('Moi',[S.profile?.full_name||S.session?.user?.email]);
   }
+  push('Saisies précédentes (hors base)',Object.keys(FQS.sel||{}));
   return out;
 }
 const FQS = { sel:{}, names:[], teams:[] };   // sélection en cours : nom -> {am,pm,mu}
@@ -2133,51 +2165,63 @@ function fqPreview(){
   const days=fqOpenDays(s,e), per=ch.reduce((a,c)=>a+(c.am?1:0)+(c.pm?1:0)+(c.mu?1:0),0);
   el.textContent=`→ ${days} jour(s) ouvert(s), ${ch.length} athlète(s), ${days*per} inscription(s) individuelle(s) à créer.`;
 }
-function fqPeriodOpen(){
-  if(!S.session){ toast('Connecte-toi pour déclarer un groupe.','error'); return; }
-  if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation.",'error'); return; }
-  const min=S.isAdmin?fqKey(START):(S.profile?.arrival_date||fqKey(START));
-  const max=S.isAdmin?fqKey(END):(S.profile?.departure_date||fqKey(END));
-  ['fqPStart','fqPEnd'].forEach(i=>{ const e=document.getElementById(i); e.min=min; e.max=max; e.value=''; });
-  document.getElementById('fqPName').value=S.isAdmin?'':(S.myTeam?.name||'');
-  document.getElementById('fqPNote').value=''; document.getElementById('fqPErr').textContent='';
+function fqPeriodOpen(id){
+  if(!S.isAdmin){ toast("Seul l'administrateur gère la frise.",'error'); return; }
+  const p=id?FQ.rows.find(x=>x.id===id):null;
+  FQ.editId=p?p.id:null;
+  document.getElementById('fqPTitle').textContent=p?'✏️ Modifier le groupe':'🧭 Nouveau groupe';
+  ['fqPStart','fqPEnd'].forEach(i=>{ const e=document.getElementById(i); e.min=fqKey(START); e.max=fqKey(END); });
+  document.getElementById('fqPName').value=p?(p.g||''):'';
+  document.getElementById('fqPStart').value=p?p.start_date:'';
+  document.getElementById('fqPEnd').value=p?p.end_date:'';
+  document.getElementById('fqPNote').value=p?(p.note||''):''; document.getElementById('fqPErr').textContent='';
   document.getElementById('fqAthFilter').value='';
   FQS.sel={};
+  if(p) fqAths(p).forEach(a=>{ FQS.sel[a.name]={am:a.am,pm:a.pm,mu:a.mu}; });
+  // groupe sans détail de séances (anciennes saisies) : on coche « kayak matin » pour garder l'athlète dans le groupe
+  Object.values(FQS.sel).forEach(c=>{ if(!c.am&&!c.pm&&!c.mu) c.am=true; });
+  document.getElementById('fqAutoReg').checked=false;
   fqRenderAthTable();
-  const no=document.getElementById('fqNoteOnly'); if(no) no.checked=false;
-  document.getElementById('fqNoteOnlyWrap').style.display=S.isAdmin?'flex':'none';
   fqNoteOnlyChange();
   document.getElementById('fqPSubmit').disabled=false;
   document.getElementById('fqPeriodModal').classList.add('show');
 }
-
 function fqNoteOnlyChange(){
-  const on=S.isAdmin && document.getElementById('fqNoteOnly').checked;
-  document.getElementById('fqPSubmit').textContent = on ? '📝 Noter dans la frise' : '✅ Valider et inscrire automatiquement';
+  const auto=document.getElementById('fqAutoReg').checked;
+  document.getElementById('fqPSubmit').textContent = auto ? '✅ Enregistrer et inscrire automatiquement' : '💾 Enregistrer le groupe';
 }
+function fqEditCurrent(){ if(!FQ.cur) return; closeModal('fqDetailModal'); fqPeriodOpen(FQ.cur.id); }
+
 async function fqPeriodSubmit(){
+  if(!S.isAdmin) return;
   const err=document.getElementById('fqPErr'); err.textContent='';
   const g=document.getElementById('fqPName').value.trim();
   const start=document.getElementById('fqPStart').value, end=document.getElementById('fqPEnd').value;
   const athletes=fqChosen();
+  const auto=document.getElementById('fqAutoReg').checked;
   if(!g){ err.textContent='Le nom du groupe est requis.'; return; }
   if(!start||!end){ err.textContent='Les dates de début et de fin sont requises.'; return; }
   if(end<start){ err.textContent='La date de fin doit être après le début.'; return; }
-  if(!athletes.length){ err.textContent='Coche au moins un athlète avec au moins une séance (kayak matin, kayak après-midi ou muscu).'; return; }
-  if(!fqOpenDays(start,end)){ err.textContent='Aucun jour ouvert dans cette période (ou hors de ton séjour).'; return; }
-  const noteOnly=S.isAdmin && document.getElementById('fqNoteOnly').checked;
-  const btn=document.getElementById('fqPSubmit'); btn.disabled=true; btn.textContent=noteOnly?'⏳ Enregistrement…':'⏳ Inscription en cours…';
-  const row={ user_id:S.session.user.id, owner_name:S.profile?.full_name||S.session.user.email, g, start_date:start, end_date:end,
-    athletes, am:athletes.some(a=>a.am), pm:athletes.some(a=>a.pm), note:document.getElementById('fqPNote').value.trim()||null, group_id:fqUuid() };
+  if(!athletes.length){ err.textContent='Coche au moins un athlète (une case suffit pour le faire figurer dans le groupe).'; return; }
+  const btn=document.getElementById('fqPSubmit'); btn.disabled=true; btn.textContent='⏳ Enregistrement…';
+  const fields={ g, start_date:start, end_date:end, athletes, am:athletes.some(a=>a.am), pm:athletes.some(a=>a.pm), note:document.getElementById('fqPNote').value.trim()||null };
   try{
-    const ins=await sb.from('frise_periods').insert(row).select().single();
-    if(ins.error) throw ins.error;
-    const saved=ins.data;
-    let summary;
-    if(noteOnly) summary={noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0};
-    else try{ summary=await fqAutoRegister(saved); }
-    catch(e){ console.error('fqAutoRegister',e); summary={sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0,error:String(e?.message||e)}; }
-    await sb.from('frise_periods').update({summary}).eq('id',saved.id);
+    let saved, old=FQ.editId?FQ.rows.find(x=>x.id===FQ.editId):null;
+    if(old){
+      const upd={...fields}; if(auto && !old.group_id) upd.group_id=fqUuid();
+      const r=await sb.from('frise_periods').update(upd).eq('id',old.id).select().single();
+      if(r.error) throw r.error; saved=r.data||{...old,...upd};
+    } else {
+      const r=await sb.from('frise_periods').insert({ ...fields, user_id:S.session.user.id, owner_name:S.profile?.full_name||'Admin', group_id:auto?fqUuid():null }).select().single();
+      if(r.error) throw r.error; saved=r.data;
+    }
+    let summary = old ? (old.summary||null) : {noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0};
+    if(auto){
+      btn.textContent='⏳ Inscription en cours…';
+      try{ summary=await fqAutoRegister(saved); }
+      catch(e){ console.error('fqAutoRegister',e); summary={sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0,error:String(e?.message||e)}; }
+    }
+    if(summary!==(old&&old.summary)) await sb.from('frise_periods').update({summary}).eq('id',saved.id);
     closeModal('fqPeriodModal');
     await fqLoad();
     try{ renderDayPanel(); renderCal(); renderMuscuDayPanel(); }catch(e){}
@@ -2261,7 +2305,7 @@ function fqDetail(id){
     <p style="font-size:.72rem;color:var(--text3);margin:0 0 6px">🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>`;
   h+=`<p style="margin:0 0 6px"><b>État :</b> ${esc(st.txt)}</p>`;
   if(p.summary&&p.summary.imported&&!aths.length) h+=`<p style="margin:0 0 6px"><b>Effectif :</b> ${fqN(p)} athlète(s) · séances : ${p.summary.am||0} matin / ${p.summary.pm||0} après-midi <span style="color:var(--text3)">(saisie récupérée)</span></p>`;
-  if(fqCanSee(p) && p.summary && !p.summary.noteOnly && !p.summary.imported){
+  if(S.isAdmin && p.summary && !p.summary.noteOnly && !p.summary.imported){
     h+=`<ul style="margin:0 0 6px;padding-left:18px">
       <li>✅ ${sm.sessions||0} séance(s) inscrite(s) directement (${sm.seats||0} inscriptions individuelles)</li>
       ${sm.requested?`<li>🕓 ${sm.requested} séance(s) sur créneau suivant : demande envoyée à l'admin, à valider</li>`:''}
@@ -2272,7 +2316,8 @@ function fqDetail(id){
     </ul>`;
   }
   document.getElementById('fqDBody').innerHTML=h;
-  document.getElementById('fqDDel').style.display=fqCanSee(p)&&!S.isReadonly?'':'none';
+  document.getElementById('fqDDel').style.display=fqCanEdit()?'':'none';
+  document.getElementById('fqDEdit').style.display=fqCanEdit()?'':'none';
   document.getElementById('fqDetailModal').classList.add('show');
 }
 
@@ -2303,7 +2348,7 @@ function fqPrint(){
 }
 
 async function fqPeriodDelete(){
-  const p=FQ.cur; if(!p||!fqCanSee(p)) return;
+  const p=FQ.cur; if(!p||!fqCanEdit()) return;
   if(!confirm(`Supprimer le groupe « ${p.g} » ?${p.group_id?'\n\nSes inscriptions automatiques et ses demandes de créneau en attente seront aussi supprimées.':''}`)) return;
   try{
     if(p.group_id){ const r=await sb.from('inscriptions').delete().eq('group_id',p.group_id); if(r.error) console.warn(r.error); }
@@ -3273,6 +3318,7 @@ let S = {
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
   // Paramètres par créneau kayak (eaux vives) : { "2026-07-07": { "9h-10h": { blocked:false, label:'' } } }
   kayakSlotConfig:{},
+  friseRestrict:true,   // les athlètes ne peuvent s'inscrire que sur la période de leur groupe (frise)
   data:{}, expanded:{}, movePending:null,
   // ── Salle de musculation (activité parallèle) ──────────────────────
   muscuSlots:['7h30-9h00','9h00-10h30','10h30-12h00','12h00-13h30','13h30-15h00','15h00-16h30','16h30-18h00'],
@@ -3490,6 +3536,7 @@ async function onAuthed(session){
   document.getElementById('recapBtn').style.display = S.isAdmin ? 'inline-block' : 'none';
   await load();
   await loadConfig();
+  await fqLoadRows();
   await loadAthletes();
   await loadTeamsData();
   if(S.isAdmin) await loadApprovedProfilesForAdmin();
@@ -3551,6 +3598,7 @@ async function saveConfig() {
     muscuCapacity:   S.muscuCapacity,
     muscuSlotConfig: S.muscuSlotConfig,
     kayakSlotConfig: S.kayakSlotConfig,
+    friseRestrict:   S.friseRestrict,
     muscuSlots:      S.muscuSlots,
   };
   const { error } = await sb.from('config').upsert({ key:'admin', value:cfg });
@@ -3575,6 +3623,7 @@ async function loadConfig() {
   if (cfg.muscuCapacity   !== undefined) S.muscuCapacity   = cfg.muscuCapacity;
   if (cfg.muscuSlotConfig !== undefined) S.muscuSlotConfig = cfg.muscuSlotConfig;
   if (cfg.kayakSlotConfig !== undefined) S.kayakSlotConfig = cfg.kayakSlotConfig;
+  if (cfg.friseRestrict !== undefined) S.friseRestrict = !!cfg.friseRestrict;
   if (cfg.muscuSlots !== undefined && Array.isArray(cfg.muscuSlots) && cfg.muscuSlots.length) S.muscuSlots = cfg.muscuSlots;
 }
 
@@ -5166,7 +5215,8 @@ function renderMdregMembers(){
   });
   MR._teamsView=groups.map(g=>g.items.map(x=>x.m.name));
   const nSel=MR.selectedMembers.size;
-  let h=`<div style="font-size:.8rem;margin-bottom:8px"><b>${nSel}</b> athlète(s) sélectionné(s)${nSel?` <button class="btn btn-sm" style="margin-left:6px;padding:1px 8px" onclick="mdregClearSel()">Tout décocher</button>`:''}</div>
+  const restrict=friseRestrictActive(), selDays=[...MR.selectedDays];
+  let h=(restrict?`<div style="font-size:.78rem;margin-bottom:8px;padding:6px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">🔒 Un athlète ne peut être inscrit que sur la période de son groupe (frise). Les athlètes hors période sont grisés.</div>`:'')+`<div style="font-size:.8rem;margin-bottom:8px"><b>${nSel}</b> athlète(s) sélectionné(s)${nSel?` <button class="btn btn-sm" style="margin-left:6px;padding:1px 8px" onclick="mdregClearSel()">Tout décocher</button>`:''}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px">`;
   groups.forEach((g,gi)=>{
     const shown=g.items.filter(x=>!f||x.m.name.toLowerCase().includes(f));
@@ -5182,12 +5232,14 @@ function renderMdregMembers(){
       <div style="padding:4px 6px">`;
     shown.forEach(({m,i})=>{
       const pid='k'+i, sel=MR.selectedMembers.has(m.name);
+      const okAll=!restrict||(selDays.length?selDays.every(d=>friseAllows(m.name,d)):friseWindows(m.name).length>0);
+      const tag=restrict?(okAll?(friseInfo(m.name)?`📅 ${friseInfo(m.name)}`:''):(friseWindows(m.name).length?`⛔ hors période (${friseInfo(m.name)})`:'⛔ pas dans la frise')):'';
       const touched=MR.extras[pid]&&Object.prototype.hasOwnProperty.call(MR.extras[pid],'rental');
       const eff=touched?MR.extras[pid].rental:(m.rental||'');
-      h+=`<div class="mdreg-member-row" style="display:flex;gap:6px;align-items:center;padding:2px 0">
+      h+=`<div class="mdreg-member-row" style="display:flex;gap:6px;align-items:center;padding:2px 0;${okAll?'':'opacity:.45;'}">
         <label class="mdreg-member${sel?' mdreg-selected':''}" style="flex:1;margin:0" onclick="mdregToggleMemberIdx(${i})">
           <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();mdregToggleMemberIdx(${i})">
-          <span style="flex:1">${esc(m.name)}</span>
+          <span style="flex:1">${esc(m.name)}${tag?`<br><span style="font-size:.66rem;color:${okAll?'var(--text3)':'#b91c1c'}">${esc(tag)}</span>`:''}</span>
           <span style="font-size:.7rem;color:var(--text3)">${roleDisplay(m.role)}</span>
         </label>
         ${showRental?`<select class="field mdreg-extra" id="rent-${pid}" onchange="mrSetExtra('${pid}','rental',this.value)">
@@ -5313,8 +5365,10 @@ async function submitMultiReg(){
 
   const referentName = S.profile?.full_name || S.session.user.email;
   const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
+  if(friseRestrictActive()) await fqLoadRows();
   let created = 0, skipped = 0;
   const duplicates = [];
+  const outside = [];
   const errors = [];
 
   // Débordement : si le groupe est plus grand que les places restantes, proposer d'ouvrir le créneau
@@ -5343,7 +5397,7 @@ async function submitMultiReg(){
     const slots = [...(MR.daySlots[dateK]||[])];
     for(const slot of slots){
       // Vérifier période de stage
-      if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
+      if(!S.isAdmin && !friseRestrictActive() && S.profile?.arrival_date && S.profile?.departure_date){
         if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
           skipped++; continue;
         }
@@ -5363,6 +5417,7 @@ async function submitMultiReg(){
       const free = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
       // Doublons : une personne déjà inscrite dans cette catégorie ce jour-là est ignorée
       const eligible = participants.filter(p=>{
+        if(!friseAllows(p.name, dateK)){ if(!outside.includes(p.name)) outside.push(p.name); return false; }
         if(alreadyRegisteredInCategory(dateK, slot, act, p.name)){ duplicates.push(`${p.name} (${dateK} ${slot})`); return false; }
         return true;
       });
@@ -5398,13 +5453,14 @@ async function submitMultiReg(){
 
   resetMultiReg();
   if(act==='muscu'){ renderMuscuDayPanel(); } else { renderDayPanel(); renderCal(); }
+  if(outside.length) setTimeout(()=>toast('⛔ Hors période de la frise, non inscrit(e) : '+outside.slice(0,6).join(', ')+(outside.length>6?'…':'')+'. Contacte l\'admin pour ajuster la période.','error'),600);
   if(duplicates.length) setTimeout(()=>toast('⚠️ Déjà inscrit(e) sur ce type de séance ce jour-là, ignoré(e) : '+duplicates.slice(0,6).join(', ')+(duplicates.length>6?'…':''),'error'),300);
   if(created > 0){
     const skipTxt = skipped ? t('qrSkippedTpl').replace('{n}',skipped) : '';
     toast(t('qrCreatedTpl').replace('{n}',created).replace('{skip}',skipTxt),'success');
   } else if(errors.length){
     toast(`❌ Erreur serveur (${errors[0].dateK} ${errors[0].slot}) : ${errors[0].message}`,'error');
-  } else if(!duplicates.length){
+  } else if(!duplicates.length && !outside.length){
     toast(t('qrNoneCreatedTpl').replace('{n}',skipped),'error');
   }
 }
@@ -5441,6 +5497,7 @@ async function submitRegistration(){
     return name ? {name,role} : null;
   }).filter(Boolean);
   if(!participants.length){ toast('Please enter at least one name.','error'); return; }
+  { const bad=participants.filter(p=>!friseAllows(p.name, dateK)); if(bad.length){ toast('⛔ Hors période de la frise : '+bad.map(b=>b.name).join(', '),'error'); return; } }
   const free = cap(slot,dateK) - getSlot(dateK,slot).length;
   if(participants.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
   const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
@@ -5860,6 +5917,8 @@ async function requestNextSlot(dateK, slot, act='kayak'){
   if(raw===null) return;
   const names = raw.split(',').map(x=>x.trim()).filter(Boolean);
   if(!names.length){ toast('Indique au moins un nom.','error'); return; }
+  const outReq = names.filter(n=>!friseAllows(n, dateK));
+  if(outReq.length){ toast('⛔ Hors période de la frise : '+outReq.join(', '),'error'); return; }
   const dupReq = names.filter(n=>alreadyRegisteredInCategory(dateK, next, act, n));
   if(dupReq.length){ toast('Déjà inscrit(e) sur ce type de séance ce jour-là : '+dupReq.join(', '),'error'); return; }
   const requester = S.profile?.full_name || S.session.user.email;
