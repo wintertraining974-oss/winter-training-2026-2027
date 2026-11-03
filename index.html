@@ -329,6 +329,10 @@ select.field { min-width: 110px; cursor: pointer; }
 .pg-cell-CLUB { background:#f0fdfa; }
 .pg-cell-closed { background:#f9fafb;opacity:.5; }
 .pg-cell-today { background:#eff6ff; }
+.pg-cell-blocked, .pg-cell-locked { background:#fecaca !important; box-shadow:inset 4px 0 0 #dc2626; }
+.pg-pri { background:#e2e8f0;color:#334155; }
+.pg-cell-kx { background:#ffedd5 !important; box-shadow:inset 4px 0 0 #f97316; }
+.pg-kx-badge { background:#f97316;color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:3px;letter-spacing:.3px; }
 .pg-count { font-size:.63rem;font-weight:700;padding:1px 5px;border-radius:4px;display:inline-block;margin-bottom:3px;white-space:nowrap; }
 .pg-count-open  { background:#dcfce7;color:#15803d; }
 .pg-count-mid   { background:#fef3c7;color:#92400e; }
@@ -4043,6 +4047,20 @@ function isLocked(dateK,slot){
   }
   return false;
 }
+// Priorité d'un créneau kayak : rang dans sa demi-journée (créneaux slalom, KX exclus) et état « pas encore ouvert ».
+// Un créneau s'ouvre quand TOUS ceux qui le précèdent dans l'ordre de priorité sont complets.
+function pgPriInfo(dateK, slot){
+  if(!isPriorityActive(dateK) || isKayakCross(dateK,slot)) return null;
+  for(const group of [morningSlots(dateK), afternoonSlots(dateK)]){
+    if(!group.includes(slot)) continue;
+    const chain = group.filter(s=>!isKayakCross(dateK,s));
+    const idx = chain.indexOf(slot);
+    let waitFor = null;
+    for(let i=0;i<idx;i++){ if(getSlot(dateK,chain[i]).length < cap(chain[i],dateK)){ waitFor = chain[i]; break; } }
+    return { rank: idx+1, locked: !!waitFor, waitFor };
+  }
+  return null;
+}
 function slotStatus(dateK,slot,act='kayak'){
   if(act==='kayak' && isLocked(dateK,slot)) return 'locked';
   const n=getSlot(dateK,slot,act).length, c=cap(slot,dateK,act);
@@ -4962,6 +4980,12 @@ function renderPlanningGrid(){
     <span style="font-size:.78rem;color:var(--text2)">${_pgMulti.on?'👆 Clique toutes les séances voulues (même sur plusieurs semaines), puis « Inscrire ma team ».':'👆 Clique sur une séance pour y inscrire ta team, ou active la sélection multiple.'}</span>
   </div>`;
 
+  if(isKayak && S.priorityOn) html += `<p style="font-size:.74rem;color:var(--text2);margin:0 0 8px;line-height:1.5">
+    <span class="pg-slot-lbl pg-pri">P1</span> <span class="pg-slot-lbl pg-pri">P2</span>… = <b>ordre de priorité</b> dans la demi-journée : un créneau s'ouvre quand les précédents sont complets ·
+    <span style="display:inline-block;width:12px;height:12px;background:#fecaca;border-left:3px solid #dc2626;vertical-align:middle"></span> <b>rouge = pas ouvert</b> (bloqué ou en attente de priorité)</p>`;
+
+  if(isKayak) html += `<p style="font-size:.74rem;color:var(--text2);margin:0 0 8px"><span class="pg-kx-badge">🏄 KAYAK CROSS</span> = séance de kayak cross (fond orange, toujours ouverte, hors priorité)</p>`;
+
   // Tableau
   html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><table class="planning-grid">`;
 
@@ -5002,11 +5026,13 @@ function renderPlanningGrid(){
       const slotCfg = isKayak ? getKayakSlotCfg(k,slot) : getMuscuSlotCfg(k,slot);
       const blocked = slotCfg?.blocked;
       const label = kx ? 'KX' : (slotCfg?.label||'');
+      const pri = isKayak ? pgPriInfo(k,slot) : null;
 
       // Classe de la cellule
       let cellClass = 'pg-cell';
       if(isToday) cellClass += ' pg-cell-today';
       if(blocked) cellClass += ' pg-cell-blocked';
+      else if(pri && pri.locked) cellClass += ' pg-cell-locked';
       else if(kx) cellClass += ' pg-cell-kx';
       else if(label && label!=='KX') cellClass += ` pg-cell-${label}`;
       else if(aths.length>=c) cellClass += ' pg-cell-full';
@@ -5017,11 +5043,13 @@ function renderPlanningGrid(){
       const countTxt = blocked?'🚫':kx?`🏄 ${aths.length}/${c}`:`${aths.length}/${c}`;
 
       let cellHtml = `<div class="${cellClass}">`;
+      if(pri) cellHtml+=`<span class="pg-slot-lbl pg-pri" title="Ordre de priorité dans la demi-journée">P${pri.rank}</span> `;
       // Label (KX, CRRCK, CLUB)
-      if(kx)  cellHtml+=`<span class="pg-slot-lbl" style="background:#fff7ed;color:#f97316">🏄 KX</span><br>`;
+      if(kx)  cellHtml+=`<span class="pg-kx-badge">🏄 KAYAK CROSS</span><br>`;
       if(label&&label!=='KX') cellHtml+=`<span class="pg-slot-lbl pg-lbl-${label}">${label}</span><br>`;
       if(blocked) cellHtml+=`<span class="pg-blocked-tag">🚫 Blocked</span>`;
       else {
+        if(pri && pri.locked) cellHtml+=`<span class="pg-blocked-tag" title="S'ouvre quand ${esc(pri.waitFor)} est complet">🔒 Pas encore ouvert</span><br>`;
         // Compteur
         cellHtml+=`<span class="pg-count ${countClass}">${countTxt}</span>`;
         // Athlètes (max 4 affichés)
