@@ -348,6 +348,30 @@ select.field { min-width: 110px; cursor: pointer; }
 .pg-act-btn { padding:5px 14px;border-radius:20px;border:1.5px solid var(--border2);background:white;font-size:.76rem;font-weight:600;cursor:pointer; }
 .pg-act-btn.active { background:var(--accent);color:white;border-color:var(--accent); }
 .pg-act-btn.muscu-act.active { background:#0d9488;border-color:#0d9488; }
+
+/* ── Planning prévisionnel jour par jour ── */
+.pl-days{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;margin-bottom:8px}
+.pl-day{flex:0 0 auto;min-width:62px;text-align:center;border:1.5px solid var(--border2);background:var(--white);border-radius:var(--radius-sm);padding:5px 8px;cursor:pointer;font-size:.74rem;line-height:1.25;color:var(--text2)}
+.pl-day b{display:block;font-size:.85rem;color:var(--text)}
+.pl-day:hover{border-color:var(--accent);background:var(--accent-light)}
+.pl-day.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.pl-day.active b{color:#fff}
+.pl-day.has{box-shadow:inset 0 -3px 0 var(--green)}
+.pl-day.wknd:not(.active){background:var(--orange-light)}
+.pl-box{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--white)}
+.pl-table{width:100%;border-collapse:collapse;min-width:560px}
+.pl-table th{background:var(--accent-light);padding:6px 4px;font-size:.74rem;text-align:center;vertical-align:top;border-bottom:1px solid var(--border)}
+.pl-table th.pl-ath{text-align:left;padding-left:8px;width:30%}
+.pl-table td{padding:5px 4px;text-align:center;border-top:1px solid #eef0f3}
+.pl-table td.pl-name{text-align:left;padding-left:8px;font-size:.82rem}
+.pl-table td.pl-name label{cursor:pointer}
+.pl-table tfoot td{font-weight:700;font-size:.78rem;background:var(--surface2);color:var(--text2)}
+.pl-table select{width:100%;max-width:130px;margin-top:4px;font-size:.74rem;padding:4px 2px;border:1.5px solid var(--border2);border-radius:6px;background:#fff;color:var(--text)}
+.pl-table input[type=checkbox]{width:18px;height:18px;cursor:pointer}
+.pl-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.pl-state{font-size:.75rem;color:var(--text3);margin-left:auto}
+.pl-state.dirty{color:#b45309;font-weight:700}
+@media(max-width:560px){.pl-state{margin-left:0;width:100%}}
 </style>
 
 <style id="sevi-theme">
@@ -1016,6 +1040,13 @@ header .user-pill { color: #fff; }
       </div>
     </div>
 
+    <!-- Planning prévisionnel des séances de ma team (jour par jour) -->
+    <div class="quick-reg-card" id="plCard" style="margin-top:16px;display:none">
+      <h2>📅 Planning prévisionnel des séances</h2>
+      <p class="qr-sub">Pour chaque jour du stage, choisis l'horaire souhaité et coche les athlètes concernés : Slalom matin / après-midi et Muscu matin / après-midi. C'est un prévisionnel : il n'inscrit personne sur les créneaux, il aide l'organisation à anticiper.</p>
+      <div id="plHostInline"></div>
+    </div>
+
     <!-- Base de données des athlètes (lecture seule — gérée par l'admin) -->
     <div class="quick-reg-card" id="athleteDbPanel" style="margin-top:16px">
       <h2 id="teamAthDbTitle">📇 Base de données des athlètes</h2>
@@ -1055,6 +1086,8 @@ header .user-pill { color: #fff; }
       <label id="fqRestrictWrap" style="display:none;gap:8px;align-items:center;cursor:pointer;font-size:.82rem;margin-bottom:10px;padding:8px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px"><input type="checkbox" id="fqRestrict" onchange="fqToggleRestrict(this.checked)"> 🔒 <span><b>Restreindre l'inscription des athlètes à leur période</b> : un athlète ne peut s'inscrire que sur les jours des périodes où il figure.</span></label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <button class="btn btn-sm btn-primary" id="fqAddBtn" style="display:none" onclick="fqPeriodOpen()">➕ Ajouter un groupe</button>
+        <button class="btn btn-sm btn-primary" id="fqMyFcBtn" style="display:none" onclick="fqFcOpenMine()">📊 Mon prévisionnel de séances</button>
+        <button class="btn btn-sm btn-primary" id="fqMyPlBtn" style="display:none" onclick="plOpenMine()">📅 Mon planning jour par jour</button>
         <button class="btn btn-sm" onclick="fqPrint()">🖨️ Imprimer / PDF</button>
         <button class="btn btn-sm" id="fqImportBtn" style="display:none;border-color:#16a34a;color:#15803d" onclick="fqImportOld()">♻️ Récupérer mes anciennes entrées</button>
         <button class="btn btn-sm" id="fqReqBtn" style="display:none;border-color:#7c3aed;color:#7c3aed" onclick="setPage('suivi')"></button>
@@ -1063,6 +1096,7 @@ header .user-pill { color: #fff; }
       <div id="fqNotice"></div>
       <div id="fqTimeline" style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"></div>
       <div id="fqTimeTotals" style="margin-top:10px;font-weight:700"></div>
+      <div id="fqForecast" style="margin-top:18px"></div>
       <p style="font-size:.72rem;color:var(--text3);margin-top:6px">Légende : ✅ réservation confirmée · ❌ date non confirmée · 🕓 demande de créneau en attente de validation de l'admin · ⚠️ des séances n'ont pas pu être placées · 🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>
     </div>
   </div>
@@ -1291,6 +1325,31 @@ header .user-pill { color: #fff; }
   </div>
 </div>
 
+<!-- Modal prévisionnel de séances (frise) -->
+<div class="modal-bg" id="fqFcModal">
+  <div class="modal-box" style="max-width:640px">
+    <h3 id="fqFcTitle">📊 Prévisionnel</h3>
+    <p style="font-size:.8rem;color:var(--text3);margin:0 0 8px">Coche pour chaque athlète les séances prévues. Elles s'appliquent à chaque jour ouvert de la période du groupe. C'est un prévisionnel : il n'inscrit personne, il aide à anticiper la fréquentation.</p>
+    <div id="fqFcTable" style="max-height:380px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
+    <p id="fqFcErr" style="color:var(--red);font-size:.8rem;margin:6px 0 0"></p>
+    <div class="modal-actions" style="justify-content:flex-end;gap:8px;margin-top:10px">
+      <button class="btn" onclick="closeModal('fqFcModal')">Annuler</button>
+      <button class="btn btn-primary" onclick="fqFcSave()">💾 Enregistrer le prévisionnel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal planning prévisionnel jour par jour -->
+<div class="modal-bg" id="plModal">
+  <div class="modal-box" style="max-width:860px">
+    <h3 id="plModalTitle">📅 Planning prévisionnel</h3>
+    <div id="plHostModal"></div>
+    <div class="modal-actions" style="justify-content:flex-end;gap:8px;margin-top:10px">
+      <button class="btn" onclick="plCloseModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal détail d'un groupe (frise) -->
 <div class="modal-bg" id="fqDetailModal">
   <div class="modal-box" style="max-width:480px">
@@ -1298,7 +1357,9 @@ header .user-pill { color: #fff; }
     <div id="fqDBody" style="font-size:.88rem;line-height:1.5"></div>
     <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px">
       <button class="btn" id="fqDDel" style="color:var(--red)" onclick="fqPeriodDelete()">🗑 Supprimer</button>
-      <span style="display:flex;gap:8px"><button class="btn" id="fqDEdit" onclick="fqEditCurrent()">✏️ Modifier</button>
+      <span style="display:flex;gap:8px"><button class="btn" id="fqDFc" style="display:none" onclick="fqFcOpen(FQ.cur&&FQ.cur.id)">📊 Prévisionnel</button>
+      <button class="btn" id="fqDPl" style="display:none" onclick="plOpenModal(FQ.cur&&FQ.cur.id)">📅 Planning</button>
+      <button class="btn" id="fqDEdit" onclick="fqEditCurrent()">✏️ Modifier</button>
       <button class="btn" onclick="closeModal('fqDetailModal')">Fermer</button></span>
     </div>
   </div>
@@ -2062,7 +2123,12 @@ async function fqLoad(){
   if(rw){ rw.style.display=S.isAdmin?'flex':'none'; document.getElementById('fqRestrict').checked=S.friseRestrict!==false; }
   const rb=document.getElementById('fqReqBtn');
   if(rb){ rb.style.display = (S.isAdmin && FQ.reqs.length) ? '' : 'none'; rb.textContent=`📲 ${FQ.reqs.length} demande(s) de créneau à valider (voir Suivi)`; }
+  await fqLoadForecast();
+  await plLoadAll();
   fqRenderTimeline();
+  fqRenderForecast();
+  const mb=document.getElementById('fqMyFcBtn'); if(mb) mb.style.display=(!S.isAdmin&&!S.isReadonly&&S.myTeam)?'':'none';
+  const mpl=document.getElementById('fqMyPlBtn'); if(mpl) mpl.style.display=(!S.isAdmin&&!S.isReadonly&&S.myTeam)?'':'none';
   const ib=document.getElementById('fqImportBtn');
   if(ib){ const n=FQ.err?0:(await fqImportable()).length; ib.style.display=n?'':'none'; ib.textContent=`♻️ Récupérer mes anciennes entrées (${n})`; }
 }
@@ -2415,7 +2481,314 @@ function fqDetail(id){
   document.getElementById('fqDBody').innerHTML=h;
   document.getElementById('fqDDel').style.display=fqCanEdit()?'':'none';
   document.getElementById('fqDEdit').style.display=fqCanEdit()?'':'none';
+  document.getElementById('fqDFc').style.display=(!S.isReadonly&&(S.isAdmin||(S.myTeam&&p.team_id&&p.team_id===S.myTeam.id)))?'':'none';
+  document.getElementById('fqDPl').style.display=(!S.isReadonly&&(S.isAdmin||(S.myTeam&&p.team_id&&p.team_id===S.myTeam.id)))?'':'none';
   document.getElementById('fqDetailModal').classList.add('show');
+}
+
+
+// ── Prévisionnel de séances (table frise_forecast : period_id, user_id, data {nom:{km,ka,mm,ma}}) ──
+// km = kayak matin · ka = kayak après-midi · mm = muscu matin · ma = muscu après-midi
+const FC = { rows:{}, ok:false, err:'', monday:null, cur:null, names:[], sel:{} };
+const FC_COLS=[['km','🌅 Kayak<br>matin','🌅 Kayak matin'],['ka','🌇 Kayak<br>ap.-midi','🌇 Kayak après-midi'],['mm','💪 Muscu<br>matin','💪 Muscu matin'],['ma','💪 Muscu<br>ap.-midi','💪 Muscu après-midi']];
+async function fqLoadForecast(){
+  try{
+    const { data, error } = await sb.from('frise_forecast').select('*');
+    if(error){ FC.ok=false; FC.err=error.message||'erreur'; FC.rows={}; return; }
+    FC.ok=true; FC.err=''; FC.rows={}; (data||[]).forEach(r=>{ FC.rows[r.period_id]=r; });
+  }catch(e){ FC.ok=false; }
+}
+function fqMondayOf(d){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; }
+function fqFcNames(row){
+  const names=fqAths(row).map(a=>a.name);
+  if(S.myTeam && row.team_id===S.myTeam.id) (S.myTeam.members||[]).forEach(m=>{ const n=m.athlete&&m.athlete.full_name; if(n&&!names.includes(n)) names.push(n); });
+  const saved=(FC.rows[row.id]&&FC.rows[row.id].data)||{};
+  Object.keys(saved).forEach(n=>{ if(!names.includes(n)) names.push(n); });
+  return names;
+}
+function fqFcOpenMine(){
+  const row=S.myTeam?FQ.rows.find(r=>r.team_id===S.myTeam.id):null;
+  if(!row){ toast("Ta team n'a pas encore de période dans la frise : contacte l'administrateur.",'error'); return; }
+  fqFcOpen(row.id);
+}
+function fqFcOpen(id){
+  const row=FQ.rows.find(x=>x.id===id); if(!row) return;
+  if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation.",'error'); return; }
+  if(!S.isAdmin && !(S.myTeam && row.team_id===S.myTeam.id)){ toast('Tu ne peux remplir que le prévisionnel de ta team.','error'); return; }
+  FC.cur=row; FC.names=fqFcNames(row);
+  const saved=(FC.rows[row.id]&&FC.rows[row.id].data)||{};
+  FC.sel={}; FC.names.forEach(n=>{ FC.sel[n]={...(saved[n]||{})}; });
+  const f=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  document.getElementById('fqFcTitle').textContent=`📊 Prévisionnel — ${row.g||''} (${f(row.start_date)} → ${f(row.end_date)})`;
+  document.getElementById('fqFcErr').textContent=FC.ok?'':'La table « frise_forecast » doit être créée dans Supabase (voir le SQL fourni).';
+  closeModal('fqDetailModal');
+  fqFcRenderTable();
+  document.getElementById('fqFcModal').classList.add('show');
+}
+function fqFcRenderTable(){
+  const box=document.getElementById('fqFcTable');
+  if(!FC.names.length){ box.innerHTML=`<p style="padding:10px;font-size:.82rem;color:var(--text3);margin:0">Aucun athlète dans ce groupe : ajoute d'abord des athlètes à la team.</p>`; return; }
+  const all=c=>FC.names.every(n=>FC.sel[n]&&FC.sel[n][c]);
+  let h=`<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--accent-light)"><th style="text-align:left;padding:6px 8px;font-size:.8rem">Athlète</th>${FC_COLS.map(([c,l])=>`<th style="width:84px;padding:4px;font-size:.7rem;text-align:center"><label style="cursor:pointer;display:block">${l}<br><input type="checkbox" ${all(c)?'checked':''} onchange="fqFcTickCol('${c}',this.checked)"></label></th>`).join('')}</tr></thead><tbody>`;
+  FC.names.forEach((n,i)=>{
+    h+=`<tr><td style="padding:4px 8px;border-top:1px solid #eef0f3"><label style="cursor:pointer" onclick="fqFcTickRow(${i})" title="Cliquer : toute la ligne">${esc(n)}</label></td>${FC_COLS.map(([c])=>`<td style="text-align:center;border-top:1px solid #eef0f3"><input type="checkbox" ${FC.sel[n]&&FC.sel[n][c]?'checked':''} onchange="fqFcTick(${i},'${c}',this.checked)"></td>`).join('')}</tr>`;
+  });
+  box.innerHTML=h+'</tbody></table>';
+}
+function fqFcTick(i,c,v){ (FC.sel[FC.names[i]] ||= {})[c]=v; fqFcRenderTable(); }
+function fqFcTickRow(i){ const c=(FC.sel[FC.names[i]] ||= {}); const on=!FC_COLS.every(([k])=>c[k]); FC_COLS.forEach(([k])=>c[k]=on); fqFcRenderTable(); }
+function fqFcTickCol(c,v){ FC.names.forEach(n=>{ (FC.sel[n] ||= {})[c]=v; }); fqFcRenderTable(); }
+async function fqFcSave(){
+  const row=FC.cur; if(!row) return;
+  const data={}; FC.names.forEach(n=>{ const c=FC.sel[n]||{}; if(FC_COLS.some(([k])=>c[k])) data[n]=Object.fromEntries(FC_COLS.map(([k])=>[k,!!c[k]])); });
+  const { error } = await sb.from('frise_forecast').upsert({ period_id:row.id, user_id:S.session.user.id, data, updated_at:new Date().toISOString() });
+  if(error){ document.getElementById('fqFcErr').textContent='Erreur : '+error.message+(/frise_forecast/i.test(error.message||'')?' — table à créer dans Supabase.':''); return; }
+  closeModal('fqFcModal');
+  toast('📊 Prévisionnel enregistré.','success');
+  await fqLoadForecast(); fqRenderForecast();
+}
+// Vue d'ensemble : prévisionnel cumulé de tous les groupes, semaine par semaine
+function fqFcShift(n){ FC.monday.setDate(FC.monday.getDate()+7*n); fqRenderForecast(); }
+function fqRenderForecast(){
+  const box=document.getElementById('fqForecast'); if(!box) return;
+  if(!FC.monday){ const t=new Date(); FC.monday=fqMondayOf((t<START||t>END)?START:t); }
+  const days=[...Array(7)].map((_,i)=>{ const d=new Date(FC.monday); d.setDate(d.getDate()+i); return d; });
+  const dn=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const fmt=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <b>📊 Prévisionnel de séances</b>
+    <button class="btn btn-sm" onclick="fqFcShift(-1)">◀</button><span style="font-size:.85rem">semaine du ${fmt(days[0])} au ${fmt(days[6])}</span><button class="btn btn-sm" onclick="fqFcShift(1)">▶</button>
+    ${FC.ok?'':`<span style="font-size:.75rem;color:#b45309">⚠️ table « frise_forecast » indisponible</span>`}
+  </div>
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:640px"><thead><tr><th style="width:150px"></th>${days.map((d,i)=>`<th style="padding:5px;border:1px solid var(--border);font-size:.78rem;background:${i>=5?'#fef3c7':'var(--accent-light)'}">${dn[i]} ${d.getDate()}/${d.getMonth()+1}</th>`).join('')}</tr></thead><tbody>`;
+  FC_COLS.forEach(([c,,lab])=>{
+    h+=`<tr><td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;font-size:.8rem;background:#f8fafc">${lab}</td>`;
+    days.forEach(d=>{
+      const k=fqKey(d);
+      if(isClosed(d)||outOfRange(d)){ h+=`<td style="border:1px solid var(--border);background:#f3f4f6"></td>`; return; }
+      let tot=0; const det=[];
+      FQ.rows.forEach(r=>{
+        if(k<r.start_date||k>r.end_date) return;
+        const pl=PL.rows[r.id];
+        if(pl&&pl.data&&Object.keys(pl.data).length){   // planning jour par jour renseigné : il fait foi pour ce groupe
+          const cell=pl.data[k]&&pl.data[k][c], np=cell&&cell.n?cell.n.length:0;
+          if(np){ tot+=np; det.push(`${r.g}: ${np}${cell.h?' ('+cell.h+')':''}`); }
+          return;
+        }
+        const fc=FC.rows[r.id]; if(!fc||!fc.data) return;
+        const n=Object.values(fc.data).filter(v=>v&&v[c]).length;
+        if(n){ tot+=n; det.push(`${r.g}: ${n}`); }
+      });
+      h+=`<td title="${esc(det.join('\n'))}" style="text-align:center;border:1px solid var(--border);padding:5px;font-weight:${tot?700:400};background:${tot?`rgba(37,99,235,${Math.min(.5,.1+tot/60)})`:'#fff'};color:${tot?'#1e3a8a':'#9ca3af'}">${tot||''}</td>`;
+    });
+    h+='</tr>';
+  });
+  box.innerHTML=h+`</tbody></table></div><p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Nombre d'athlètes prévus par séance, tous groupes confondus (survole une case pour le détail par groupe). Prévisionnel indicatif : il n'inscrit personne. Si un groupe a rempli son planning jour par jour, c'est celui-ci qui est compté pour ce groupe.</p>`;
+}
+
+
+// ── Planning prévisionnel jour par jour : horaires souhaités + athlètes concernés ──
+// Table Supabase « frise_planning » (à créer une fois ; voir le SQL fourni avec la mise à jour) :
+//   period_id text primary key · user_id uuid · data jsonb · updated_at timestamptz
+// data = { "2026-07-08": { km:{h:"8h-9h", n:["Nom A","Nom B"]}, ka:{…}, mm:{…}, ma:{…} }, … }
+// km = slalom matin · ka = slalom après-midi · mm = muscu matin · ma = muscu après-midi
+const PL = { rows:{}, ok:false, err:'', cur:null, names:[], data:{}, days:[], day:null, host:null, dirty:false };
+const PL_COLS=[
+  ['km','🌅 Slalom matin','slalom','am'],
+  ['ka','🌇 Slalom après-midi','slalom','pm'],
+  ['mm','💪 Muscu matin','muscu','am'],
+  ['ma','💪 Muscu après-midi','muscu','pm']
+];
+async function plLoadAll(){
+  try{
+    const { data, error } = await sb.from('frise_planning').select('*');
+    if(error){ PL.ok=false; PL.err=error.message||'erreur'; PL.rows={}; return; }
+    PL.ok=true; PL.err=''; PL.rows={}; (data||[]).forEach(r=>{ PL.rows[r.period_id]=r; });
+  }catch(e){ PL.ok=false; }
+}
+function plCanEdit(row){ return !!row && !S.isReadonly && (S.isAdmin || (S.myTeam && row.team_id && row.team_id===S.myTeam.id)); }
+function plDaysOf(row){
+  const out=[];
+  for(let d=fqParse(row.start_date); fqKey(d)<=row.end_date; d.setDate(d.getDate()+1)){
+    if(isClosed(d)||outOfRange(d)) continue;
+    out.push(fqKey(d));
+  }
+  return out;
+}
+// Horaires proposés pour une colonne et un jour (créneaux bloqués et Kayak Cross exclus)
+function plOptions(k,col){
+  const [, , act, half]=PL_COLS.find(x=>x[0]===col);
+  let list;
+  if(act==='slalom'){
+    list=(half==='am'?morningSlotsChrono(k):afternoonSlotsChrono(k)).filter(sl=>!isKayakCross(k,sl)&&!getKayakSlotCfg(k,sl).blocked);
+  } else {
+    list=[...S.muscuSlots].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b))
+      .filter(sl=>!getMuscuSlotCfg(k,sl).blocked && (half==='am' ? slotStartMinutes(sl)<720 : slotStartMinutes(sl)>=720));
+  }
+  return list;
+}
+function plCell(k,c){ const d=PL.data[k]; return (d&&d[c])||{h:'',n:[]}; }
+function plCellSet(k,c){ const d=(PL.data[k] ||= {}); return (d[c] ||= {h:'',n:[]}); }
+function plHasDay(k){ const d=PL.data[k]; return !!d && PL_COLS.some(([c])=>d[c]&&(d[c].n||[]).length); }
+function plDirty(v){
+  PL.dirty=v;
+  if(!PL.host) return;
+  const el=PL.host.querySelector('.pl-state'); if(!el) return;
+  el.textContent=v?'● modifications non enregistrées':'✔ à jour';
+  el.className='pl-state'+(v?' dirty':'');
+}
+function plMount(host,row){
+  PL.host=host; PL.cur=row;
+  PL.names=fqFcNames(row);
+  const saved=(PL.rows[row.id]&&PL.rows[row.id].data)||{};
+  PL.data=JSON.parse(JSON.stringify(saved));
+  Object.values(PL.data).forEach(day=>Object.values(day).forEach(cell=>(cell.n||[]).forEach(n=>{ if(!PL.names.includes(n)) PL.names.push(n); })));
+  PL.days=plDaysOf(row);
+  const today=fqKey(new Date());
+  PL.day = PL.days.find(plHasDay) || PL.days.find(k=>k>=today) || PL.days[0] || null;
+  PL.dirty=false;
+  plRender();
+}
+function plRender(){
+  const host=PL.host, row=PL.cur; if(!host||!row) return;
+  if(!PL.days.length){ host.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">Aucun jour ouvert sur la période de ce groupe.</p>`; return; }
+  if(!PL.names.length){ host.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">Aucun athlète dans ce groupe : ajoute d'abord des athlètes à la team.</p>`; return; }
+  const f=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
+  host.innerHTML=`
+    ${PL.ok?'':`<p style="font-size:.78rem;color:#b45309;margin:0 0 8px">⚠️ La table « frise_planning » n'existe pas encore dans Supabase : l'enregistrement ne fonctionnera qu'après sa création.</p>`}
+    <p style="font-size:.8rem;color:var(--text3);margin:0 0 6px"><b>${esc(row.g||'')}</b> · du ${f(row.start_date)} au ${f(row.end_date)} · ${PL.names.length} athlète(s)</p>
+    <div class="pl-days"></div>
+    <div class="pl-daytitle" style="font-weight:700;margin:2px 0 6px"></div>
+    <div class="pl-box"></div>
+    <div class="pl-bar">
+      <button class="btn btn-sm btn-primary" onclick="plSave()">💾 Enregistrer le planning</button>
+      <button class="btn btn-sm" onclick="plCopy('week')" title="Copie ce jour sur les autres jours de la même semaine">📋 Copier sur la semaine</button>
+      <button class="btn btn-sm" onclick="plCopy('all')" title="Copie ce jour sur tous les jours de la période">📋 Copier sur toute la période</button>
+      <button class="btn btn-sm" style="color:var(--red)" onclick="plClearDay()">🗑 Vider ce jour</button>
+      <span class="pl-state">✔ à jour</span>
+    </div>
+    <p class="pl-msg" style="font-size:.78rem;min-height:1em;margin:6px 0 0"></p>
+    <p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Horaire « — » = pas de préférence. Clique sur le nom d'un athlète pour cocher toute sa ligne, ou sur la case d'en-tête pour cocher toute la colonne.</p>`;
+  plRenderDay();
+}
+function plRenderDay(){
+  const host=PL.host; if(!host||!PL.day) return;
+  const k=PL.day, dn=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  // bandeau des jours
+  host.querySelector('.pl-days').innerHTML=PL.days.map(x=>{
+    const d=fqParse(x), w=d.getDay();
+    return `<div class="pl-day${x===k?' active':''}${plHasDay(x)?' has':''}${(w===0||w===6)?' wknd':''}" onclick="plDay('${x}')">${dn[w]}<b>${d.getDate()}/${d.getMonth()+1}</b></div>`;
+  }).join('');
+  const act=host.querySelector('.pl-days .pl-day.active'); if(act&&act.scrollIntoView) act.scrollIntoView({block:'nearest',inline:'nearest'});
+  host.querySelector('.pl-daytitle').textContent=fqParse(k).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  // tableau du jour
+  const box=host.querySelector('.pl-box'), keep=box.scrollTop;
+  const all=c=>PL.names.length&&PL.names.every(n=>plCell(k,c).n.includes(n));
+  let h=`<table class="pl-table"><thead><tr><th class="pl-ath">Athlète</th>${PL_COLS.map(([c,l])=>{
+    const opts=plOptions(k,c), cur=plCell(k,c).h;
+    const optHtml=`<option value="">— horaire —</option>`+opts.map(o=>`<option value="${esc(o)}" ${o===cur?'selected':''}>${esc(o)}</option>`).join('')
+      +((cur&&!opts.includes(cur))?`<option value="${esc(cur)}" selected>${esc(cur)} (indisp.)</option>`:'');
+    return `<th>${l}<br><select onchange="plHour('${c}',this.value)" ${opts.length||cur?'':'disabled'}>${optHtml}</select><br><input type="checkbox" title="Cocher toute la colonne" ${all(c)?'checked':''} onchange="plTickCol('${c}',this.checked)"></th>`;
+  }).join('')}</tr></thead><tbody>`;
+  PL.names.forEach((n,i)=>{
+    h+=`<tr><td class="pl-name"><label onclick="plTickRow(${i})" title="Cliquer : toute la ligne">${esc(n)}</label></td>${PL_COLS.map(([c])=>`<td><input type="checkbox" ${plCell(k,c).n.includes(n)?'checked':''} onchange="plTick(${i},'${c}',this.checked)"></td>`).join('')}</tr>`;
+  });
+  h+=`</tbody><tfoot><tr><td class="pl-name">Total</td>${PL_COLS.map(([c])=>`<td>${plCell(k,c).n.length}/${PL.names.length}</td>`).join('')}</tr></tfoot></table>`;
+  box.innerHTML=h; box.scrollTop=keep;
+}
+function plDay(k){ PL.day=k; plRenderDay(); }
+function plTick(i,c,v){
+  const cell=plCellSet(PL.day,c), n=PL.names[i], at=cell.n.indexOf(n);
+  if(v&&at<0) cell.n.push(n); else if(!v&&at>=0) cell.n.splice(at,1);
+  plDirty(true); plRenderDay();
+}
+function plTickRow(i){
+  const n=PL.names[i], k=PL.day, on=!PL_COLS.every(([c])=>plCell(k,c).n.includes(n));
+  PL_COLS.forEach(([c])=>{ const cell=plCellSet(k,c), at=cell.n.indexOf(n); if(on&&at<0) cell.n.push(n); else if(!on&&at>=0) cell.n.splice(at,1); });
+  plDirty(true); plRenderDay();
+}
+function plTickCol(c,v){ plCellSet(PL.day,c).n = v ? [...PL.names] : []; plDirty(true); plRenderDay(); }
+function plHour(c,v){ plCellSet(PL.day,c).h=v; plDirty(true); plRenderDay(); }
+function plClearDay(){
+  if(!PL.day) return;
+  if(plHasDay(PL.day) && !confirm('Vider le planning de ce jour ?')) return;
+  delete PL.data[PL.day]; plDirty(true); plRenderDay();
+}
+function plCopy(mode){
+  const src=PL.data[PL.day];
+  if(!src||!plHasDay(PL.day)){ toast("Rien à copier : coche d'abord des athlètes sur ce jour.",'error'); return; }
+  const mon=fqKey(fqMondayOf(fqParse(PL.day)));
+  const targets=PL.days.filter(k=>k!==PL.day && (mode==='all' || fqKey(fqMondayOf(fqParse(k)))===mon));
+  if(!targets.length){ toast('Aucun autre jour à remplir.','error'); return; }
+  const over=targets.filter(plHasDay).length;
+  if(!confirm(`Copier ce jour sur ${targets.length} jour(s)${over?` (${over} déjà rempli(s) seront remplacés)`:''} ?\nLes horaires sont repris quand ils existent ce jour-là.`)) return;
+  targets.forEach(k=>{
+    const day={};
+    PL_COLS.forEach(([c])=>{
+      const s=src[c]; if(!s||!s.n||!s.n.length) return;
+      day[c]={ h:plOptions(k,c).includes(s.h)?s.h:'', n:[...s.n] };
+    });
+    PL.data[k]=day;
+  });
+  plDirty(true); plRenderDay();
+  toast(`📋 Copié sur ${targets.length} jour(s) — pense à enregistrer.`,'success');
+}
+async function plSave(){
+  const row=PL.cur; if(!row) return;
+  if(!plCanEdit(row)){ toast("Tu ne peux modifier que le planning de ta team.",'error'); return; }
+  const msg=PL.host&&PL.host.querySelector('.pl-msg');
+  const data={};
+  Object.entries(PL.data).forEach(([k,day])=>{
+    const d={};
+    PL_COLS.forEach(([c])=>{ const cell=day[c]; if(cell&&cell.n&&cell.n.length) d[c]={h:cell.h||'',n:cell.n}; });
+    if(Object.keys(d).length) data[k]=d;
+  });
+  const { error } = await sb.from('frise_planning').upsert({ period_id:String(row.id), user_id:S.session.user.id, data, updated_at:new Date().toISOString() });
+  if(error){
+    if(msg){ msg.style.color='var(--red)'; msg.textContent='Erreur : '+error.message+(/frise_planning/i.test(error.message||'')?' — table à créer dans Supabase.':''); }
+    return;
+  }
+  PL.data=JSON.parse(JSON.stringify(data));
+  PL.rows[row.id]={ period_id:String(row.id), user_id:S.session.user.id, data };
+  plDirty(false);
+  if(msg){ msg.style.color='#15803d'; msg.textContent='✅ Planning enregistré.'; }
+  toast('📅 Planning prévisionnel enregistré.','success');
+  plRenderDay();
+  try{ if(typeof fqRenderForecast==='function') fqRenderForecast(); }catch(e){}
+}
+// Carte intégrée à la page « Ma team » (partie utilisateur)
+async function plInitInline(){
+  const card=document.getElementById('plCard'), host=document.getElementById('plHostInline');
+  if(!card||!host) return;
+  if(S.isAdmin||S.isReadonly){ card.style.display='none'; return; }
+  card.style.display='block';
+  if(!S.myTeam){ host.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">Aucune team ne t'est encore assignée : contacte l'administrateur.</p>`; return; }
+  if(!FQ.rows.length) await fqLoadRows();
+  await plLoadAll();
+  const row=FQ.rows.find(r=>r.team_id===S.myTeam.id);
+  if(!row){ host.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">Ta team n'a pas encore de période dans la frise : contacte l'administrateur pour qu'elle soit créée.</p>`; return; }
+  if(PL.dirty && PL.host===host && PL.cur && PL.cur.id===row.id){ plRender(); return; }   // on garde la saisie en cours
+  plMount(host,row);
+}
+// Fenêtre (page Frise et détail d'un groupe)
+async function plOpenModal(id){
+  const row=FQ.rows.find(x=>x.id===id); if(!row) return;
+  if(S.isReadonly){ toast('👁️ Ton compte est en mode consultation.','error'); return; }
+  if(!plCanEdit(row)){ toast('Tu ne peux remplir que le planning de ta team.','error'); return; }
+  closeModal('fqDetailModal');
+  await plLoadAll();
+  document.getElementById('plModalTitle').textContent='📅 Planning prévisionnel — '+(row.g||'');
+  plMount(document.getElementById('plHostModal'),row);
+  document.getElementById('plModal').classList.add('show');
+}
+function plOpenMine(){
+  const row=S.myTeam?FQ.rows.find(r=>r.team_id===S.myTeam.id):null;
+  if(!row){ toast("Ta team n'a pas encore de période dans la frise : contacte l'administrateur.",'error'); return; }
+  plOpenModal(row.id);
+}
+function plCloseModal(){
+  if(PL.dirty && PL.host===document.getElementById('plHostModal') && !confirm('Des modifications ne sont pas enregistrées. Fermer quand même ?')) return;
+  PL.dirty=false; closeModal('plModal');
 }
 
 // ── Impression / PDF de la frise (le navigateur propose « Enregistrer au format PDF ») ──
@@ -2453,6 +2826,7 @@ async function fqPeriodDelete(){
       if(rq && rq.error) console.warn(rq.error); }
     const del=await sb.from('frise_periods').delete().eq('id',p.id);
     if(del.error) throw del.error;
+    try{ await sb.from('frise_planning').delete().eq('period_id',p.id); }catch(e){}
     closeModal('fqDetailModal');
     await load(); await fqLoad();
     try{ renderDayPanel(); renderCal(); }catch(e){}
@@ -2497,6 +2871,7 @@ async function setPage(page){
       await loadAthletes();
       await loadTeamsData();
       renderTeamPage();
+      try{ await plInitInline(); }catch(e){ console.warn(e); }
     }
   }
   if(page==='athletes' && S.session){
