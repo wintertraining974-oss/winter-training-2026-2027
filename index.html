@@ -4948,6 +4948,8 @@ function renderPlanningGrid(){
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
   </div>`;
 
+  if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits.</p>`;
+
   // Tableau
   html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><table class="planning-grid">`;
 
@@ -5021,13 +5023,257 @@ function renderPlanningGrid(){
         if(!aths.length) cellHtml+=`<span class="pg-empty">Empty</span>`;
       }
       cellHtml+='</div>';
-      html+=`<td>${cellHtml}</td>`;
+      html+= S.isAdmin ? `<td onclick="pgOpenSlot('${k}','${slot}')" style="cursor:pointer" title="Gérer cette séance">${cellHtml}</td>` : `<td>${cellHtml}</td>`;
     });
     html += '</tr>';
   });
 
   html += '</tbody></table></div>';
   wrap.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Fiche de séance (admin) : clic sur une cellule du planning
+//  → statut / étiquette / capacité / horaire + gestion des inscrits
+// ══════════════════════════════════════════════════════════════
+let _pgSheet = null; // { dateK, slot, act }
+
+function pgOpenSlot(dateK, slot){
+  if(!S.isAdmin) return;
+  _pgSheet = { dateK, slot, act:_pgActivity };
+  pgRenderSheet();
+}
+function pgCloseSheet(){
+  _pgSheet = null;
+  document.getElementById('pgSheet')?.remove();
+  renderPlanningGrid();
+}
+function pgRefresh(){ renderPlanningGrid(); pgRenderSheet(); }
+
+function pgRenderSheet(){
+  document.getElementById('pgSheet')?.remove();
+  if(!_pgSheet) return;
+  const { dateK, slot, act } = _pgSheet;
+  const isKayak = act==='kayak';
+  const cfg = isKayak ? getKayakSlotCfg(dateK,slot) : getMuscuSlotCfg(dateK,slot);
+  const store = getSlot(dateK,slot,act);
+  const c = cap(slot,dateK,act);
+  const hasCustomCap = isKayak && S.dateCapacity && S.dateCapacity[dateK] && S.dateCapacity[dateK][slot]!=null;
+  const d = parseDate(dateK);
+  const title = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const teams = (S.teams||[]).filter(tm=>tm.members && tm.members.length);
+  const fld = 'style="width:100%;padding:6px 8px;font-size:.85rem"';
+  const lbl = 'style="font-size:.72rem;font-weight:700;color:var(--text3);display:block;margin:10px 0 3px"';
+
+  const inscrits = store.length ? store.map((a,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:.85rem">
+      <span style="color:var(--text3);width:20px">${i+1}.</span>
+      <span style="flex:1">${esc(a.name)}${a.role&&a.role!=='Athlète'?` <small style="color:var(--text3)">(${esc(a.role)})</small>`:''}${a.referent?` <small style="color:var(--text3)">· ${esc(a.referent)}</small>`:''}</span>
+      <button class="btn btn-sm" style="color:var(--red)" title="Retirer" onclick="pgRemoveAthlete('${a._id}')">✕</button>
+    </div>`).join('')
+    : '<p style="color:var(--text3);font-size:.82rem;margin:6px 0">Aucun inscrit.</p>';
+
+  const el = document.createElement('div');
+  el.id = 'pgSheet';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px 10px;overflow:auto';
+  el.onclick = ev=>{ if(ev.target===el) pgCloseSheet(); };
+  el.innerHTML = `
+  <div style="background:var(--white);color:var(--text);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.3);width:100%;max-width:480px;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div>
+        <div style="font-size:.75rem;color:var(--text3)">${isKayak?'🚣 Kayak':'🏋️ Fitness'}</div>
+        <div style="font-size:1.05rem;font-weight:800;text-transform:capitalize">${esc(title)}</div>
+        <div style="font-size:.9rem;font-weight:700;color:var(--accent)">${esc(slot)} · ${store.length}/${c}</div>
+      </div>
+      <button class="btn btn-sm" onclick="pgCloseSheet()">✕ Fermer</button>
+    </div>
+
+    <label ${lbl}>Statut</label>
+    <select class="field" id="pgStatus" ${fld}>
+      <option value="open" ${!cfg.blocked?'selected':''}>✅ Ouvert</option>
+      <option value="blocked" ${cfg.blocked?'selected':''}>🚫 Bloqué</option>
+    </select>
+
+    <label ${lbl}>Étiquette</label>
+    <select class="field" id="pgLabel" ${fld}>
+      <option value="" ${!cfg.label?'selected':''}>— Aucune</option>
+      <option value="CRRCK" ${cfg.label==='CRRCK'?'selected':''}>CRRCK</option>
+      <option value="CLUB" ${cfg.label==='CLUB'?'selected':''}>CLUB</option>
+    </select>
+
+    ${isKayak ? `
+    <label ${lbl}>Nombre max de pratiquants (ce jour) ${hasCustomCap?'':'<span style="font-weight:400">— défaut : '+c+'</span>'}</label>
+    <input class="field" id="pgCap" type="number" min="0" placeholder="${c}" value="${hasCustomCap?c:''}" ${fld}>
+    <label ${lbl}>Horaire de la séance (ce jour)</label>
+    <input class="field" id="pgTime" value="${esc(slot)}" placeholder="ex : 9h-10h30" ${fld}>
+    ` : `
+    <p style="font-size:.75rem;color:var(--text3);margin:10px 0 0">Capacité (${c}) et horaires du fitness : réglage global dans Admin › Salle de musculation.</p>
+    `}
+    <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>
+
+    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-weight:800;font-size:.9rem;margin-bottom:4px">Inscrits (${store.length}/${c})</div>
+      ${inscrits}
+      ${store.length?`<button class="btn btn-sm" style="color:var(--red);margin-top:8px" onclick="pgClearSlot()">🗑 Vider la séance</button>`:''}
+
+      <label ${lbl}>➕ Ajouter une team entière</label>
+      <div style="display:flex;gap:6px">
+        <select class="field" id="pgTeamSel" style="flex:1;padding:6px 8px;font-size:.85rem">
+          ${teams.length ? teams.map(tm=>`<option value="${tm.id}">${esc(tm.name)} (${tm.members.length})</option>`).join('') : '<option value="">Aucune team avec athlètes</option>'}
+        </select>
+        <button class="btn btn-sm btn-primary" onclick="pgAddTeam()" ${teams.length?'':'disabled'}>Ajouter</button>
+      </div>
+
+      <label ${lbl}>➕ Ajouter des noms à la main (séparés par des virgules)</label>
+      <div style="display:flex;gap:6px">
+        <input class="field" id="pgNames" placeholder="ex : Jean Dupont, Marie Martin" style="flex:1;padding:6px 8px;font-size:.85rem" onkeydown="if(event.key==='Enter')pgAddManual()">
+        <button class="btn btn-sm btn-primary" onclick="pgAddManual()">Ajouter</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+// ── Enregistrer statut / étiquette / capacité / horaire ──
+async function pgSaveSlot(){
+  if(!S.isAdmin || !_pgSheet) return;
+  const { dateK, act } = _pgSheet;
+  let slot = _pgSheet.slot;
+  const isKayak = act==='kayak';
+  const blocked = document.getElementById('pgStatus').value==='blocked';
+  const label = document.getElementById('pgLabel').value;
+  const store = getSlot(dateK,slot,act);
+
+  // 1) Horaire (kayak) — migre aussi les inscriptions existantes
+  if(isKayak){
+    const newSlot = (document.getElementById('pgTime').value||'').trim();
+    if(newSlot && newSlot!==slot){
+      try { await pgRenameKayakSlot(dateK, slot, newSlot); slot = newSlot; _pgSheet.slot = newSlot; }
+      catch(e){ toast('⚠️ Horaire non modifié : '+(e.message||e),'error'); return; }
+    }
+  }
+
+  // 2) Bloquer : proposer de retirer les inscrits
+  const cur = getSlot(dateK,slot,act);
+  if(blocked && cur.length){
+    const cfg0 = isKayak ? getKayakSlotCfg(dateK,slot) : getMuscuSlotCfg(dateK,slot);
+    if(!cfg0.blocked && confirm(`Cette séance a ${cur.length} inscrit(s).\nOK = les retirer en la bloquant\nAnnuler = les garder inscrits`)){
+      const ok = await pgDeleteRows(cur.map(a=>a._id));
+      if(!ok) return;
+      cur.length = 0;
+    }
+  }
+
+  // 3) Statut + étiquette
+  const cfg = isKayak ? getKayakSlotCfg(dateK,slot) : getMuscuSlotCfg(dateK,slot);
+  cfg.blocked = blocked;
+  cfg.label = label;
+
+  // 4) Capacité par date (kayak)
+  if(isKayak){
+    const v = (document.getElementById('pgCap').value||'').trim();
+    if(!S.dateCapacity) S.dateCapacity = {};
+    if(v===''){
+      if(S.dateCapacity[dateK]){ delete S.dateCapacity[dateK][slot]; if(!Object.keys(S.dateCapacity[dateK]).length) delete S.dateCapacity[dateK]; }
+    } else {
+      const n = parseInt(v,10);
+      if(isNaN(n)||n<0){ toast('Capacité invalide.','error'); return; }
+      if(!S.dateCapacity[dateK]) S.dateCapacity[dateK] = {};
+      S.dateCapacity[dateK][slot] = n;
+    }
+  }
+
+  await saveConfig();
+  toast('✅ Séance enregistrée','success');
+  pgRefresh();
+}
+
+async function pgRenameKayakSlot(dateK, oldS, newS){
+  if(allSlots(dateK).includes(newS)) throw new Error('ce créneau existe déjà ce jour-là');
+  const base = (S.customSlots && S.customSlots[dateK]) || { morning:S.morningOrder, afternoon:S.afternoonOrder };
+  const period = base.morning.includes(oldS) ? 'morning' : (base.afternoon.includes(oldS) ? 'afternoon' : null);
+  if(!period) throw new Error('créneau introuvable dans les horaires du jour');
+
+  // base de données d'abord (si ça échoue, rien n'est modifié)
+  const n = (S.data[dateK] && S.data[dateK][oldS] || []).length;
+  if(n){
+    const { data, error } = await sb.from('inscriptions').update({ creneau:newS })
+      .eq('date',dateK).eq('creneau',oldS).or('activity.eq.kayak,activity.is.null').select();
+    if(error) throw error;
+    if((data||[]).length < n) throw new Error("droits insuffisants sur la table inscriptions (policy UPDATE admin)");
+  }
+  // configuration locale
+  const cs = ensureKayakCustomSlots(dateK);
+  const i = cs[period].indexOf(oldS); if(i>=0) cs[period][i] = newS;
+  const mv = (obj)=>{ if(obj && obj[dateK] && obj[dateK][oldS]!==undefined){ obj[dateK][newS]=obj[dateK][oldS]; delete obj[dateK][oldS]; } };
+  mv(S.data); mv(S.kayakSlotConfig); mv(S.dateCapacity); mv(S.kayakCross);
+}
+
+// ── Inscrits ──
+async function pgDeleteRows(ids){
+  ids = ids.filter(Boolean);
+  if(!ids.length) return true;
+  const { data, error } = await sb.from('inscriptions').delete().in('id', ids).select('id');
+  if(error){ toast(error.message,'error'); return false; }
+  if((data||[]).length < ids.length){ toast("⚠️ Suppression refusée par Supabase (policy DELETE admin sur inscriptions).",'error'); return false; }
+  return true;
+}
+async function pgRemoveAthlete(id){
+  if(!S.isAdmin || !_pgSheet) return;
+  const { dateK, slot, act } = _pgSheet;
+  const store = getSlot(dateK,slot,act);
+  const i = store.findIndex(a=>String(a._id)===String(id));
+  if(i<0) return;
+  if(!(await pgDeleteRows([id]))) return;
+  store.splice(i,1);
+  pgRefresh();
+}
+async function pgClearSlot(){
+  if(!S.isAdmin || !_pgSheet) return;
+  const { dateK, slot, act } = _pgSheet;
+  const store = getSlot(dateK,slot,act);
+  if(!store.length || !confirm(`Retirer les ${store.length} inscrit(s) de cette séance ?`)) return;
+  if(!(await pgDeleteRows(store.map(a=>a._id)))) return;
+  store.length = 0;
+  pgRefresh();
+}
+async function pgInsertEntries(entries, ownerId, referent){
+  const { dateK, slot, act } = _pgSheet;
+  const store = getSlot(dateK,slot,act);
+  const have = new Set(store.map(a=>(a.name||'').trim().toLowerCase()));
+  const todo = entries.filter(e=>e.name && !have.has(e.name.trim().toLowerCase()));
+  const dup = entries.length - todo.length;
+  if(!todo.length){ toast('Déjà inscrit(s) sur cette séance.','error'); return; }
+  const c = cap(slot,dateK,act);
+  if(store.length+todo.length > c && !confirm(`Capacité dépassée : ${store.length+todo.length}/${c}.\nAjouter quand même ?`)) return;
+  const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
+  const payload = todo.map(e=>({
+    date:dateK, creneau:slot, nom:e.name.trim(), role:e.role||'Athlète',
+    user_id:ownerId, group_id:groupId, referent_name:referent,
+    kayak_rental:false, kayak_model:null, dossard:null, nationalite:null, activity:act
+  }));
+  try {
+    const inserted = await sbInsertMany(payload);
+    inserted.forEach(r=>store.push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id,
+      referent:r.referent_name, rental:r.kayak_rental, kayakModel:r.kayak_model, dossard:r.dossard, nationality:r.nationalite }));
+    toast(`✅ ${inserted.length} ajouté(s)${dup?` (${dup} déjà présent(s))`:''}`,'success');
+  } catch(e){ toast("Erreur : "+(e.message||e),'error'); }
+  pgRefresh();
+}
+async function pgAddTeam(){
+  if(!S.isAdmin || !_pgSheet) return;
+  const id = document.getElementById('pgTeamSel').value;
+  const tm = (S.teams||[]).find(x=>x.id===id);
+  if(!tm) return;
+  const entries = tm.members.filter(m=>m.athlete).map(m=>({ name:m.athlete.full_name, role:m.athlete.role||'Athlète' }));
+  await pgInsertEntries(entries, tm.owner_user_id || S.session.user.id, tm.name);
+}
+async function pgAddManual(){
+  if(!S.isAdmin || !_pgSheet) return;
+  const raw = document.getElementById('pgNames').value;
+  const entries = raw.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean).map(name=>({ name, role:'Athlète' }));
+  if(!entries.length) return;
+  await pgInsertEntries(entries, S.session.user.id, 'Admin');
 }
 
 function pgSetActivity(act){
