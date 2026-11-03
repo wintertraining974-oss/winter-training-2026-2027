@@ -5050,6 +5050,20 @@ function pgCloseSheet(){
 }
 function pgRefresh(){ renderPlanningGrid(); pgRenderSheet(); }
 
+// Groupe de boutons (remplace une liste déroulante) ; la valeur choisie est gardée dans un <input hidden>
+function pgBtns(id, value, options){
+  return `<input type="hidden" id="${id}" value="${esc(value)}">
+  <div class="pg-btns" data-for="${id}" style="display:flex;gap:6px;flex-wrap:wrap">` +
+  options.map(o=>`<button type="button" class="btn btn-sm${o.v===value?' btn-primary':''}" data-v="${esc(o.v)}"
+      style="flex:1;min-width:90px;padding:8px 6px;font-size:.82rem" onclick="pgPick('${id}','${o.v}')">${o.t}</button>`).join('') + `</div>`;
+}
+function pgPick(id, v){
+  document.getElementById(id).value = v;
+  document.querySelectorAll(`.pg-btns[data-for="${id}"] button`).forEach(b=>{
+    b.classList.toggle('btn-primary', b.dataset.v===v);
+  });
+}
+
 function pgRenderSheet(){
   document.getElementById('pgSheet')?.remove();
   if(!_pgSheet) return;
@@ -5089,24 +5103,14 @@ function pgRenderSheet(){
     </div>
 
     <label ${lbl}>Statut</label>
-    <select class="field" id="pgStatus" ${fld}>
-      <option value="open" ${!cfg.blocked?'selected':''}>✅ Ouvert</option>
-      <option value="blocked" ${cfg.blocked?'selected':''}>🚫 Bloqué</option>
-    </select>
+    ${pgBtns('pgStatus', cfg.blocked?'blocked':'open', [{v:'open',t:'✅ Ouvert'},{v:'blocked',t:'🚫 Bloqué'}])}
 
     <label ${lbl}>Étiquette</label>
-    <select class="field" id="pgLabel" ${fld}>
-      <option value="" ${!cfg.label?'selected':''}>— Aucune</option>
-      <option value="CRRCK" ${cfg.label==='CRRCK'?'selected':''}>CRRCK</option>
-      <option value="CLUB" ${cfg.label==='CLUB'?'selected':''}>CLUB</option>
-    </select>
+    ${pgBtns('pgLabel', cfg.label||'', [{v:'',t:'Aucune'},{v:'CRRCK',t:'CRRCK'},{v:'CLUB',t:'CLUB'}])}
 
     ${isKayak ? `
     <label ${lbl}>Type de séance</label>
-    <select class="field" id="pgType" ${fld}>
-      <option value="slalom" ${!isKayakCross(dateK,slot)?'selected':''}>🚣 Slalom</option>
-      <option value="kx" ${isKayakCross(dateK,slot)?'selected':''}>🏄 Kayak Cross (KX)</option>
-    </select>
+    ${pgBtns('pgType', isKayakCross(dateK,slot)?'kx':'slalom', [{v:'slalom',t:'🚣 Slalom'},{v:'kx',t:'🏄 Kayak Cross'}])}
 
     <label ${lbl}>Nombre max de pratiquants (ce jour) ${hasCustomCap?'':'<span style="font-weight:400">— défaut : '+c+'</span>'}</label>
     <input class="field" id="pgCap" type="number" min="0" placeholder="${c}" value="${hasCustomCap?c:''}" ${fld}>
