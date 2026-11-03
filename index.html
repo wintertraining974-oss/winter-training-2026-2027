@@ -2578,6 +2578,7 @@ async function fqPeriodDelete(){
 async function setPage(page){
   if(page==='athletes' && !S.isAdmin) page='quickreg'; // onglet réservé à l'admin
   if(page==='suivi' && !S.isAdmin) page='quickreg'; // réservé à l'admin uniquement
+  if(page==='quickreg' && !S.isAdmin && !QUICKREG_FOR_USERS) page='planning'; // le planning remplace l'inscription rapide
   S.page = page;
   const qr = document.getElementById('quickRegPanel');
   const team = document.getElementById('teamPage');
@@ -2585,6 +2586,7 @@ async function setPage(page){
   const ath = document.getElementById('athletesPage');
   const suivi = document.getElementById('suiviPage');
   const freqP = document.getElementById('freqPage');
+  if(page!=='planning') document.getElementById('pgMultiBar')?.remove();
   if(freqP) freqP.style.display = page==='freq' ? 'block' : 'none';
   const pbF = document.getElementById('pbFreq');
   if(pbF) pbF.classList.toggle('active', page==='freq');
@@ -3769,7 +3771,11 @@ async function onAuthed(session){
   if(pbS) pbS.style.display = S.isAdmin ? '' : 'none'; // réservé à l'admin uniquement
   const pbFq = document.getElementById('pbFreq');
   if(pbFq) pbFq.style.display = '';
-  setPage(S.isReadonly ? 'planning' : 'quickreg');
+  { const usePlanning = S.isReadonly || (!S.isAdmin && !QUICKREG_FOR_USERS);
+    const pbQ0 = document.getElementById('pbQuickReg');
+    if(pbQ0) pbQ0.style.display = (!S.isAdmin && !QUICKREG_FOR_USERS) ? 'none' : '';
+    if(usePlanning && !S.isAdmin) S.view = 'planning';
+    setPage(usePlanning ? 'planning' : 'quickreg'); }
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
   document.getElementById('profileBtn').style.display='inline-block';
@@ -4074,6 +4080,7 @@ function renderCal(){
     renderPlanningGrid();
   } else {
     document.getElementById('planningContainer')?.remove();
+    document.getElementById('pgMultiBar')?.remove();
     document.getElementById('calContainer').innerHTML=S.view==='month'?renderMonth():renderWeek();
   }
 }
@@ -4950,6 +4957,11 @@ function renderPlanningGrid(){
 
   if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits.</p>`;
 
+  if(!S.isAdmin && !S.isReadonly) html += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+    <button class="btn btn-sm${_pgMulti.on?' btn-primary':''}" onclick="pgToggleMulti()">☑ Sélection multiple</button>
+    <span style="font-size:.78rem;color:var(--text2)">${_pgMulti.on?'👆 Clique toutes les séances voulues (même sur plusieurs semaines), puis « Inscrire ma team ».':'👆 Clique sur une séance pour y inscrire ta team, ou active la sélection multiple.'}</span>
+  </div>`;
+
   // Tableau
   html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><table class="planning-grid">`;
 
@@ -5023,24 +5035,28 @@ function renderPlanningGrid(){
         if(!aths.length) cellHtml+=`<span class="pg-empty">Empty</span>`;
       }
       cellHtml+='</div>';
-      html+= S.isAdmin ? `<td onclick="pgOpenSlot('${k}','${slot}')" style="cursor:pointer" title="Gérer cette séance">${cellHtml}</td>` : `<td>${cellHtml}</td>`;
+      { const selOn = !S.isAdmin && pgIsSel(k,slot);
+        const selSty = selOn ? ';outline:3px solid var(--accent);outline-offset:-3px;background:var(--accent-light)' : '';
+        html+= (S.isAdmin||!S.isReadonly) ? `<td onclick="pgCellClick(this,'${k}','${slot}')" style="cursor:pointer${selSty}" title="${S.isAdmin?'Gérer cette séance':(_pgMulti.on?'Sélectionner':'Inscrire ma team')}">${cellHtml}</td>` : `<td>${cellHtml}</td>`; }
     });
     html += '</tr>';
   });
 
   html += '</tbody></table></div>';
   wrap.innerHTML = html;
+  pgUpdateMultiBar();
 }
 
 // ══════════════════════════════════════════════════════════════
 //  Fiche de séance (admin) : clic sur une cellule du planning
 //  → statut / étiquette / capacité / horaire + gestion des inscrits
 // ══════════════════════════════════════════════════════════════
-let _pgSheet = null; // { dateK, slot, act }
+var _pgSheet = null; // { dateK, slot, act }
 
-function pgOpenSlot(dateK, slot){
-  if(!S.isAdmin) return;
-  _pgSheet = { dateK, slot, act:_pgActivity };
+function pgOpenSlot(dateK, slot, act){
+  act = act || _pgActivity;
+  if(!S.isAdmin){ pgOpenUserSlot(dateK, slot, act); return; }
+  _pgSheet = { dateK, slot, act };
   pgRenderSheet();
 }
 function pgCloseSheet(){
@@ -5065,6 +5081,8 @@ function pgPick(id, v){
 }
 
 function pgRenderSheet(){
+  if(_pgSheet && _pgSheet.user){ pgRenderUserSheet(); return; }
+  if(_pgSheet && _pgSheet.multi){ pgRenderMultiSheet(); return; }
   document.getElementById('pgSheet')?.remove();
   if(!_pgSheet) return;
   const { dateK, slot, act } = _pgSheet;
@@ -5297,7 +5315,253 @@ async function pgAddManual(){
   await pgInsertEntries([{ name:a.full_name, role:a.role||'Athlète' }], S.session.user.id, 'Admin');
 }
 
+// ══════════════════════════════════════════════════════════════
+//  Fiche d'inscription pour les référents : clic sur une séance du planning
+//  → coche les athlètes de SA team et inscrit (mêmes règles que l'inscription rapide :
+//    frise, priorité, blocage, capacité, doublons, liste d'attente)
+// ══════════════════════════════════════════════════════════════
+// true = l'onglet « Inscription rapide » reste visible pour les utilisateurs (comportement d'avant)
+var QUICKREG_FOR_USERS = false;
+
+function pgOpenUserSlot(dateK, slot, act){
+  if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation : tu ne peux pas t'inscrire.",'error'); return; }
+  if(!S.myTeam || !(S.myTeam.members||[]).some(m=>m.athlete)){
+    toast("Aucune team avec des athlètes ne t'est attribuée : contacte l'administrateur.",'error'); return;
+  }
+  _pgSheet = { dateK, slot, act, user:true };
+  pgRenderUserSheet();
+}
+
+function pgRenderUserSheet(){
+  document.getElementById('pgSheet')?.remove();
+  if(!_pgSheet) return;
+  const { dateK, slot, act } = _pgSheet;
+  const isKayak = act==='kayak';
+  const cfg = isKayak ? getKayakSlotCfg(dateK,slot) : getMuscuSlotCfg(dateK,slot);
+  const store = getSlot(dateK,slot,act);
+  const c = cap(slot,dateK,act);
+  const kx = isKayak && isKayakCross(dateK,slot);
+  const locked = isKayak && isLocked(dateK,slot);
+  const closed = !!cfg.blocked || locked;
+  const d = parseDate(dateK);
+  const title = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const inSlot = new Set(store.map(a=>(a.name||'').trim().toLowerCase()));
+  const members = (S.myTeam.members||[]).filter(m=>m.athlete).map(m=>m.athlete);
+  const friseOn = friseRestrictActive();
+
+  const rows = members.map(a=>{
+    const n = a.full_name||'';
+    const already = inSlot.has(n.trim().toLowerCase());
+    const outFrise = friseOn && !friseAllows(n,dateK);
+    const off = already || outFrise || closed;
+    const tag = already ? '✓ déjà inscrit(e)' : (outFrise ? '⛔ hors période de la frise' : '');
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:.88rem;${off?'opacity:.55':''}">
+      <input type="checkbox" class="pg-u-chk" value="${esc(n)}" ${off?'disabled':'checked'} onchange="pgUserCount()">
+      <span style="flex:1">${esc(n)}</span><small style="color:var(--text3)">${tag}</small></label>`;
+  }).join('');
+
+  const regs = store.map((a,i)=>{
+    const mine = isAthleteInMyTeam(a.name) || (S.session && a.user_id===S.session.user.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:.83rem">
+      <span style="color:var(--text3);width:20px">${i+1}.</span>
+      <span style="flex:1;${mine?'font-weight:700':''}">${esc(a.name)}</span>
+      ${mine?`<button class="btn btn-sm" style="color:var(--red)" title="Annuler" onclick="pgUserRemove(${i})">✕</button>`:''}
+    </div>`;
+  }).join('') || '<p style="color:var(--text3);font-size:.82rem;margin:6px 0">Aucun inscrit pour l\'instant.</p>';
+
+  const msg = cfg.blocked ? '🚫 Séance bloquée par l\'administrateur.'
+            : locked ? '⏳ Séance pas encore ouverte : les créneaux s\'ouvrent selon l\'ordre de priorité.' : '';
+
+  const el = document.createElement('div');
+  el.id = 'pgSheet';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px 10px;overflow:auto';
+  el.onclick = ev=>{ if(ev.target===el) pgCloseSheet(); };
+  el.innerHTML = `
+  <div style="background:var(--white);color:var(--text);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.3);width:100%;max-width:460px;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div>
+        <div style="font-size:.75rem;color:var(--text3)">${isKayak?'🚣 Kayak':'🏋️ Fitness'}${kx?' · 🏄 Kayak Cross':''}${cfg.label?' · '+esc(cfg.label):''}</div>
+        <div style="font-size:1.05rem;font-weight:800;text-transform:capitalize">${esc(title)}</div>
+        <div style="font-size:.9rem;font-weight:700;color:var(--accent)">${esc(slot)} · ${store.length}/${c}</div>
+      </div>
+      <button class="btn btn-sm" onclick="pgCloseSheet()">✕ Fermer</button>
+    </div>
+    ${msg?`<p style="margin:12px 0 0;padding:8px 10px;background:var(--red-light);color:#991b1b;border-radius:var(--radius-sm);font-size:.83rem;font-weight:600">${msg}</p>`:''}
+    <div style="margin-top:14px">
+      <div style="font-weight:800;font-size:.9rem;margin-bottom:2px">Ma team : ${esc(S.myTeam.name||'')}</div>
+      ${rows}
+      <button class="btn btn-primary" id="pgUserBtn" style="margin-top:12px;width:100%" onclick="pgUserRegister()" ${closed?'data-closed="1" disabled':''}>✅ Inscrire</button>
+    </div>
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:10px">
+      <div style="font-weight:800;font-size:.9rem;margin-bottom:2px">Inscrits (${store.length}/${c})</div>
+      ${regs}
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  pgUserCount();
+}
+function pgUserCount(){
+  const b = document.getElementById('pgUserBtn'); if(!b) return;
+  const n = document.querySelectorAll('.pg-u-chk:checked').length;
+  b.textContent = n ? `✅ Inscrire ${n} athlète${n>1?'s':''}` : 'Aucun athlète à inscrire';
+  b.disabled = !n || !!b.hasAttribute('data-closed');
+}
+
+async function pgUserRegister(){
+  if(!_pgSheet || !_pgSheet.user) return;
+  const { dateK, slot, act } = _pgSheet;
+  const names = [...document.querySelectorAll('.pg-u-chk:checked')].map(i=>i.value);
+  if(!names.length) return;
+  // On charge l'état de l'inscription rapide puis on lui confie l'inscription : toutes ses règles s'appliquent.
+  openMultiReg(dateK, slot, act);
+  MR.selectedMembers.clear();
+  names.forEach(n=>MR.selectedMembers.add(n));
+  MR.selectedDays = new Set([dateK]);
+  MR.daySlots = { [dateK]: new Set([slot]) };
+  const b = document.getElementById('pgUserBtn'); if(b){ b.disabled = true; b.textContent = 'Inscription…'; }
+  try { await submitMultiReg(); } catch(e){ console.error(e); toast("Erreur lors de l'inscription — réessaie.",'error'); }
+  if(_pgSheet && _pgSheet.user){ renderPlanningGrid(); pgRenderUserSheet(); }
+}
+async function pgUserRemove(idx){
+  if(!_pgSheet || !_pgSheet.user) return;
+  const { dateK, slot, act } = _pgSheet;
+  const a = getSlot(dateK,slot,act)[idx];
+  if(!a || !confirm(`Annuler l'inscription de ${a.name} ?`)) return;
+  await removeAthlete(dateK, slot, idx, act);
+  if(_pgSheet && _pgSheet.user){ renderPlanningGrid(); pgRenderUserSheet(); }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Inscription multiple dans le planning (référents)
+//  « ☑ Sélection multiple » → on clique plusieurs séances (même sur plusieurs semaines)
+//  → « Inscrire ma team » les inscrit toutes d'un coup (mêmes règles que l'inscription rapide)
+// ══════════════════════════════════════════════════════════════
+var _pgMulti = { on:false, sel:{} };   // sel : { dateK: Set(slots) }, pour l'activité affichée
+
+function pgMultiCount(){ return Object.values(_pgMulti.sel).reduce((n,s)=>n+s.size,0); }
+function pgIsSel(k,slot){ return !!(_pgMulti.sel[k] && _pgMulti.sel[k].has(slot)); }
+function pgStyleCell(td,on){
+  if(!td) return;
+  td.style.outline = on ? '3px solid var(--accent)' : '';
+  td.style.outlineOffset = on ? '-3px' : '';
+  td.style.background = on ? 'var(--accent-light)' : '';
+}
+
+function pgCellClick(td, k, slot){
+  if(S.isAdmin || !_pgMulti.on){ pgOpenSlot(k, slot); return; }
+  const act = _pgActivity;
+  const cfg = act==='kayak' ? getKayakSlotCfg(k,slot) : getMuscuSlotCfg(k,slot);
+  if(cfg.blocked){ toast('🚫 Séance bloquée.','error'); return; }
+  if(act==='kayak' && isLocked(k,slot)){ toast("⏳ Séance pas encore ouverte (priorité).",'error'); return; }
+  if(!_pgMulti.sel[k]) _pgMulti.sel[k] = new Set();
+  if(_pgMulti.sel[k].has(slot)){ _pgMulti.sel[k].delete(slot); if(!_pgMulti.sel[k].size) delete _pgMulti.sel[k]; pgStyleCell(td,false); }
+  else { _pgMulti.sel[k].add(slot); pgStyleCell(td,true); }
+  pgUpdateMultiBar();
+}
+function pgToggleMulti(){
+  if(S.isAdmin || S.isReadonly) return;
+  _pgMulti.on = !_pgMulti.on;
+  if(!_pgMulti.on) _pgMulti.sel = {};
+  renderPlanningGrid();
+}
+function pgMultiClear(){ _pgMulti.sel = {}; renderPlanningGrid(); }
+
+function pgUpdateMultiBar(){
+  let bar = document.getElementById('pgMultiBar');
+  const show = _pgMulti.on && !S.isAdmin && S.page==='planning' && S.view==='planning';
+  if(!show){ bar?.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'pgMultiBar';
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9000;background:var(--white);border-top:2px solid var(--accent);box-shadow:0 -4px 16px rgba(0,0,0,.15);padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center';
+    document.body.appendChild(bar);
+  }
+  const n = pgMultiCount();
+  bar.innerHTML = `<b style="font-size:.9rem">${n} séance${n>1?'s':''} sélectionnée${n>1?'s':''}</b>
+    <button class="btn btn-primary" ${n?'':'disabled'} onclick="pgMultiOpenSheet()">✅ Inscrire ma team</button>
+    <button class="btn btn-sm" ${n?'':'disabled'} onclick="pgMultiClear()">Tout effacer</button>
+    <button class="btn btn-sm" onclick="pgToggleMulti()">Quitter</button>`;
+}
+
+function pgMultiOpenSheet(){
+  if(S.isReadonly || !pgMultiCount()) return;
+  if(!S.myTeam || !(S.myTeam.members||[]).some(m=>m.athlete)){
+    toast("Aucune team avec des athlètes ne t'est attribuée : contacte l'administrateur.",'error'); return;
+  }
+  _pgSheet = { multi:true, act:_pgActivity };
+  pgRenderMultiSheet();
+}
+function pgMultiRemove(k,slot){
+  if(_pgMulti.sel[k]){ _pgMulti.sel[k].delete(slot); if(!_pgMulti.sel[k].size) delete _pgMulti.sel[k]; }
+  if(!pgMultiCount()){ pgCloseSheet(); return; }
+  pgRenderMultiSheet();
+}
+function pgRenderMultiSheet(){
+  document.getElementById('pgSheet')?.remove();
+  if(!_pgSheet || !_pgSheet.multi) return;
+  const friseOn = friseRestrictActive();
+  const days = Object.keys(_pgMulti.sel).sort();
+  const sessions = days.map(k=>{
+    const d = parseDate(k);
+    const lab = d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+    const slots = [..._pgMulti.sel[k]].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
+    return `<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--border);font-size:.84rem">
+      <b style="min-width:92px;text-transform:capitalize">${esc(lab)}</b>
+      <span style="flex:1;display:flex;gap:4px;flex-wrap:wrap">${slots.map(sl=>`<span class="slot-badge sb-open" style="cursor:pointer" title="Retirer" onclick="pgMultiRemove('${k}','${sl}')">${esc(sl)} ✕</span>`).join('')}</span>
+    </div>`;
+  }).join('');
+  const members = (S.myTeam.members||[]).filter(m=>m.athlete).map(m=>m.athlete);
+  const rows = members.map(a=>{
+    const n = a.full_name||'';
+    const off = friseOn && !friseWindows(n).length;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:.88rem;${off?'opacity:.55':''}">
+      <input type="checkbox" class="pg-m-chk" value="${esc(n)}" ${off?'disabled':'checked'}>
+      <span style="flex:1">${esc(n)}</span><small style="color:var(--text3)">${off?'⛔ pas dans la frise':''}</small></label>`;
+  }).join('');
+  const el = document.createElement('div');
+  el.id = 'pgSheet';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px 10px;overflow:auto';
+  el.onclick = ev=>{ if(ev.target===el) pgCloseSheet(); };
+  el.innerHTML = `
+  <div style="background:var(--white);color:var(--text);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.3);width:100%;max-width:480px;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div>
+        <div style="font-size:.75rem;color:var(--text3)">${_pgSheet.act==='kayak'?'🚣 Kayak':'🏋️ Fitness'} · inscription multiple</div>
+        <div style="font-size:1.05rem;font-weight:800">${pgMultiCount()} séance${pgMultiCount()>1?'s':''}</div>
+      </div>
+      <button class="btn btn-sm" onclick="pgCloseSheet()">✕ Fermer</button>
+    </div>
+    <div style="margin-top:10px">${sessions}</div>
+    <div style="margin-top:14px">
+      <div style="font-weight:800;font-size:.9rem;margin-bottom:2px">Ma team : ${esc(S.myTeam.name||'')}</div>
+      ${rows}
+      <button class="btn btn-primary" id="pgMultiGo" style="margin-top:12px;width:100%" onclick="pgMultiRegister()">✅ Inscrire sur ces séances</button>
+      <p style="font-size:.74rem;color:var(--text3);margin:8px 0 0">Les séances bloquées, déjà inscrites, hors période de la frise ou sans place sont ignorées et signalées.</p>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+async function pgMultiRegister(){
+  if(!_pgSheet || !_pgSheet.multi) return;
+  const act = _pgSheet.act;
+  const names = [...document.querySelectorAll('.pg-m-chk:checked')].map(i=>i.value);
+  if(!names.length){ toast('Coche au moins un athlète.','error'); return; }
+  const days = Object.keys(_pgMulti.sel).sort();
+  if(!days.length) return;
+  openMultiReg(days[0], [..._pgMulti.sel[days[0]]][0], act);
+  MR.selectedMembers.clear();
+  names.forEach(n=>MR.selectedMembers.add(n));
+  MR.selectedDays = new Set(days);
+  MR.daySlots = {};
+  days.forEach(k=>{ MR.daySlots[k] = new Set(_pgMulti.sel[k]); });
+  const b = document.getElementById('pgMultiGo'); if(b){ b.disabled = true; b.textContent = 'Inscription…'; }
+  try { await submitMultiReg(); } catch(e){ console.error(e); toast("Erreur lors de l'inscription — réessaie.",'error'); }
+  _pgMulti.sel = {};
+  pgCloseSheet();   // referme la fiche et réaffiche la grille à jour
+}
+
 function pgSetActivity(act){
+  if(act!==_pgActivity) _pgMulti.sel = {};
   _pgActivity = act;
   renderPlanningGrid();
 }
@@ -5989,6 +6253,7 @@ async function submitMultiReg(){
   }
 }
 function openRegister(dateK, slot, act='kayak'){
+  if(!S.isAdmin && !QUICKREG_FOR_USERS){ pgOpenSlot(dateK, slot, act); return; }
   // La carte d'inscription rapide en haut de page remplace l'inscription simple
   openMultiReg(dateK, slot, act);
   document.getElementById('quickRegPanel').scrollIntoView({behavior:'smooth', block:'start'});
