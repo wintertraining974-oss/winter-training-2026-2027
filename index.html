@@ -5102,6 +5102,12 @@ function pgRenderSheet(){
     </select>
 
     ${isKayak ? `
+    <label ${lbl}>Type de séance</label>
+    <select class="field" id="pgType" ${fld}>
+      <option value="slalom" ${!isKayakCross(dateK,slot)?'selected':''}>🚣 Slalom</option>
+      <option value="kx" ${isKayakCross(dateK,slot)?'selected':''}>🏄 Kayak Cross (KX)</option>
+    </select>
+
     <label ${lbl}>Nombre max de pratiquants (ce jour) ${hasCustomCap?'':'<span style="font-weight:400">— défaut : '+c+'</span>'}</label>
     <input class="field" id="pgCap" type="number" min="0" placeholder="${c}" value="${hasCustomCap?c:''}" ${fld}>
     <label ${lbl}>Horaire de la séance (ce jour)</label>
@@ -5124,9 +5130,10 @@ function pgRenderSheet(){
         <button class="btn btn-sm btn-primary" onclick="pgAddTeam()" ${teams.length?'':'disabled'}>Ajouter</button>
       </div>
 
-      <label ${lbl}>➕ Ajouter des noms à la main (séparés par des virgules)</label>
+      <label ${lbl}>➕ Ajouter un athlète de la base</label>
       <div style="display:flex;gap:6px">
-        <input class="field" id="pgNames" placeholder="ex : Jean Dupont, Marie Martin" style="flex:1;padding:6px 8px;font-size:.85rem" onkeydown="if(event.key==='Enter')pgAddManual()">
+        <input class="field" id="pgNames" list="pgAthList" placeholder="Tape un nom et choisis dans la liste…" autocomplete="off" style="flex:1;padding:6px 8px;font-size:.85rem" onkeydown="if(event.key==='Enter')pgAddManual()">
+        <datalist id="pgAthList">${(S.athletes||[]).filter(a=>a.full_name && !store.some(x=>(x.name||'').trim().toLowerCase()===a.full_name.trim().toLowerCase())).map(a=>`<option value="${esc(a.full_name)}"></option>`).join('')}</datalist>
         <button class="btn btn-sm btn-primary" onclick="pgAddManual()">Ajouter</button>
       </div>
     </div>
@@ -5169,7 +5176,17 @@ async function pgSaveSlot(){
   cfg.blocked = blocked;
   cfg.label = label;
 
-  // 4) Capacité par date (kayak)
+  // 4) Type de séance : Slalom / Kayak Cross
+  if(isKayak){
+    const wantKx = document.getElementById('pgType').value==='kx';
+    if(wantKx !== isKayakCross(dateK,slot)){
+      if(!S.kayakCross) S.kayakCross = {};
+      if(wantKx){ if(!S.kayakCross[dateK]) S.kayakCross[dateK] = {}; S.kayakCross[dateK][slot] = true; }
+      else if(S.kayakCross[dateK]){ delete S.kayakCross[dateK][slot]; if(!Object.keys(S.kayakCross[dateK]).length) delete S.kayakCross[dateK]; }
+    }
+  }
+
+  // 5) Capacité par date (kayak)
   if(isKayak){
     const v = (document.getElementById('pgCap').value||'').trim();
     if(!S.dateCapacity) S.dateCapacity = {};
@@ -5270,10 +5287,10 @@ async function pgAddTeam(){
 }
 async function pgAddManual(){
   if(!S.isAdmin || !_pgSheet) return;
-  const raw = document.getElementById('pgNames').value;
-  const entries = raw.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean).map(name=>({ name, role:'Athlète' }));
-  if(!entries.length) return;
-  await pgInsertEntries(entries, S.session.user.id, 'Admin');
+  const inp = document.getElementById('pgNames');
+  const a = athleteFromDb(inp ? inp.value : '');
+  if(!a){ toast("Nom introuvable dans la base : choisis un nom proposé dans la liste.",'error'); return; }
+  await pgInsertEntries([{ name:a.full_name, role:a.role||'Athlète' }], S.session.user.id, 'Admin');
 }
 
 function pgSetActivity(act){
@@ -5785,6 +5802,16 @@ function mdregToggleMember(name, idx){
   updateMdregSummary();
 }
 
+// Un nom n'est valide que s'il existe dans la base athlètes (aucune saisie libre).
+function athleteFromDb(name){
+  const v=(name||'').trim().toLowerCase();
+  return (S.athletes||[]).find(a=>(a.full_name||'').trim().toLowerCase()===v) || null;
+}
+function unknownAthleteNames(names){
+  if(!(S.athletes||[]).length) return []; // base non chargée : on ne bloque pas à tort
+  return names.filter(n=>!athleteFromDb(n));
+}
+
 function mdregAddCustom(){
   // Désactivé : plus d'ajout de participant en texte libre (évite erreurs de saisie
   // et doublons). Seuls les athlètes déjà dans la base peuvent être sélectionnés.
@@ -5853,6 +5880,8 @@ async function submitMultiReg(){
     if(n) participants.push({ name: n, role, dossard:'', nationality: profileNationality, rental });
   });
   if(!participants.length){ toast(t('qrErrPart'),'error'); return; }
+  { const unk = unknownAthleteNames(participants.map(p=>p.name));
+    if(unk.length){ toast('⛔ Nom absent de la base athlètes : '+unk.join(', ')+'. Seuls les athlètes de la base peuvent être inscrits.','error'); return; } }
 
   const referentName = S.profile?.full_name || S.session.user.email;
   const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
@@ -5988,6 +6017,8 @@ async function submitRegistration(){
     return name ? {name,role} : null;
   }).filter(Boolean);
   if(!participants.length){ toast('Please enter at least one name.','error'); return; }
+  { const unk = unknownAthleteNames(participants.map(p=>p.name));
+    if(unk.length){ toast('⛔ Nom absent de la base athlètes : '+unk.join(', ')+'. Seuls les athlètes de la base peuvent être inscrits.','error'); return; } }
   { const bad=participants.filter(p=>!friseAllows(p.name, dateK)); if(bad.length){ toast('⛔ Hors période de la frise : '+bad.map(b=>b.name).join(', '),'error'); return; } }
   const free = cap(slot,dateK) - getSlot(dateK,slot).length;
   if(participants.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
