@@ -2082,7 +2082,7 @@ async function fqLoad(){
   await fqLoadForecast();
   fqRenderTimeline();
   fqRenderForecast();
-  const mb=document.getElementById('fqMyFcBtn'); if(mb) mb.style.display=(!S.isAdmin&&!S.isReadonly&&S.myTeam)?'':'none';
+  const mb=document.getElementById('fqMyFcBtn'); if(mb) mb.style.display='none'; /* prévisionnel cases à cocher : réservé à l'admin */
   const ib=document.getElementById('fqImportBtn');
   if(ib){ const n=FQ.err?0:(await fqImportable()).length; ib.style.display=n?'':'none'; ib.textContent=`♻️ Récupérer mes anciennes entrées (${n})`; }
 }
@@ -2435,7 +2435,7 @@ function fqDetail(id){
   document.getElementById('fqDBody').innerHTML=h;
   document.getElementById('fqDDel').style.display=fqCanEdit()?'':'none';
   document.getElementById('fqDEdit').style.display=fqCanEdit()?'':'none';
-  document.getElementById('fqDFc').style.display=(!S.isReadonly&&(S.isAdmin||(S.myTeam&&p.team_id&&p.team_id===S.myTeam.id)))?'':'none';
+  document.getElementById('fqDFc').style.display=(S.isAdmin&&!S.isReadonly)?'':'none';
   document.getElementById('fqDetailModal').classList.add('show');
 }
 
@@ -2467,7 +2467,7 @@ function fqFcOpenMine(){
 function fqFcOpen(id){
   const row=FQ.rows.find(x=>x.id===id); if(!row) return;
   if(S.isReadonly){ toast("👁️ Ton compte est en mode consultation.",'error'); return; }
-  if(!S.isAdmin && !(S.myTeam && row.team_id===S.myTeam.id)){ toast('Tu ne peux remplir que le prévisionnel de ta team.','error'); return; }
+  if(!S.isAdmin){ toast("Le prévisionnel est géré par l'administrateur.",'error'); return; }
   FC.cur=row; FC.names=fqFcNames(row);
   const saved=(FC.rows[row.id]&&FC.rows[row.id].data)||{};
   FC.sel={}; FC.names.forEach(n=>{ FC.sel[n]={...(saved[n]||{})}; });
