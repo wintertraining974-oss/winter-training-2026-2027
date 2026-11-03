@@ -1068,6 +1068,10 @@ header .user-pill { color: #fff; }
     <div class="quick-reg-card" id="plCard" style="margin-top:16px;display:none">
       <h2>📅 Planning prévisionnel des séances</h2>
       <p class="qr-sub">Pour chaque jour du stage, choisis l'horaire souhaité et coche les athlètes concernés : Slalom matin / après-midi et Muscu matin / après-midi. Tu retrouves dans l'onglet « Résumé du stage » toutes tes séances et un aperçu global du stage.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn btn-sm btn-primary" onclick="fqFcOpenMineSafe()">📊 Estimation rapide de mes séances (prévisionnel de la frise)</button>
+        <button class="btn btn-sm" onclick="setPage('freq')">🧭 Voir le prévisionnel de la frise</button>
+      </div>
       <div id="plHostInline"></div>
     </div>
 
@@ -1351,9 +1355,9 @@ header .user-pill { color: #fff; }
 
 <!-- Modal prévisionnel de séances (frise) -->
 <div class="modal-bg" id="fqFcModal">
-  <div class="modal-box" style="max-width:640px">
+  <div class="modal-box" style="max-width:860px">
     <h3 id="fqFcTitle">📊 Prévisionnel</h3>
-    <p style="font-size:.8rem;color:var(--text3);margin:0 0 8px">Coche pour chaque athlète les séances prévues. Elles s'appliquent à chaque jour ouvert de la période du groupe. C'est un prévisionnel : il n'inscrit personne, il aide à anticiper la fréquentation.</p>
+    <p style="font-size:.8rem;color:var(--text3);margin:0 0 8px">Première estimation : coche pour chaque athlète les séances prévues (slalom, kayak cross, muscu). Elles s'appliquent à chaque jour ouvert de la période du groupe. Ce prévisionnel n'inscrit personne : il permet à l'organisation de calculer combien de séances ouvrir chaque jour. Tu pourras ensuite le détailler jour par jour dans « Ma team › Planning prévisionnel ».</p>
     <div id="fqFcTable" style="max-height:380px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
     <p id="fqFcErr" style="color:var(--red);font-size:.8rem;margin:6px 0 0"></p>
     <div class="modal-actions" style="justify-content:flex-end;gap:8px;margin-top:10px">
@@ -2142,7 +2146,7 @@ async function fqLoad(){
   const intro=document.getElementById('fqIntro');
   if(intro) intro.textContent = S.isAdmin
     ? "Tu gères la frise : pour chaque demande, saisis le nom du groupe, ses athlètes et la période sur laquelle ils viennent. Les athlètes ne peuvent ensuite s'inscrire (inscription rapide) que sur les jours de leur période. Tu peux aussi inscrire le groupe automatiquement sur les créneaux (kayak matin / après-midi, muscu)."
-    : "Voici les groupes présents sur chaque période. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.";
+    : "Voici les groupes présents sur chaque période. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur. Clique sur « Mon prévisionnel de séances » pour estimer les séances de tes athlètes (slalom, kayak cross, muscu) : le tableau ci-dessous en déduit le nombre de séances à ouvrir chaque jour.";
   const rw=document.getElementById('fqRestrictWrap');
   if(rw){ rw.style.display=S.isAdmin?'flex':'none'; document.getElementById('fqRestrict').checked=S.friseRestrict!==false; }
   const rb=document.getElementById('fqReqBtn');
@@ -2512,9 +2516,9 @@ function fqDetail(id){
 
 
 // ── Prévisionnel de séances (table frise_forecast : period_id, user_id, data {nom:{km,ka,mm,ma}}) ──
-// km = kayak matin · ka = kayak après-midi · mm = muscu matin · ma = muscu après-midi
+// km = slalom matin · ka = slalom après-midi · xm = kayak cross matin · xa = kayak cross après-midi · mm = muscu matin · ma = muscu après-midi
 const FC = { rows:{}, ok:false, err:'', monday:null, cur:null, names:[], sel:{} };
-const FC_COLS=[['km','🌅 Kayak<br>matin','🌅 Kayak matin'],['ka','🌇 Kayak<br>ap.-midi','🌇 Kayak après-midi'],['mm','💪 Muscu<br>matin','💪 Muscu matin'],['ma','💪 Muscu<br>ap.-midi','💪 Muscu après-midi']];
+const FC_COLS=[['km','🌅 Slalom<br>matin','🌅 Slalom matin'],['ka','🌇 Slalom<br>ap.-midi','🌇 Slalom après-midi'],['xm','🏄 Kayak Cross<br>matin','🏄 Kayak Cross matin'],['xa','🏄 Kayak Cross<br>ap.-midi','🏄 Kayak Cross après-midi'],['mm','💪 Muscu<br>matin','💪 Muscu matin'],['ma','💪 Muscu<br>ap.-midi','💪 Muscu après-midi']];
 async function fqLoadForecast(){
   try{
     const { data, error } = await sb.from('frise_forecast').select('*');
@@ -2573,43 +2577,135 @@ async function fqFcSave(){
 }
 // Vue d'ensemble : prévisionnel cumulé de tous les groupes, semaine par semaine
 function fqFcShift(n){ FC.monday.setDate(FC.monday.getDate()+7*n); fqRenderForecast(); }
+// ── Estimation : nombre d'athlètes par séance, puis nombre de séances à ouvrir (slalom / kayak cross / muscu) ──
+// Compte les athlètes d'une catégorie un jour donné, tous groupes confondus.
+// Un groupe qui a rempli son planning jour par jour fait foi pour ce groupe ; sinon on prend son prévisionnel global.
+function fqDayCount(k,c){
+  let tot=0; const det=[];
+  const src={km:'km',xm:'km',ka:'ka',xa:'ka',mm:'mm',ma:'ma'}[c], wantKx=(c==='xm'||c==='xa');
+  FQ.rows.forEach(r=>{
+    if(k<r.start_date||k>r.end_date) return;
+    const pl=PL.rows[r.id];
+    if(pl&&pl.data&&Object.keys(pl.data).length){
+      const cell=pl.data[k]&&pl.data[k][src];
+      if(cell&&cell.n&&cell.n.length&&(!!cell.kx===wantKx)){ tot+=cell.n.length; det.push(`${r.g}: ${cell.n.length}${(cell.a||cell.h)?' ('+(cell.a||cell.h)+')':''}`); }
+      return;
+    }
+    const fc=FC.rows[r.id]; if(!fc||!fc.data) return;
+    const n=Object.values(fc.data).filter(v=>v&&v[c]).length;
+    if(n){ tot+=n; det.push(`${r.g}: ${n}`); }
+  });
+  return {tot,det};
+}
+// Nombre de séances (créneaux) à ouvrir pour accueillir `total` athlètes, selon les capacités réelles du jour.
+// Slalom / muscu : on remplit les créneaux dans l'ordre de priorité. Kayak Cross : capacité maximale d'un créneau.
+function fqSessionsNeeded(k,c,total){
+  if(!total) return {n:0,avail:0,over:false};
+  const muscu=(c==='mm'||c==='ma'), kx=(c==='xm'||c==='xa'), am=(c==='km'||c==='xm'||c==='mm'), act=muscu?'muscu':'kayak';
+  let slots;
+  if(muscu) slots=S.muscuSlots.filter(s=>!getMuscuSlotCfg(k,s).blocked&&(am?slotStartMinutes(s)<720:slotStartMinutes(s)>=720));
+  else { slots=(am?morningSlots(k):afternoonSlots(k)).filter(s=>!getKayakSlotCfg(k,s).blocked); if(!kx) slots=slots.filter(s=>!isKayakCross(k,s)); }
+  if(!slots.length) return {n:Math.ceil(total/15),avail:0,over:true};
+  let n=0;
+  if(kx){ const mx=Math.max(...slots.map(s=>cap(s,k,act))); n=Math.ceil(total/mx); }
+  else{
+    let sum=0;
+    for(const s of slots){ n++; sum+=cap(s,k,act); if(sum>=total) break; }
+    if(sum<total){ const last=cap(slots[slots.length-1],k,act); n+=Math.ceil((total-sum)/last); }
+  }
+  return {n,avail:slots.length,over:n>slots.length};
+}
+function fqDaySessions(k){
+  const o={};
+  FC_COLS.forEach(([c])=>{ const {tot,det}=fqDayCount(k,c); o[c]={tot,det,...fqSessionsNeeded(k,c,tot)}; });
+  return o;
+}
+function fqFcGo(k){ FC.monday=fqMondayOf(fqParse(k)); fqRenderForecast(); }
+function fqSeasonChart(){
+  const rows=[];
+  for(const d=new Date(START); d<=END; d.setDate(d.getDate()+1)){
+    if(isClosed(d)) continue;
+    const k=fqKey(d), s=fqDaySessions(k), sl=s.km.n+s.ka.n, kx=s.xm.n+s.xa.n;
+    if(sl+kx>0) rows.push({k,d:new Date(d),sl,kx});
+  }
+  if(!rows.length) return '';
+  const max=Math.max(...rows.map(r=>r.sl+r.kx)), H=110;
+  const bars=rows.map(r=>{
+    const wk=(r.d.getDay()===0||r.d.getDay()===6);
+    return `<div onclick="fqFcGo('${r.k}')" title="${esc(r.d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})+' : '+r.sl+' séance(s) slalom · '+r.kx+' kayak cross')}" style="flex:0 0 26px;text-align:center;cursor:pointer;${wk?'background:#fffbeb;':''}">
+      <div style="font-size:.62rem;font-weight:700;color:var(--text2);height:14px">${r.sl+r.kx}</div>
+      <div style="height:${H}px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center">
+        <div style="width:16px;height:${Math.round(r.kx/max*H)}px;background:#ea580c"></div>
+        <div style="width:16px;height:${Math.round(r.sl/max*H)}px;background:#2563eb"></div>
+      </div>
+      <div style="font-size:.58rem;color:var(--text3);padding-top:2px">${r.d.getDate()}/${r.d.getMonth()+1}</div></div>`;
+  }).join('');
+  return `<h4 style="margin:16px 0 6px;font-size:.9rem">📈 Séances kayak à ouvrir par jour — toute la période</h4>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;padding:8px 6px"><div style="display:flex;gap:2px;min-width:min-content">${bars}</div></div>
+    <p style="font-size:.72rem;color:var(--text3);margin:4px 0 0"><span style="display:inline-block;width:10px;height:10px;background:#2563eb"></span> séances slalom · <span style="display:inline-block;width:10px;height:10px;background:#ea580c"></span> séances kayak cross (matin + après-midi). Clique sur un jour pour afficher sa semaine.</p>`;
+}
 function fqRenderForecast(){
   const box=document.getElementById('fqForecast'); if(!box) return;
   if(!FC.monday){ const t=new Date(); FC.monday=fqMondayOf((t<START||t>END)?START:t); }
   const days=[...Array(7)].map((_,i)=>{ const d=new Date(FC.monday); d.setDate(d.getDate()+i); return d; });
   const dn=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   const fmt=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  const sess=days.map(d=>(isClosed(d)||outOfRange(d))?null:fqDaySessions(fqKey(d)));
+  const kxCol=c=>(c==='xm'||c==='xa');
+  const closedTd=`<td style="border:1px solid var(--border);background:#f3f4f6"></td>`;
   let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <b>📊 Prévisionnel de séances</b>
     <button class="btn btn-sm" onclick="fqFcShift(-1)">◀</button><span style="font-size:.85rem">semaine du ${fmt(days[0])} au ${fmt(days[6])}</span><button class="btn btn-sm" onclick="fqFcShift(1)">▶</button>
     ${FC.ok?'':`<span style="font-size:.75rem;color:#b45309">⚠️ table « frise_forecast » indisponible</span>`}
   </div>
-  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:640px"><thead><tr><th style="width:150px"></th>${days.map((d,i)=>`<th style="padding:5px;border:1px solid var(--border);font-size:.78rem;background:${i>=5?'#fef3c7':'var(--accent-light)'}">${dn[i]} ${d.getDate()}/${d.getMonth()+1}</th>`).join('')}</tr></thead><tbody>`;
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:640px"><thead><tr><th style="width:170px"></th>${days.map((d,i)=>`<th style="padding:5px;border:1px solid var(--border);font-size:.78rem;background:${i>=5?'#fef3c7':'var(--accent-light)'}">${dn[i]} ${d.getDate()}/${d.getMonth()+1}</th>`).join('')}</tr></thead><tbody>
+  <tr><td colspan="8" style="padding:4px 8px;font-size:.74rem;font-weight:700;background:#eef2ff;border:1px solid var(--border)">👥 Athlètes prévus par séance</td></tr>`;
   FC_COLS.forEach(([c,,lab])=>{
     h+=`<tr><td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;font-size:.8rem;background:#f8fafc">${lab}</td>`;
-    days.forEach(d=>{
-      const k=fqKey(d);
-      if(isClosed(d)||outOfRange(d)){ h+=`<td style="border:1px solid var(--border);background:#f3f4f6"></td>`; return; }
-      let tot=0; const det=[];
-      FQ.rows.forEach(r=>{
-        if(k<r.start_date||k>r.end_date) return;
-        const pl=PL.rows[r.id];
-        if(pl&&pl.data&&Object.keys(pl.data).length){   // planning jour par jour renseigné : il fait foi pour ce groupe
-          const cell=pl.data[k]&&pl.data[k][c], np=cell&&cell.n?cell.n.length:0;
-          if(np){ tot+=np; det.push(`${r.g}: ${np}${(cell.a||cell.h)?' ('+(cell.a||cell.h)+')':''}`); }
-          return;
-        }
-        const fc=FC.rows[r.id]; if(!fc||!fc.data) return;
-        const n=Object.values(fc.data).filter(v=>v&&v[c]).length;
-        if(n){ tot+=n; det.push(`${r.g}: ${n}`); }
-      });
-      h+=`<td title="${esc(det.join('\n'))}" style="text-align:center;border:1px solid var(--border);padding:5px;font-weight:${tot?700:400};background:${tot?`rgba(37,99,235,${Math.min(.5,.1+tot/60)})`:'#fff'};color:${tot?'#1e3a8a':'#9ca3af'}">${tot||''}</td>`;
+    days.forEach((d,i)=>{
+      const s=sess[i]; if(!s){ h+=closedTd; return; }
+      const tot=s[c].tot, rgb=kxCol(c)?'234,88,12':'37,99,235';
+      h+=`<td title="${esc(s[c].det.join('\n'))}" style="text-align:center;border:1px solid var(--border);padding:5px;font-weight:${tot?700:400};background:${tot?`rgba(${rgb},${Math.min(.5,.1+tot/60)})`:'#fff'};color:${tot?'#1e3a8a':'#9ca3af'}">${tot||''}</td>`;
     });
     h+='</tr>';
   });
-  box.innerHTML=h+`</tbody></table></div><p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Nombre d'athlètes prévus par séance, tous groupes confondus (survole une case pour le détail par groupe). Prévisionnel indicatif : il n'inscrit personne. Si un groupe a rempli son planning jour par jour, c'est celui-ci qui est compté pour ce groupe.</p>`;
+  h+=`<tr><td colspan="8" style="padding:4px 8px;font-size:.74rem;font-weight:700;background:#ecfdf5;border:1px solid var(--border)">🧮 Séances à ouvrir (estimation selon les capacités)</td></tr>`;
+  FC_COLS.forEach(([c,,lab])=>{
+    h+=`<tr><td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;font-size:.8rem;background:#f8fafc">${lab}</td>`;
+    days.forEach((d,i)=>{
+      const s=sess[i]; if(!s){ h+=closedTd; return; }
+      const x=s[c], bg=kxCol(c)?'#fed7aa':(c==='mm'||c==='ma')?'#ccfbf1':'#bfdbfe';
+      const tip=x.tot?`${x.tot} athlète(s) → ${x.n} séance(s)${x.over?` (⚠️ seulement ${x.avail} créneau(x) disponible(s))`:''}`:'';
+      h+=`<td title="${esc(tip)}" style="text-align:center;border:1px solid var(--border);padding:5px;font-size:.95rem;font-weight:800;background:${x.n?bg:'#fff'};color:${x.over?'#dc2626':'#111827'}">${x.n||''}${x.over?' ⚠️':''}</td>`;
+    });
+    h+='</tr>';
+  });
+  h+=`<tr><td style="padding:5px 8px;border:1px solid var(--border);font-weight:800;font-size:.8rem;background:#fef9c3">🛶🏄 Total séances kayak</td>`;
+  days.forEach((d,i)=>{
+    const s=sess[i]; if(!s){ h+=closedTd; return; }
+    const m=s.km.n+s.xm.n, a=s.ka.n+s.xa.n, k=fqKey(d);
+    const availM=morningSlots(k).filter(x=>!getKayakSlotCfg(k,x).blocked).length, availA=afternoonSlots(k).filter(x=>!getKayakSlotCfg(k,x).blocked).length;
+    const over=m>availM||a>availA;
+    h+=`<td title="${esc(`Matin : ${m} (${availM} créneaux) · Après-midi : ${a} (${availA} créneaux)`)}" style="text-align:center;border:1px solid var(--border);padding:5px;font-size:.95rem;font-weight:800;background:#fef9c3;color:${over?'#dc2626':'#111827'}">${(m+a)||''}${over?' ⚠️':''}${(m+a)?`<div style="font-size:.6rem;font-weight:400;color:var(--text3)">${m} mat. · ${a} ap.-m.</div>`:''}</td>`;
+  });
+  h+='</tr>';
+  // total de la semaine
+  const wk=c=>sess.reduce((a,s)=>a+(s?s[c].n:0),0);
+  h+=`</tbody></table></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0;font-size:.8rem">
+    <span style="background:#dbeafe;border-radius:20px;padding:3px 10px">🛶 Slalom cette semaine : <b>${wk('km')+wk('ka')}</b> séance(s)</span>
+    <span style="background:#ffedd5;border-radius:20px;padding:3px 10px">🏄 Kayak cross : <b>${wk('xm')+wk('xa')}</b> séance(s)</span>
+    <span style="background:#ccfbf1;border-radius:20px;padding:3px 10px">💪 Muscu : <b>${wk('mm')+wk('ma')}</b> séance(s)</span>
+  </div>
+  <p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Haut : nombre d'athlètes prévus par séance, tous groupes confondus (survole une case pour le détail par groupe). Bas : nombre de séances à ouvrir pour les accueillir (créneaux remplis dans l'ordre de priorité ; ⚠️ = plus de séances que de créneaux disponibles). Prévisionnel indicatif : il n'inscrit personne. Si un groupe a rempli son planning jour par jour, c'est celui-ci qui est compté pour ce groupe.</p>`
+  + fqSeasonChart();
+  box.innerHTML=h;
 }
-
+async function fqFcOpenMineSafe(){
+  if(!FQ.rows.length) await fqLoadRows();
+  await fqLoadForecast();
+  fqFcOpenMine();
+}
 
 // ── Planning prévisionnel jour par jour : horaires souhaités + athlètes concernés ──
 // Table Supabase « frise_planning » (à créer une fois ; voir le SQL fourni avec la mise à jour) :
@@ -2695,7 +2791,7 @@ function plRenderPlan(){
   body.innerHTML=`
     ${PL.ok?'':`<p style="font-size:.78rem;color:#b45309;margin:0 0 8px">⚠️ La table « frise_planning » n'existe pas encore dans Supabase : l'enregistrement ne fonctionnera qu'après sa création.</p>`}
     <p style="font-size:.8rem;color:var(--text3);margin:0 0 6px"><b>${esc(row.g||'')}</b> · du ${f(row.start_date)} au ${f(row.end_date)} · ${PL.names.length} athlète(s)</p>
-    ${S.isAdmin?`<p style="font-size:.76rem;color:var(--text3);margin:0 0 6px">« Souhaité » = demande de la team · « Attribué » = ta décision (la priorité des créneaux est respectée à l'inscription). Coche 🏄 pour faire de la séance un Kayak Cross.</p>`:''}
+    ${S.isAdmin?`<p style="font-size:.76rem;color:var(--text3);margin:0 0 6px">« Souhaité » = demande de la team · « Attribué » = ta décision (la priorité des créneaux est respectée à l'inscription). Coche 🏄 pour faire de la séance un Kayak Cross (la team peut aussi le demander).</p>`:`<p style="font-size:.76rem;color:var(--text3);margin:0 0 6px">Coche 🏄 Kayak Cross si tu souhaites un kayak cross sur cette séance : l'organisation te confirmera l'horaire.</p>`}
     <div class="pl-days"></div>
     <div class="pl-daytitle" style="font-weight:700;margin:2px 0 6px"></div>
     <div class="pl-box"></div>
@@ -2731,12 +2827,9 @@ function plRenderDay(){
     const cell=plCell(k,c), kayak=plIsKayak(c), opts=plOptions(k,c);
     let h=`<th class="pl-sub${plIsFirst(c)?' pl-grp':''}">${plIsFirst(c)?'🌅 Matin':'🌇 Après-midi'}<br>`;
     h+=plSelectHtml(`plHour('${c}',this.value)`,cell.h,opts,'— souhaité —');
-    if(S.isAdmin){
-      h+=`<br>`+plSelectHtml(`plAssign('${c}',this.value)`,cell.a,plHalfSlots(k,c),'— attribué —',s=>(kayak&&isKayakCross(k,s))?`🏄 ${s} (KX)`:s);
-      if(kayak) h+=`<br><label class="pl-kx"><input type="checkbox" ${cell.kx?'checked':''} onchange="plKx('${c}',this.checked)"> 🏄 Kayak Cross</label>`;
-    } else if(cell.a||cell.kx){
-      h+=`<div class="pl-assigned">✔ Attribué : ${esc(cell.a||'à définir')}${cell.kx?' 🏄 KX':''}</div>`;
-    }
+    if(S.isAdmin) h+=`<br>`+plSelectHtml(`plAssign('${c}',this.value)`,cell.a,plHalfSlots(k,c),'— attribué —',s=>(kayak&&isKayakCross(k,s))?`🏄 ${s} (KX)`:s);
+    if(kayak) h+=`<br><label class="pl-kx"><input type="checkbox" ${cell.kx?'checked':''} onchange="plKx('${c}',this.checked)"> 🏄 Kayak Cross</label>`;
+    if(!S.isAdmin && cell.a) h+=`<div class="pl-assigned">✔ Attribué : ${esc(cell.a)}${cell.kx?' 🏄 KX':''}</div>`;
     h+=`<br><input type="checkbox" title="Cocher toute la colonne" ${all(c)?'checked':''} onchange="plTickCol('${c}',this.checked)"></th>`;
     return h;
   };
@@ -2769,9 +2862,8 @@ function plAssign(c,v){
   plDirty(true); plRenderDay();
 }
 function plKx(c,v){
-  if(!S.isAdmin) return;
   const cell=plCellSet(PL.day,c); cell.kx=!!v;
-  if(v&&!cell.a){ const kxs=plHalfSlots(PL.day,c).filter(s=>isKayakCross(PL.day,s)); if(kxs.length) cell.a=kxs[0]; }
+  if(S.isAdmin&&v&&!cell.a){ const kxs=plHalfSlots(PL.day,c).filter(s=>isKayakCross(PL.day,s)); if(kxs.length) cell.a=kxs[0]; }
   plDirty(true); plRenderDay();
 }
 function plClearDay(){
@@ -2792,8 +2884,8 @@ function plCopy(mode){
     PL_COLS.forEach(([c])=>{
       const s=src[c]; if(!s||!s.n||!s.n.length) return;
       const cell={ h:plOptions(k,c).includes(s.h)?s.h:'', a:'', kx:false, n:[...s.n] };
-      if(S.isAdmin){ cell.a=plHalfSlots(k,c).includes(s.a)?s.a:''; cell.kx=!!s.kx&&plIsKayak(c); }
-      else { cell.a=''; }
+      cell.kx=!!s.kx&&plIsKayak(c);
+      if(S.isAdmin) cell.a=plHalfSlots(k,c).includes(s.a)?s.a:'';
       day[c]=cell;
     });
     PL.data[k]=day;
