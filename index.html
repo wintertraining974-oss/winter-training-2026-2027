@@ -971,6 +971,7 @@ header .user-pill { color: #fff; }
           <input class="field" id="adminTeamNameInput" placeholder="Nom de la team / du groupe" style="flex:1;min-width:180px">
           <select class="field" id="adminTeamOwnerSelect" style="flex:1;min-width:220px"></select>
           <label style="font-size:.78rem;display:flex;gap:6px;align-items:center">📅 Stage du <input type="date" class="field" id="adminTeamStart" min="2026-07-06" max="2027-03-31"> au <input type="date" class="field" id="adminTeamEnd" min="2026-07-06" max="2027-03-31"></label>
+          <span id="adminTeamResaWrap"></span>
           <button class="btn btn-sm btn-primary" id="aTeamsCreateBtn" onclick="adminCreateTeamForUser()"></button>
         </div>
         <div id="adminTeamsMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
@@ -1062,7 +1063,7 @@ header .user-pill { color: #fff; }
       <div id="fqNotice"></div>
       <div id="fqTimeline" style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"></div>
       <div id="fqTimeTotals" style="margin-top:10px;font-weight:700"></div>
-      <p style="font-size:.72rem;color:var(--text3);margin-top:6px">Légende : ✅ inscrit · 🕓 demande en attente de validation de l'admin · ⚠️ des séances n'ont pas pu être placées · 🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>
+      <p style="font-size:.72rem;color:var(--text3);margin-top:6px">Légende : ✅ réservation confirmée · ❌ date non confirmée · 🕓 demande de créneau en attente de validation de l'admin · ⚠️ des séances n'ont pas pu être placées · 🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>
     </div>
   </div>
 
@@ -1274,6 +1275,7 @@ header .user-pill { color: #fff; }
         <div id="fqAthTable" style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
         <p style="font-size:.74rem;color:var(--text3);margin:4px 0 0">Les cases cochées sont inscrites sur chaque jour ouvert de la période. En-tête de colonne = tout cocher pour la team.</p>
       </div>
+      <div><label>Réservation</label><br><span id="fqPResaWrap"></span></div>
       <div><label>Note (facultatif)</label><input class="field" id="fqPNote" type="text" style="width:100%"></div>
       <label id="fqNoteOnlyWrap" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:.82rem;padding:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
         <input type="checkbox" id="fqAutoReg" style="margin-top:3px" onchange="fqNoteOnlyChange()">
@@ -1934,6 +1936,19 @@ function fqParse(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m
 function fqDayIdx(k){ const [y,m,d]=k.split('-').map(Number); return Math.round((Date.UTC(y,m-1,d)-Date.UTC(START.getFullYear(),START.getMonth(),START.getDate()))/86400000); }
 function fqColor(name){ let h=0; for(const c of String(name||'')) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h},55%,42%)`; }
 function fqUuid(){ return crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()); }
+const FQ_RESA={ confirmed:{e:'✅',l:'Réservation confirmée',c:'#16a34a'}, unconfirmed:{e:'❌',l:'Date non confirmée',c:'#dc2626'} };
+function fqResaKey(p){ const r=p&&p.summary&&p.summary.resa; return r==='confirmed'?'confirmed':'unconfirmed'; }
+function fqResaEmoji(p){ return FQ_RESA[fqResaKey(p)].e; }
+function fqResaSelect(id,cur){ return `<select class="field" id="${id}" style="min-width:210px">${Object.entries(FQ_RESA).map(([k,v])=>`<option value="${k}" ${k===(cur||'unconfirmed')?'selected':''}>${v.e} ${v.l}</option>`).join('')}</select>`; }
+async function fqSetResa(id,key){
+  if(!S.isAdmin||!FQ_RESA[key]) return;
+  const p=FQ.rows.find(x=>x.id===id); if(!p) return;
+  const summary={...(p.summary||{}),resa:key};
+  const { error } = await sb.from('frise_periods').update({summary}).eq('id',id);
+  if(error){ toast(error.message,'error'); return; }
+  p.summary=summary; fqRenderTimeline(); fqDetail(id);
+  try{ if(typeof renderAdminTeams==='function' && S.page==='athletes') renderAdminTeams(); }catch(e){}
+}
 function fqN(p){ return Array.isArray(p.athletes)&&p.athletes.length ? p.athletes.length : (+(p.summary&&p.summary.n)||0); }
 function fqNorm(n){ return String(n||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').split(/[\s,\-]+/).filter(Boolean).sort().join(' '); }
 // ── Lien team ↔ frise : une team = une période de stage dans la frise (colonne team_id) ──
@@ -1956,26 +1971,28 @@ async function fqSyncTeams(){
   } finally { _fqSyncing=false; }
 }
 // crée ou met à jour la période liée à une team ; renvoie un message d'erreur ou null
-async function fqUpsertTeamPeriod(tm,start,end){
+async function fqUpsertTeamPeriod(tm,start,end,resa){
   const names=(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean);
   const athletes=names.map(n=>({name:n,am:true,pm:true,mu:true}));
   const old=(FQ.rows||[]).find(r=>r.team_id===tm.id);
   let res;
-  if(old) res=await sb.from('frise_periods').update({ g:tm.name, start_date:start, end_date:end, athletes }).eq('id',old.id);
+  const keep=FQ_RESA[resa]?resa:(old?fqResaKey(old):'unconfirmed');
+  if(old) res=await sb.from('frise_periods').update({ g:tm.name, start_date:start, end_date:end, athletes, summary:{...(old.summary||{}),resa:keep} }).eq('id',old.id);
   else res=await sb.from('frise_periods').insert({ team_id:tm.id, g:tm.name, start_date:start, end_date:end, athletes, am:true, pm:true,
-    user_id:S.session.user.id, owner_name:S.profile?.full_name||'Admin', summary:{noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0} });
+    user_id:S.session.user.id, owner_name:S.profile?.full_name||'Admin', summary:{noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0,resa:keep} });
   if(res.error) return /team_id/i.test(res.error.message||'') ? "colonne « team_id » manquante dans Supabase (voir le SQL fourni)" : (res.error.message||'erreur');
   return null;
 }
 function teamPeriodHtml(tm){
   const row=(FQ.rows||[]).find(r=>r.team_id===tm.id);
   const n=(tm.members||[]).length;
-  const warn=!row?`<span style="color:#b45309">⚠️ Pas de période : ses athlètes ne pourront pas s'inscrire tant que la période n'est pas renseignée.</span>`:`<span style="color:var(--text3)">🔗 Lié à la frise · 👥 ${n} athlète(s)</span>`;
+  const warn=!row?`<span style="color:#b45309">❌ ⚠️ Pas de période : ses athlètes ne pourront pas s'inscrire tant que la période n'est pas renseignée.</span>`:`<span style="color:var(--text3)">${fqResaEmoji(row)} ${FQ_RESA[fqResaKey(row)].l} · 🔗 Lié à la frise · 👥 ${n} athlète(s)</span>`;
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:.8rem">
     <b>📅 Stage du</b>
     <input type="date" class="field" id="tpStart_${tm.id}" value="${row?row.start_date:''}" min="2026-07-06" max="2027-03-31" style="width:150px">
     <b>au</b>
     <input type="date" class="field" id="tpEnd_${tm.id}" value="${row?row.end_date:''}" min="2026-07-06" max="2027-03-31" style="width:150px">
+    ${fqResaSelect('tpResa_'+tm.id,row?fqResaKey(row):'unconfirmed')}
     <button class="btn btn-sm btn-primary" onclick="adminSaveTeamPeriod('${tm.id}')">💾 Enregistrer la période</button>
     ${row?`<button class="btn btn-sm" style="color:var(--red)" onclick="adminClearTeamPeriod('${tm.id}')" title="Retirer de la frise">✕</button>`:''}
     <span style="flex-basis:100%">${warn}</span>
@@ -1986,7 +2003,7 @@ async function adminSaveTeamPeriod(teamId){
   const tm=(S.teams||[]).find(x=>x.id===teamId); if(!tm) return;
   const start=document.getElementById('tpStart_'+teamId).value, end=document.getElementById('tpEnd_'+teamId).value;
   if(!start||!end||end<start){ toast('Renseigne un début et une fin de stage valides.','error'); return; }
-  const err=await fqUpsertTeamPeriod(tm,start,end);
+  const err=await fqUpsertTeamPeriod(tm,start,end,document.getElementById('tpResa_'+teamId)?.value);
   if(err){ toast('⚠️ '+err,'error'); return; }
   await fqLoadRows(); renderAdminTeams();
   toast(`📅 Période du groupe « ${tm.name} » enregistrée dans la frise (${(tm.members||[]).length} athlète(s)).`,'success');
@@ -2137,11 +2154,11 @@ function fqRenderTimeline(){
     const i0=Math.max(0,fqDayIdx(p.start_date)), i1=Math.min(total-1,fqDayIdx(p.end_date));
     const col=fqColor(p.g), st=fqStatus(p), mine=false;
     const halves=halvesOf(p);
-    const txt=`${st.icon} ${esc(p.g||'(sans nom)')} · ${nOf(p)} ath. · ${halves}`;
-    const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${nOf(p)} athlète(s) ${halves}\n${st.txt}`;
+    const txt=`${fqResaEmoji(p)} ${['🕓','⚠️'].includes(st.icon)?st.icon+' ':''}${esc(p.g||'(sans nom)')} · ${nOf(p)} ath. · ${halves}`;
+    const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${FQ_RESA[fqResaKey(p)].l}\n${nOf(p)} athlète(s) ${halves}\n${st.txt}`;
     const wBar=(i1-i0+1)*FQ_DAYW, long=wBar>=230;
     rows+=`<div style="display:flex;height:34px;border-top:1px solid #eef0f3">
-      <div style="${lblCss}" title="${esc(tip)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(p.g||'(sans nom)')}</b>${mine?' <span style="color:var(--accent)">· moi</span>':''}<br><span style="color:var(--text3);font-size:.68rem">${fmt(p.start_date)} → ${fmt(p.end_date)}</span></span></div>
+      <div style="${lblCss}" title="${esc(tip)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${fqResaEmoji(p)} ${esc(p.g||'(sans nom)')}</b>${mine?' <span style="color:var(--accent)">· moi</span>':''}<br><span style="color:var(--text3);font-size:.68rem">${fmt(p.start_date)} → ${fmt(p.end_date)}</span></span></div>
       <div style="position:relative;width:${W}px;${grid}">
         ${i1>=i0?`<button onclick="fqDetail('${p.id}')" title="${esc(tip)}" style="position:absolute;top:4px;height:26px;left:${i0*FQ_DAYW}px;width:${wBar}px;background:${col};color:#fff;border:${mine?'2px solid #111':'none'};box-sizing:border-box;border-radius:6px;font-size:.72rem;text-align:left;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer">${long?txt:''}</button>${long?'':`<span onclick="fqDetail('${p.id}')" style="position:absolute;top:9px;left:${(i1+1)*FQ_DAYW+6}px;font-size:.72rem;white-space:nowrap;color:#1f2937;cursor:pointer">${txt}</span>`}`:''}
       </div></div>`;
@@ -2248,6 +2265,7 @@ function fqPeriodOpen(id){
   if(p) fqAths(p).forEach(a=>{ FQS.sel[a.name]={am:a.am,pm:a.pm,mu:a.mu}; });
   // groupe sans détail de séances (anciennes saisies) : on coche « kayak matin » pour garder l'athlète dans le groupe
   Object.values(FQS.sel).forEach(c=>{ if(!c.am&&!c.pm&&!c.mu) c.am=true; });
+  document.getElementById('fqPResaWrap').innerHTML=fqResaSelect('fqPResa',p?fqResaKey(p):'unconfirmed');
   document.getElementById('fqAutoReg').checked=false;
   const linked=!!(p&&p.team_id);
   document.getElementById('fqAthWrap').style.display=linked?'none':'';
@@ -2291,13 +2309,15 @@ async function fqPeriodSubmit(){
       const r=await sb.from('frise_periods').insert({ ...fields, user_id:S.session.user.id, owner_name:S.profile?.full_name||'Admin', group_id:auto?fqUuid():null }).select().single();
       if(r.error) throw r.error; saved=r.data;
     }
-    let summary = old ? (old.summary||null) : {noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0};
+    const resa=document.getElementById('fqPResa').value;
+    let summary = old ? (old.summary||{}) : {noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0};
     if(auto){
       btn.textContent='⏳ Inscription en cours…';
       try{ summary=await fqAutoRegister(saved); }
       catch(e){ console.error('fqAutoRegister',e); summary={sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0,error:String(e?.message||e)}; }
     }
-    if(summary!==(old&&old.summary)) await sb.from('frise_periods').update({summary}).eq('id',saved.id);
+    summary={...summary,resa};
+    await sb.from('frise_periods').update({summary}).eq('id',saved.id);
     closeModal('fqPeriodModal');
     await fqLoad();
     try{ renderDayPanel(); renderCal(); renderMuscuDayPanel(); }catch(e){}
@@ -2376,9 +2396,10 @@ function fqDetail(id){
   document.getElementById('fqDTitle').textContent=`${st.icon} ${p.g||'Groupe'}`;
   let h=`<p style="margin:0 0 6px"><b>Période :</b> ${fmt(p.start_date)} → ${fmt(p.end_date)}<br>
     <b>Athlètes :</b> ${aths.length}<br>
-    ${p.team_id?`<b>🔗 Lié à la team</b> (composition synchronisée)<br>`:''}<b>Référent :</b> ${esc(p.owner_name||'')}${p.note?`<br><b>Note :</b> ${esc(p.note)}`:''}</p>`;
+    ${p.team_id?`<b>🔗 Lié à la team</b> (composition synchronisée)<br>`:''}<b>Réservation :</b> ${fqResaEmoji(p)} ${FQ_RESA[fqResaKey(p)].l}<br><b>Référent :</b> ${esc(p.owner_name||'')}${p.note?`<br><b>Note :</b> ${esc(p.note)}`:''}</p>`;
   if(fqCanSee(p)) h+=`<table style="border-collapse:collapse;width:100%;margin-bottom:8px;font-size:.82rem">${aths.map(a=>`<tr><td style="padding:2px 6px;border-top:1px solid #eef0f3">${esc(a.name)}</td><td style="padding:2px 6px;border-top:1px solid #eef0f3;text-align:right">${flag(a)}</td></tr>`).join('')}</table>
     <p style="font-size:.72rem;color:var(--text3);margin:0 0 6px">🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>`;
+  if(S.isAdmin) h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px">${Object.entries(FQ_RESA).map(([k,v])=>`<button class="btn btn-sm" style="${k===fqResaKey(p)?'border:2px solid '+v.c+';font-weight:700':''}" onclick="fqSetResa('${p.id}','${k}')">${v.e} ${v.l}</button>`).join('')}</div>`;
   h+=`<p style="margin:0 0 6px"><b>État :</b> ${esc(st.txt)}</p>`;
   if(p.summary&&p.summary.imported&&!aths.length) h+=`<p style="margin:0 0 6px"><b>Effectif :</b> ${fqN(p)} athlète(s) · séances : ${p.summary.am||0} matin / ${p.summary.pm||0} après-midi <span style="color:var(--text3)">(saisie récupérée)</span></p>`;
   if(S.isAdmin && p.summary && !p.summary.noteOnly && !p.summary.imported){
@@ -2406,9 +2427,9 @@ function fqPrint(){
     <div class="print-sub">Édité le ${new Date().toLocaleDateString('fr-FR')}</div>`;
   if(!rows.length) h+='<p class="print-empty">Aucun groupe déclaré.</p>';
   else{
-    h+=`<table class="print-sheet"><thead><tr><th>Groupe</th><th>Référent</th><th>Du</th><th>Au</th><th>Athlètes</th><th>Kayak matin</th><th>Kayak ap.-midi</th><th>Muscu</th><th>État</th></tr></thead><tbody>`;
+    h+=`<table class="print-sheet"><thead><tr><th>Réservation</th><th>Groupe</th><th>Référent</th><th>Du</th><th>Au</th><th>Athlètes</th><th>Kayak matin</th><th>Kayak ap.-midi</th><th>Muscu</th><th>État</th></tr></thead><tbody>`;
     rows.forEach(p=>{ const a=fqAths(p), sm=p.summary||{}, imp=!a.length&&sm.imported;
-      h+=`<tr><td><b>${esc(p.g||'')}</b></td><td>${esc(p.owner_name||'')}</td><td>${fmt(p.start_date)}</td><td>${fmt(p.end_date)}</td><td style="text-align:center">${fqN(p)}</td><td style="text-align:center">${imp?(sm.am||0)+' séances':a.filter(x=>x.am).length}</td><td style="text-align:center">${imp?(sm.pm||0)+' séances':a.filter(x=>x.pm).length}</td><td style="text-align:center">${a.filter(x=>x.mu).length}</td><td>${esc(fqStatus(p).icon+' '+fqStatus(p).txt)}</td></tr>`; });
+      h+=`<tr><td>${fqResaEmoji(p)} ${esc(FQ_RESA[fqResaKey(p)].l)}</td><td><b>${esc(p.g||'')}</b></td><td>${esc(p.owner_name||'')}</td><td>${fmt(p.start_date)}</td><td>${fmt(p.end_date)}</td><td style="text-align:center">${fqN(p)}</td><td style="text-align:center">${imp?(sm.am||0)+' séances':a.filter(x=>x.am).length}</td><td style="text-align:center">${imp?(sm.pm||0)+' séances':a.filter(x=>x.pm).length}</td><td style="text-align:center">${a.filter(x=>x.mu).length}</td><td>${esc(fqStatus(p).icon+' '+fqStatus(p).txt)}</td></tr>`; });
     h+='</tbody></table>';
     rows.filter(fqCanSee).forEach(p=>{
       const a=fqAths(p); if(!a.length) return;
@@ -3094,7 +3115,7 @@ async function adminCreateTeamForUser(){
   if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
   let periodMsg='';
   if(start && end && newTeam){
-    const pe = await fqUpsertTeamPeriod({ ...newTeam, members:[] }, start, end);
+    const pe = await fqUpsertTeamPeriod({ ...newTeam, members:[] }, start, end, document.getElementById('adminTeamResa')?.value);
     periodMsg = pe ? ' ⚠️ Période non enregistrée dans la frise : '+pe : ' 📅 Période ajoutée à la frise.';
   }
   if(msg){ msg.style.color=periodMsg.includes('⚠️')?'#b45309':'#15803d'; msg.textContent = t('teamCreatedForGroup')+periodMsg; }
@@ -3304,6 +3325,7 @@ function renderAdminTeams(){
   document.getElementById('adminAthRole') && (document.getElementById('adminAthRole').placeholder = t('teamAthRolePH'));
   document.getElementById('adminAddAthBtn') && (document.getElementById('adminAddAthBtn').textContent = t('teamAddAthBtn'));
 
+  { const w=document.getElementById('adminTeamResaWrap'); if(w && !document.getElementById('adminTeamResa')) w.innerHTML=fqResaSelect('adminTeamResa','unconfirmed'); }
   const ownerSel = document.getElementById('adminTeamOwnerSelect');
   if(ownerSel){
     const cur = ownerSel.value;
