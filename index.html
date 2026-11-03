@@ -371,6 +371,30 @@ select.field { min-width: 110px; cursor: pointer; }
 .pl-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .pl-state{font-size:.75rem;color:var(--text3);margin-left:auto}
 .pl-state.dirty{color:#b45309;font-weight:700}
+.pl-table .pl-grp{border-left:2px solid var(--border2)}
+.pl-table th.pl-top{font-size:.82rem;padding:7px 4px;background:#dbe6fd}
+.pl-table th.pl-sub{width:17.5%}
+.pl-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.pl-kx{display:inline-flex;gap:4px;align-items:center;font-size:.72rem;font-weight:700;color:#c2410c;cursor:pointer;margin-top:3px}
+.pl-kx input{width:15px;height:15px}
+.pl-assigned{font-size:.7rem;font-weight:700;color:#15803d;margin-top:4px}
+.pl-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.pl-chip{background:var(--accent-light);border-radius:20px;padding:4px 11px;font-size:.78rem}
+.pl-h{margin:14px 0 6px;font-size:.88rem}
+.pl-sumtab td,.pl-sumtab th{font-size:.78rem}
+.pl-ok{color:#15803d;font-weight:700}
+.pl-cal{width:100%;border-collapse:collapse;table-layout:fixed;min-width:640px}
+.pl-cal th{background:var(--accent-light);font-size:.72rem;padding:5px;border:1px solid var(--border)}
+.pl-cal td{border:1px solid var(--border);vertical-align:top;padding:3px;height:70px;font-size:.68rem}
+.pl-cal td.pl-off{background:#f3f4f6;color:var(--text3)}
+.pl-dn{display:block;font-weight:700;font-size:.7rem;color:var(--text2);margin-bottom:2px}
+.pl-ev{border-radius:5px;padding:2px 4px;margin-bottom:2px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-ev.ok{background:#dcfce7;color:#166534}
+.pl-ev.part{background:#fef3c7;color:#92400e}
+.pl-ev.plan{background:#e0e7ff;color:#3730a3}
+.pl-st{font-weight:700;font-size:.74rem}
+.pl-st.ok{color:#15803d}.pl-st.part{color:#b45309}.pl-st.plan{color:#3730a3}
+.pl-det{margin-top:14px}.pl-det summary{cursor:pointer;font-weight:700;font-size:.88rem}
 @media(max-width:560px){.pl-state{margin-left:0;width:100%}}
 </style>
 
@@ -1043,7 +1067,7 @@ header .user-pill { color: #fff; }
     <!-- Planning prévisionnel des séances de ma team (jour par jour) -->
     <div class="quick-reg-card" id="plCard" style="margin-top:16px;display:none">
       <h2>📅 Planning prévisionnel des séances</h2>
-      <p class="qr-sub">Pour chaque jour du stage, choisis l'horaire souhaité et coche les athlètes concernés : Slalom matin / après-midi et Muscu matin / après-midi. C'est un prévisionnel : il n'inscrit personne sur les créneaux, il aide l'organisation à anticiper.</p>
+      <p class="qr-sub">Pour chaque jour du stage, choisis l'horaire souhaité et coche les athlètes concernés : Slalom matin / après-midi et Muscu matin / après-midi. Tu retrouves dans l'onglet « Résumé du stage » toutes tes séances et un aperçu global du stage.</p>
       <div id="plHostInline"></div>
     </div>
 
@@ -1341,7 +1365,7 @@ header .user-pill { color: #fff; }
 
 <!-- Modal planning prévisionnel jour par jour -->
 <div class="modal-bg" id="plModal">
-  <div class="modal-box" style="max-width:860px">
+  <div class="modal-box" style="max-width:1040px">
     <h3 id="plModalTitle">📅 Planning prévisionnel</h3>
     <div id="plHostModal"></div>
     <div class="modal-actions" style="justify-content:flex-end;gap:8px;margin-top:10px">
@@ -2572,7 +2596,7 @@ function fqRenderForecast(){
         const pl=PL.rows[r.id];
         if(pl&&pl.data&&Object.keys(pl.data).length){   // planning jour par jour renseigné : il fait foi pour ce groupe
           const cell=pl.data[k]&&pl.data[k][c], np=cell&&cell.n?cell.n.length:0;
-          if(np){ tot+=np; det.push(`${r.g}: ${np}${cell.h?' ('+cell.h+')':''}`); }
+          if(np){ tot+=np; det.push(`${r.g}: ${np}${(cell.a||cell.h)?' ('+(cell.a||cell.h)+')':''}`); }
           return;
         }
         const fc=FC.rows[r.id]; if(!fc||!fc.data) return;
@@ -2590,15 +2614,22 @@ function fqRenderForecast(){
 // ── Planning prévisionnel jour par jour : horaires souhaités + athlètes concernés ──
 // Table Supabase « frise_planning » (à créer une fois ; voir le SQL fourni avec la mise à jour) :
 //   period_id text primary key · user_id uuid · data jsonb · updated_at timestamptz
-// data = { "2026-07-08": { km:{h:"8h-9h", n:["Nom A","Nom B"]}, ka:{…}, mm:{…}, ma:{…} }, … }
-// km = slalom matin · ka = slalom après-midi · mm = muscu matin · ma = muscu après-midi
-const PL = { rows:{}, ok:false, err:'', cur:null, names:[], data:{}, days:[], day:null, host:null, dirty:false };
+// data = { "2026-07-08": { km:{h:"8h-9h", a:"9h-10h", kx:false, n:["Nom A","Nom B"]}, ka:{…}, mm:{…}, ma:{…} }, … }
+// km = kayak matin · ka = kayak après-midi · mm = muscu matin · ma = muscu après-midi
+// h = horaire souhaité par la team · a = horaire attribué par l'admin · kx = séance Kayak Cross (admin)
+const PL = { rows:{}, ok:false, err:'', cur:null, names:[], data:{}, days:[], day:null, host:null, dirty:false, view:'plan', force:false, apply:null };
 const PL_COLS=[
-  ['km','🌅 Slalom matin','slalom','am'],
-  ['ka','🌇 Slalom après-midi','slalom','pm'],
-  ['mm','💪 Muscu matin','muscu','am'],
-  ['ma','💪 Muscu après-midi','muscu','pm']
+  ['km','🌅 Matin','kayak','am'],
+  ['ka','🌇 Après-midi','kayak','pm'],
+  ['mm','🌅 Matin','muscu','am'],
+  ['ma','🌇 Après-midi','muscu','pm']
 ];
+const PL_LAB={km:'Kayak matin',ka:'Kayak après-midi',mm:'Muscu matin',ma:'Muscu après-midi'};
+const plIsKayak=c=>c==='km'||c==='ka';
+const plIsFirst=c=>c==='km'||c==='mm';
+const plNorm=n=>String(n||'').trim().toLowerCase();
+const plChrono=(a,b)=>slotStartMinutes(a)-slotStartMinutes(b);
+
 async function plLoadAll(){
   try{
     const { data, error } = await sb.from('frise_planning').select('*');
@@ -2615,20 +2646,16 @@ function plDaysOf(row){
   }
   return out;
 }
-// Horaires proposés pour une colonne et un jour (créneaux bloqués et Kayak Cross exclus)
-function plOptions(k,col){
-  const [, , act, half]=PL_COLS.find(x=>x[0]===col);
-  let list;
-  if(act==='slalom'){
-    list=(half==='am'?morningSlotsChrono(k):afternoonSlotsChrono(k)).filter(sl=>!isKayakCross(k,sl)&&!getKayakSlotCfg(k,sl).blocked);
-  } else {
-    list=[...S.muscuSlots].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b))
-      .filter(sl=>!getMuscuSlotCfg(k,sl).blocked && (half==='am' ? slotStartMinutes(sl)<720 : slotStartMinutes(sl)>=720));
-  }
-  return list;
+// Tous les créneaux de la demi-journée (Kayak Cross compris), hors créneaux bloqués
+function plHalfSlots(k,c){
+  const kind=plIsKayak(c)?'kayak':'muscu', am=(c==='km'||c==='mm');
+  if(kind==='kayak') return (am?morningSlotsChrono(k):afternoonSlotsChrono(k)).filter(s=>!getKayakSlotCfg(k,s).blocked);
+  return [...S.muscuSlots].sort(plChrono).filter(s=>!getMuscuSlotCfg(k,s).blocked&&(am?slotStartMinutes(s)<720:slotStartMinutes(s)>=720));
 }
-function plCell(k,c){ const d=PL.data[k]; return (d&&d[c])||{h:'',n:[]}; }
-function plCellSet(k,c){ const d=(PL.data[k] ||= {}); return (d[c] ||= {h:'',n:[]}); }
+// Horaires proposés à la team : slalom uniquement (Kayak Cross exclu)
+function plOptions(k,c){ return plIsKayak(c) ? plHalfSlots(k,c).filter(s=>!isKayakCross(k,s)) : plHalfSlots(k,c); }
+function plCell(k,c){ const d=PL.data[k]; return (d&&d[c])||{h:'',a:'',kx:false,n:[]}; }
+function plCellSet(k,c){ const d=(PL.data[k] ||= {}); return (d[c] ||= {h:'',a:'',kx:false,n:[]}); }
 function plHasDay(k){ const d=PL.data[k]; return !!d && PL_COLS.some(([c])=>d[c]&&(d[c].n||[]).length); }
 function plDirty(v){
   PL.dirty=v;
@@ -2646,17 +2673,29 @@ function plMount(host,row){
   PL.days=plDaysOf(row);
   const today=fqKey(new Date());
   PL.day = PL.days.find(plHasDay) || PL.days.find(k=>k>=today) || PL.days[0] || null;
-  PL.dirty=false;
+  PL.dirty=false; PL.view='plan'; PL.apply=null; PL.force=false;
   plRender();
 }
 function plRender(){
   const host=PL.host, row=PL.cur; if(!host||!row) return;
   if(!PL.days.length){ host.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">Aucun jour ouvert sur la période de ce groupe.</p>`; return; }
   if(!PL.names.length){ host.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">Aucun athlète dans ce groupe : ajoute d'abord des athlètes à la team.</p>`; return; }
+  const tab=(v,l)=>`<button class="btn btn-sm${PL.view===v?' btn-primary':''}" onclick="plView('${v}')">${l}</button>`;
+  host.innerHTML=`<div class="pl-tabs">${tab('plan','📅 Planning')}${tab('sum','📊 Résumé du stage')}${S.isAdmin?tab('apply','⚡ Inscrire depuis le prévisionnel'):''}</div><div class="pl-body"></div>`;
+  if(PL.view==='sum') plRenderSummary();
+  else if(PL.view==='apply'&&S.isAdmin) plRenderApply();
+  else plRenderPlan();
+}
+function plView(v){ PL.view=v; plRender(); }
+
+// ── Onglet « Planning » ──
+function plRenderPlan(){
+  const body=PL.host.querySelector('.pl-body'), row=PL.cur; if(!body) return;
   const f=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
-  host.innerHTML=`
+  body.innerHTML=`
     ${PL.ok?'':`<p style="font-size:.78rem;color:#b45309;margin:0 0 8px">⚠️ La table « frise_planning » n'existe pas encore dans Supabase : l'enregistrement ne fonctionnera qu'après sa création.</p>`}
     <p style="font-size:.8rem;color:var(--text3);margin:0 0 6px"><b>${esc(row.g||'')}</b> · du ${f(row.start_date)} au ${f(row.end_date)} · ${PL.names.length} athlète(s)</p>
+    ${S.isAdmin?`<p style="font-size:.76rem;color:var(--text3);margin:0 0 6px">« Souhaité » = demande de la team · « Attribué » = ta décision (la priorité des créneaux est respectée à l'inscription). Coche 🏄 pour faire de la séance un Kayak Cross.</p>`:''}
     <div class="pl-days"></div>
     <div class="pl-daytitle" style="font-weight:700;margin:2px 0 6px"></div>
     <div class="pl-box"></div>
@@ -2665,35 +2704,49 @@ function plRender(){
       <button class="btn btn-sm" onclick="plCopy('week')" title="Copie ce jour sur les autres jours de la même semaine">📋 Copier sur la semaine</button>
       <button class="btn btn-sm" onclick="plCopy('all')" title="Copie ce jour sur tous les jours de la période">📋 Copier sur toute la période</button>
       <button class="btn btn-sm" style="color:var(--red)" onclick="plClearDay()">🗑 Vider ce jour</button>
-      <span class="pl-state">✔ à jour</span>
+      <span class="pl-state${PL.dirty?' dirty':''}">${PL.dirty?'● modifications non enregistrées':'✔ à jour'}</span>
     </div>
     <p class="pl-msg" style="font-size:.78rem;min-height:1em;margin:6px 0 0"></p>
     <p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Horaire « — » = pas de préférence. Clique sur le nom d'un athlète pour cocher toute sa ligne, ou sur la case d'en-tête pour cocher toute la colonne.</p>`;
   plRenderDay();
 }
+function plSelectHtml(onchange,cur,list,ph,labelOf){
+  const lab=labelOf||(x=>x);
+  return `<select onchange="${onchange}"><option value="">${ph}</option>`
+    +list.map(o=>`<option value="${esc(o)}" ${o===cur?'selected':''}>${esc(lab(o))}</option>`).join('')
+    +((cur&&!list.includes(cur))?`<option value="${esc(cur)}" selected>${esc(cur)} (indisp.)</option>`:'')+`</select>`;
+}
 function plRenderDay(){
-  const host=PL.host; if(!host||!PL.day) return;
+  const host=PL.host; if(!host||!PL.day||!host.querySelector('.pl-box')) return;
   const k=PL.day, dn=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-  // bandeau des jours
   host.querySelector('.pl-days').innerHTML=PL.days.map(x=>{
     const d=fqParse(x), w=d.getDay();
     return `<div class="pl-day${x===k?' active':''}${plHasDay(x)?' has':''}${(w===0||w===6)?' wknd':''}" onclick="plDay('${x}')">${dn[w]}<b>${d.getDate()}/${d.getMonth()+1}</b></div>`;
   }).join('');
   const act=host.querySelector('.pl-days .pl-day.active'); if(act&&act.scrollIntoView) act.scrollIntoView({block:'nearest',inline:'nearest'});
   host.querySelector('.pl-daytitle').textContent=fqParse(k).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
-  // tableau du jour
   const box=host.querySelector('.pl-box'), keep=box.scrollTop;
   const all=c=>PL.names.length&&PL.names.every(n=>plCell(k,c).n.includes(n));
-  let h=`<table class="pl-table"><thead><tr><th class="pl-ath">Athlète</th>${PL_COLS.map(([c,l])=>{
-    const opts=plOptions(k,c), cur=plCell(k,c).h;
-    const optHtml=`<option value="">— horaire —</option>`+opts.map(o=>`<option value="${esc(o)}" ${o===cur?'selected':''}>${esc(o)}</option>`).join('')
-      +((cur&&!opts.includes(cur))?`<option value="${esc(cur)}" selected>${esc(cur)} (indisp.)</option>`:'');
-    return `<th>${l}<br><select onchange="plHour('${c}',this.value)" ${opts.length||cur?'':'disabled'}>${optHtml}</select><br><input type="checkbox" title="Cocher toute la colonne" ${all(c)?'checked':''} onchange="plTickCol('${c}',this.checked)"></th>`;
-  }).join('')}</tr></thead><tbody>`;
+  const sub=c=>{
+    const cell=plCell(k,c), kayak=plIsKayak(c), opts=plOptions(k,c);
+    let h=`<th class="pl-sub${plIsFirst(c)?' pl-grp':''}">${plIsFirst(c)?'🌅 Matin':'🌇 Après-midi'}<br>`;
+    h+=plSelectHtml(`plHour('${c}',this.value)`,cell.h,opts,'— souhaité —');
+    if(S.isAdmin){
+      h+=`<br>`+plSelectHtml(`plAssign('${c}',this.value)`,cell.a,plHalfSlots(k,c),'— attribué —',s=>(kayak&&isKayakCross(k,s))?`🏄 ${s} (KX)`:s);
+      if(kayak) h+=`<br><label class="pl-kx"><input type="checkbox" ${cell.kx?'checked':''} onchange="plKx('${c}',this.checked)"> 🏄 Kayak Cross</label>`;
+    } else if(cell.a||cell.kx){
+      h+=`<div class="pl-assigned">✔ Attribué : ${esc(cell.a||'à définir')}${cell.kx?' 🏄 KX':''}</div>`;
+    }
+    h+=`<br><input type="checkbox" title="Cocher toute la colonne" ${all(c)?'checked':''} onchange="plTickCol('${c}',this.checked)"></th>`;
+    return h;
+  };
+  let h=`<table class="pl-table"><thead>
+    <tr><th class="pl-ath" rowspan="2">Athlète</th><th colspan="2" class="pl-grp pl-top">🛶 Kayak (slalom)</th><th colspan="2" class="pl-grp pl-top">💪 Muscu</th></tr>
+    <tr>${['km','ka','mm','ma'].map(sub).join('')}</tr></thead><tbody>`;
   PL.names.forEach((n,i)=>{
-    h+=`<tr><td class="pl-name"><label onclick="plTickRow(${i})" title="Cliquer : toute la ligne">${esc(n)}</label></td>${PL_COLS.map(([c])=>`<td><input type="checkbox" ${plCell(k,c).n.includes(n)?'checked':''} onchange="plTick(${i},'${c}',this.checked)"></td>`).join('')}</tr>`;
+    h+=`<tr><td class="pl-name"><label onclick="plTickRow(${i})" title="Cliquer : toute la ligne">${esc(n)}</label></td>${PL_COLS.map(([c])=>`<td class="${plIsFirst(c)?'pl-grp':''}"><input type="checkbox" ${plCell(k,c).n.includes(n)?'checked':''} onchange="plTick(${i},'${c}',this.checked)"></td>`).join('')}</tr>`;
   });
-  h+=`</tbody><tfoot><tr><td class="pl-name">Total</td>${PL_COLS.map(([c])=>`<td>${plCell(k,c).n.length}/${PL.names.length}</td>`).join('')}</tr></tfoot></table>`;
+  h+=`</tbody><tfoot><tr><td class="pl-name">Total</td>${PL_COLS.map(([c])=>`<td class="${plIsFirst(c)?'pl-grp':''}">${plCell(k,c).n.length}/${PL.names.length}</td>`).join('')}</tr></tfoot></table>`;
   box.innerHTML=h; box.scrollTop=keep;
 }
 function plDay(k){ PL.day=k; plRenderDay(); }
@@ -2709,6 +2762,18 @@ function plTickRow(i){
 }
 function plTickCol(c,v){ plCellSet(PL.day,c).n = v ? [...PL.names] : []; plDirty(true); plRenderDay(); }
 function plHour(c,v){ plCellSet(PL.day,c).h=v; plDirty(true); plRenderDay(); }
+function plAssign(c,v){
+  if(!S.isAdmin) return;
+  const cell=plCellSet(PL.day,c); cell.a=v;
+  if(v&&plIsKayak(c)&&isKayakCross(PL.day,v)) cell.kx=true;   // créneau déjà Kayak Cross : la séance l'est aussi
+  plDirty(true); plRenderDay();
+}
+function plKx(c,v){
+  if(!S.isAdmin) return;
+  const cell=plCellSet(PL.day,c); cell.kx=!!v;
+  if(v&&!cell.a){ const kxs=plHalfSlots(PL.day,c).filter(s=>isKayakCross(PL.day,s)); if(kxs.length) cell.a=kxs[0]; }
+  plDirty(true); plRenderDay();
+}
 function plClearDay(){
   if(!PL.day) return;
   if(plHasDay(PL.day) && !confirm('Vider le planning de ce jour ?')) return;
@@ -2726,7 +2791,10 @@ function plCopy(mode){
     const day={};
     PL_COLS.forEach(([c])=>{
       const s=src[c]; if(!s||!s.n||!s.n.length) return;
-      day[c]={ h:plOptions(k,c).includes(s.h)?s.h:'', n:[...s.n] };
+      const cell={ h:plOptions(k,c).includes(s.h)?s.h:'', a:'', kx:false, n:[...s.n] };
+      if(S.isAdmin){ cell.a=plHalfSlots(k,c).includes(s.a)?s.a:''; cell.kx=!!s.kx&&plIsKayak(c); }
+      else { cell.a=''; }
+      day[c]=cell;
     });
     PL.data[k]=day;
   });
@@ -2735,18 +2803,24 @@ function plCopy(mode){
 }
 async function plSave(){
   const row=PL.cur; if(!row) return;
-  if(!plCanEdit(row)){ toast("Tu ne peux modifier que le planning de ta team.",'error'); return; }
+  if(!plCanEdit(row)){ toast("Tu ne peux modifier que le planning de ta team.",'error'); return false; }
   const msg=PL.host&&PL.host.querySelector('.pl-msg');
   const data={};
   Object.entries(PL.data).forEach(([k,day])=>{
     const d={};
-    PL_COLS.forEach(([c])=>{ const cell=day[c]; if(cell&&cell.n&&cell.n.length) d[c]={h:cell.h||'',n:cell.n}; });
+    PL_COLS.forEach(([c])=>{
+      const cell=day[c]; if(!cell) return;
+      if((cell.n&&cell.n.length)||cell.a||cell.kx||cell.h){
+        const o={h:cell.h||'',n:cell.n||[]}; if(cell.a) o.a=cell.a; if(cell.kx) o.kx=true; d[c]=o;
+      }
+    });
     if(Object.keys(d).length) data[k]=d;
   });
   const { error } = await sb.from('frise_planning').upsert({ period_id:String(row.id), user_id:S.session.user.id, data, updated_at:new Date().toISOString() });
   if(error){
     if(msg){ msg.style.color='var(--red)'; msg.textContent='Erreur : '+error.message+(/frise_planning/i.test(error.message||'')?' — table à créer dans Supabase.':''); }
-    return;
+    toast('Erreur : '+error.message,'error');
+    return false;
   }
   PL.data=JSON.parse(JSON.stringify(data));
   PL.rows[row.id]={ period_id:String(row.id), user_id:S.session.user.id, data };
@@ -2755,7 +2829,254 @@ async function plSave(){
   toast('📅 Planning prévisionnel enregistré.','success');
   plRenderDay();
   try{ if(typeof fqRenderForecast==='function') fqRenderForecast(); }catch(e){}
+  return true;
 }
+
+// ── Inscriptions réelles de la team (lues dans les créneaux) ──
+function plRegistered(k,c){
+  const cell=plCell(k,c), want=new Set(cell.n.map(plNorm)), kayak=plIsKayak(c), act=kayak?'kayak':'muscu', am=(c==='km'||c==='mm');
+  const slots = kayak ? (am?morningSlots(k):afternoonSlots(k)) : S.muscuSlots.filter(s=>am?slotStartMinutes(s)<720:slotStartMinutes(s)>=720);
+  const places=[], seen=new Set();
+  slots.forEach(s=>{
+    const m=getSlot(k,s,act).filter(r=>want.has(plNorm(r.name)));
+    if(m.length){ places.push({slot:s,n:m.length,kx:kayak&&isKayakCross(k,s)}); m.forEach(r=>seen.add(plNorm(r.name))); }
+  });
+  places.sort((a,b)=>plChrono(a.slot,b.slot));
+  return {places,total:seen.size};
+}
+function plItems(){
+  const out=[];
+  PL.days.forEach(k=>PL_COLS.forEach(([c])=>{
+    const cell=plCell(k,c); if(!cell.n.length) return;
+    out.push({k,c,cell,reg:plRegistered(k,c)});
+  }));
+  return out;
+}
+function plItemHour(it){
+  if(it.reg.places.length) return it.reg.places.map(p=>p.slot+(it.reg.places.length>1?` (${p.n})`:'')).join(' + ');
+  return it.cell.a||it.cell.h||'—';
+}
+function plItemIcon(it){
+  if(!plIsKayak(it.c)) return '💪';
+  return (it.cell.kx||it.reg.places.some(p=>p.kx)||(it.cell.a&&isKayakCross(it.k,it.cell.a)))?'🏄':'🛶';
+}
+function plItemStatus(it){
+  const n=it.cell.n.length;
+  if(it.reg.total>=n) return {e:'✅',t:'Inscrit',cls:'ok'};
+  if(it.reg.total>0) return {e:'⚠️',t:`Partiel (${it.reg.total}/${n})`,cls:'part'};
+  return {e:'🕓',t:it.cell.a?'Horaire attribué, à inscrire':'Prévu',cls:'plan'};
+}
+
+// ── Onglet « Résumé du stage » : résumé des séances + aperçu global ──
+function plRenderSummary(){
+  const body=PL.host.querySelector('.pl-body'), row=PL.cur; if(!body) return;
+  const items=plItems();
+  const fd=k=>fqParse(k).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+  if(!items.length){
+    body.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">Aucune séance n'est encore planifiée. Remplis l'onglet « Planning » : le résumé et l'aperçu du stage apparaîtront ici.</p>`;
+    return;
+  }
+  const cnt=(cs)=>items.filter(i=>cs.includes(i.c));
+  const kxN=items.filter(i=>plItemIcon(i)==='🏄').length;
+  const seats=items.reduce((a,i)=>a+i.cell.n.length,0), regd=items.reduce((a,i)=>a+Math.min(i.reg.total,i.cell.n.length),0);
+  const chip=(t)=>`<span class="pl-chip">${t}</span>`;
+  let h=`<div class="pl-chips">
+    ${chip(`📅 <b>${PL.days.length}</b> jours de stage`)}
+    ${chip(`🛶 Kayak : <b>${cnt(['km','ka']).length-kxN}</b> séances (${cnt(['km']).length} matin · ${cnt(['ka']).length} ap.-midi)`)}
+    ${kxN?chip(`🏄 Kayak Cross : <b>${kxN}</b>`):''}
+    ${chip(`💪 Muscu : <b>${cnt(['mm','ma']).length}</b> séances (${cnt(['mm']).length} matin · ${cnt(['ma']).length} ap.-midi)`)}
+    ${chip(`✅ Inscriptions : <b>${regd}/${seats}</b>`)}
+  </div>`;
+  // — par athlète —
+  h+=`<h4 class="pl-h">👥 Séances par athlète</h4><div class="pl-box"><table class="pl-table pl-sumtab"><thead><tr><th class="pl-ath">Athlète</th><th>🛶 Kayak matin</th><th>🛶 Kayak ap.-midi</th><th>💪 Muscu matin</th><th>💪 Muscu ap.-midi</th><th>Total</th></tr></thead><tbody>`;
+  const colTot={km:0,ka:0,mm:0,ma:0};
+  PL.names.forEach(n=>{
+    let tot=0,totR=0;
+    const tds=['km','ka','mm','ma'].map(c=>{
+      const mine=items.filter(i=>i.c===c&&i.cell.n.includes(n));
+      const r=mine.filter(i=>i.reg.places.length&&plRegisteredFor(i,n)).length;
+      tot+=mine.length; totR+=r; colTot[c]+=mine.length;
+      return `<td>${mine.length||'<span style="color:var(--text3)">–</span>'}${mine.length&&r?` <small class="pl-ok">(${r}✓)</small>`:''}</td>`;
+    }).join('');
+    h+=`<tr><td class="pl-name">${esc(n)}</td>${tds}<td><b>${tot}</b>${tot&&totR?` <small class="pl-ok">(${totR}✓)</small>`:''}</td></tr>`;
+  });
+  h+=`</tbody></table></div><p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Nombre de séances prévues par athlète ; (n✓) = déjà inscrites sur les créneaux.</p>`;
+  // — aperçu calendrier —
+  const dn=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  h+=`<h4 class="pl-h">🗓 Aperçu du stage</h4><div class="pl-box"><table class="pl-cal"><thead><tr>${dn.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
+  const start=fqParse(row.start_date), endK=row.end_date;
+  for(let w=fqMondayOf(start); fqKey(w)<=endK; w.setDate(w.getDate()+7)){
+    h+='<tr>';
+    for(let i=0;i<7;i++){
+      const d=new Date(w); d.setDate(d.getDate()+i); const k=fqKey(d);
+      if(k<row.start_date||k>endK){ h+=`<td class="pl-off"></td>`; continue; }
+      if(isClosed(d)||outOfRange(d)){ h+=`<td class="pl-off"><span class="pl-dn">${d.getDate()}/${d.getMonth()+1}</span><small>fermé</small></td>`; continue; }
+      const ev=items.filter(it=>it.k===k).map(it=>{
+        const st=plItemStatus(it), lab={km:'M',ka:'A',mm:'M',ma:'A'}[it.c];
+        return `<div class="pl-ev ${st.cls}" title="${esc(PL_LAB[it.c]+' — '+it.cell.n.length+' athlète(s) — '+st.t)}">${plItemIcon(it)} ${lab} <b>${esc(plItemHour(it))}</b> · ${it.cell.n.length}</div>`;
+      }).join('');
+      h+=`<td><span class="pl-dn">${d.getDate()}/${d.getMonth()+1}</span>${ev||'<small style="color:var(--text3)">repos</small>'}</td>`;
+    }
+    h+='</tr>';
+  }
+  h+=`</tbody></table></div><p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">M = matin · A = après-midi · 🛶 kayak · 🏄 Kayak Cross · 💪 muscu · le chiffre = nombre d'athlètes. Vert : inscrit · orange : partiel · bleu : prévu / horaire attribué, pas encore inscrit.</p>`;
+  // — liste détaillée —
+  h+=`<details class="pl-det" open><summary>📋 Toutes les séances (${items.length})</summary><div class="pl-box" style="margin-top:6px"><table class="pl-table pl-sumtab"><thead><tr><th class="pl-ath">Jour</th><th>Séance</th><th>Horaire</th><th>Athlètes</th><th>Statut</th></tr></thead><tbody>`;
+  items.forEach(it=>{
+    const st=plItemStatus(it), wish=(it.cell.h&&it.cell.a&&it.cell.h!==it.cell.a)?` <small style="color:var(--text3)">(souhaité ${esc(it.cell.h)})</small>`:'';
+    h+=`<tr><td class="pl-name">${esc(fd(it.k))}</td><td>${plItemIcon(it)} ${esc(PL_LAB[it.c])}</td><td><b>${esc(plItemHour(it))}</b>${wish}</td><td style="text-align:left;font-size:.76rem">${it.cell.n.length===PL.names.length?`Tout le groupe (${it.cell.n.length})`:esc(it.cell.n.join(', '))}</td><td><span class="pl-st ${st.cls}">${st.e} ${esc(st.t)}</span></td></tr>`;
+  });
+  h+=`</tbody></table></div></details>
+    <div class="pl-bar"><button class="btn btn-sm" onclick="plPrint()">🖨️ Imprimer / PDF</button></div>`;
+  body.innerHTML=h;
+}
+function plRegisteredFor(it,name){
+  const nm=plNorm(name), kayak=plIsKayak(it.c), act=kayak?'kayak':'muscu';
+  return it.reg.places.some(p=>getSlot(it.k,p.slot,act).some(r=>plNorm(r.name)===nm));
+}
+function plPrint(){
+  const row=PL.cur, items=plItems(); if(!row||!items.length) return;
+  const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+  let h=`<div class="print-title">📅 Planning prévisionnel — ${esc(row.g||'')}</div>
+    <div class="print-sub">Stage du ${fqParse(row.start_date).toLocaleDateString('fr-FR')} au ${fqParse(row.end_date).toLocaleDateString('fr-FR')} · édité le ${new Date().toLocaleDateString('fr-FR')}</div>
+    <table class="print-sheet"><thead><tr><th>Jour</th><th>Séance</th><th>Horaire</th><th>Athlètes</th><th>Statut</th></tr></thead><tbody>`;
+  items.forEach(it=>{ const st=plItemStatus(it);
+    h+=`<tr><td>${esc(fmt(it.k))}</td><td>${plItemIcon(it)} ${esc(PL_LAB[it.c])}</td><td><b>${esc(plItemHour(it))}</b></td><td>${it.cell.n.length===PL.names.length?'Tout le groupe ('+it.cell.n.length+')':esc(it.cell.n.join(', '))}</td><td>${st.e} ${esc(st.t)}</td></tr>`; });
+  h+=`</tbody></table>`;
+  document.getElementById('printArea').innerHTML=h;
+  const st=document.createElement('style'); st.id='plPrintStyle'; st.textContent='@page{size:landscape;margin:10mm}'; document.head.appendChild(st);
+  window.addEventListener('afterprint',()=>{ st.remove(); },{once:true});
+  window.print();
+}
+
+// ── Onglet « Inscrire depuis le prévisionnel » (admin) : quick registration à partir du tableau ──
+// Règles : l'horaire attribué prime sur le souhaité ; la priorité des créneaux est respectée (un créneau n'est
+// utilisé que si les précédents de la demi-journée sont pleins) ; si un créneau est plein, le reste du groupe
+// passe sur le suivant dans l'ordre de priorité. « Forcer » ignore priorité et capacité.
+function plFree(k,s,act,added){ return cap(s,k,act)-getSlot(k,s,act).length-(added[act+'|'+k+'|'+s]||0); }
+function plBuildApply(force){
+  const items=[], added={};
+  for(const k of PL.days){
+    for(const [c,,kind,half] of PL_COLS){
+      const cell=PL.data[k]&&PL.data[k][c]; if(!cell||!cell.n||!cell.n.length) continue;
+      const act=kind==='muscu'?'muscu':'kayak';
+      const it={k,c,act,names:[...cell.n],placements:[],unplaced:[],dups:0,notes:[],kx:!!cell.kx&&act==='kayak',wish:cell.h||'',assigned:cell.a||'',target:''};
+      let target=cell.a||cell.h||'';
+      // Kayak Cross : créneau attribué obligatoire, séance isolée du slalom
+      if(act==='kayak' && !it.kx && target && isKayakCross(k,target)) it.kx=true;
+      let chain;
+      if(act==='muscu') chain=plHalfSlots(k,c);
+      else if(it.kx) chain = cell.a ? [cell.a] : [];
+      else chain=(half==='am'?morningSlots(k):afternoonSlots(k)).filter(s=>!isKayakCross(k,s)&&!getKayakSlotCfg(k,s).blocked);
+      if(it.kx && !chain.length){ it.unplaced=[...it.names]; it.notes.push('Choisis le créneau attribué du Kayak Cross'); items.push(it); continue; }
+      if(!chain.length){ it.unplaced=[...it.names]; it.notes.push('Aucun créneau ouvert'); items.push(it); continue; }
+      if(target && !chain.includes(target)){ it.notes.push(`${target} indisponible (bloqué ou Kayak Cross)`); target=''; }
+      let ti = target ? chain.indexOf(target) : chain.findIndex(s=>plFree(k,s,act,added)>0);
+      if(ti<0) ti=0;
+      // priorité : on ne passe à un créneau suivant que si les précédents sont pleins
+      if(act==='kayak' && !it.kx && !force && isPriorityActive(k)){
+        const ff=chain.findIndex(s=>plFree(k,s,act,added)>0);
+        if(ff>=0 && ti>ff){ it.notes.push(`Priorité : ${chain[ti]} → ${chain[ff]} (créneau précédent pas plein)`); ti=ff; }
+      }
+      it.target=chain[ti];
+      // déjà inscrits ?
+      const dupOf=n=>{
+        if(it.kx && !isKayakCross(k,chain[0])) return getSlot(k,chain[0],act).some(r=>plNorm(r.name)===plNorm(n));
+        return alreadyRegisteredInCategory(k,chain[0],act,n);
+      };
+      let remaining=it.names.filter(n=>{ if(dupOf(n)){ it.dups++; return false; } return true; });
+      if(it.kx && !isKayakCross(k,chain[0])){
+        const ex=getSlot(k,chain[0],act).length; if(ex) it.notes.push(`⚠️ ${chain[0]} contient déjà ${ex} inscrit(s) slalom : il deviendra Kayak Cross`);
+      }
+      for(let x=ti; x<chain.length && remaining.length; x++){
+        const s=chain[x];
+        const f = (force&&x===ti) ? remaining.length : Math.max(0,plFree(k,s,act,added));
+        const take=remaining.splice(0,Math.min(f,remaining.length));
+        if(take.length){ it.placements.push({slot:s,names:take}); added[act+'|'+k+'|'+s]=(added[act+'|'+k+'|'+s]||0)+take.length; }
+      }
+      it.unplaced=remaining;
+      items.push(it);
+    }
+  }
+  return {items,force};
+}
+async function plRenderApply(){
+  const body=PL.host&&PL.host.querySelector('.pl-body'); if(!body) return;
+  body.innerHTML=`<p style="font-size:.85rem;color:var(--text3)">⏳ Calcul des inscriptions…</p>`;
+  try{ await load(); }catch(e){ console.warn(e); }
+  if(!PL.host||PL.view!=='apply') return;
+  PL.apply=plBuildApply(PL.force);
+  plDrawApply();
+}
+function plForce(v){ PL.force=!!v; PL.apply=plBuildApply(PL.force); plDrawApply(); }
+function plDrawApply(){
+  const body=PL.host&&PL.host.querySelector('.pl-body'), A=PL.apply; if(!body||!A) return;
+  const fd=k=>fqParse(k).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+  const seats=A.items.reduce((a,i)=>a+i.placements.reduce((b,p)=>b+p.names.length,0),0);
+  const unp=A.items.reduce((a,i)=>a+i.unplaced.length,0), dups=A.items.reduce((a,i)=>a+i.dups,0);
+  const kxNew=A.items.filter(i=>i.kx&&i.placements.length&&!isKayakCross(i.k,i.placements[0].slot)).length;
+  let h=`<p style="font-size:.8rem;color:var(--text3);margin:0 0 8px">Aperçu des inscriptions qui seront créées à partir du prévisionnel de <b>${esc(PL.cur.g||'')}</b> (équivalent de l'inscription rapide, pour tout le stage). Rien n'est enregistré tant que tu n'as pas confirmé.</p>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:.8rem;margin-bottom:8px;cursor:pointer"><input type="checkbox" ${PL.force?'checked':''} onchange="plForce(this.checked)" style="margin-top:3px"> <span><b>Forcer l'horaire attribué</b> : ignorer la priorité des créneaux et la capacité (dépassement possible).</span></label>
+    <div class="pl-chips">
+      <span class="pl-chip">✅ <b>${seats}</b> inscription(s) à créer</span>
+      ${unp?`<span class="pl-chip" style="background:#fee2e2">❌ <b>${unp}</b> non placée(s)</span>`:''}
+      ${dups?`<span class="pl-chip">ℹ️ ${dups} déjà inscrit(s) ignoré(s)</span>`:''}
+      ${kxNew?`<span class="pl-chip">🏄 ${kxNew} créneau(x) passeront en Kayak Cross</span>`:''}
+    </div>`;
+  if(!A.items.length) h+=`<p style="font-size:.85rem;color:var(--text3)">Aucune séance planifiée : coche des athlètes dans l'onglet « Planning ».</p>`;
+  else{
+    h+=`<div class="pl-box"><table class="pl-table pl-sumtab"><thead><tr><th class="pl-ath">Jour</th><th>Séance</th><th>Souhaité → Attribué</th><th>Résultat</th><th>Remarques</th></tr></thead><tbody>`;
+    A.items.forEach(it=>{
+      const res=it.placements.map(p=>`${esc(p.slot)} <b>×${p.names.length}</b>`).join(' · ');
+      const ico=it.unplaced.length?(it.placements.length?'⚠️':'❌'):(it.placements.length?'✅':'ℹ️');
+      const notes=[...it.notes]; if(it.unplaced.length) notes.push(`${it.unplaced.length} athlète(s) non placé(s)`); if(it.dups) notes.push(`${it.dups} déjà inscrit(s)`);
+      h+=`<tr><td class="pl-name">${esc(fd(it.k))}</td><td>${it.kx?'🏄':(it.act==='muscu'?'💪':'🛶')} ${esc(PL_LAB[it.c])}</td><td>${esc(it.wish||'—')} → <b>${esc(it.assigned||'auto')}</b></td><td>${ico} ${res||'—'}</td><td style="text-align:left;font-size:.74rem">${esc(notes.join(' · '))}</td></tr>`;
+    });
+    h+=`</tbody></table></div>`;
+  }
+  h+=`<div class="pl-bar">
+      <button class="btn btn-sm btn-primary" ${seats?'':'disabled'} onclick="plConfirmApply()">✅ Confirmer : inscrire ${seats} place(s)</button>
+      <button class="btn btn-sm" onclick="plRenderApply()">↻ Recalculer</button>
+      <button class="btn btn-sm" onclick="plView('plan')">← Retour au planning</button>
+    </div><p class="pl-msg" style="font-size:.78rem;min-height:1em;margin:6px 0 0"></p>`;
+  body.innerHTML=h;
+}
+async function plConfirmApply(){
+  const A=PL.apply, row=PL.cur; if(!S.isAdmin||!A||!row) return;
+  const seats=A.items.reduce((a,i)=>a+i.placements.reduce((b,p)=>b+p.names.length,0),0);
+  if(!seats){ toast('Rien à inscrire.','error'); return; }
+  if(!confirm(`Inscrire ${seats} place(s) sur ${A.items.filter(i=>i.placements.length).length} séance(s) ?`)) return;
+  const msg=PL.host.querySelector('.pl-msg');
+  try{
+    if(PL.dirty){ const ok=await plSave(); if(ok===false) return; }
+    let gid=row.group_id;
+    if(!gid){ gid=fqUuid(); const r=await sb.from('frise_periods').update({group_id:gid}).eq('id',row.id); if(r.error) throw r.error; row.group_id=gid; }
+    // 1. créneaux Kayak Cross
+    let kxChanged=false;
+    A.items.filter(i=>i.kx&&i.placements.length).forEach(i=>{
+      const s=i.placements[0].slot;
+      if(!isKayakCross(i.k,s)){ if(!S.kayakCross) S.kayakCross={}; (S.kayakCross[i.k] ||= {})[s]=true; kxChanged=true; }
+    });
+    if(kxChanged) await saveConfig();
+    // 2. inscriptions
+    const rows=[];
+    A.items.forEach(it=>it.placements.forEach(p=>p.names.forEach(n=>rows.push({
+      date:it.k, creneau:p.slot, nom:n, role:'Athlète', user_id:row.user_id||S.session.user.id, group_id:gid, referent_name:row.owner_name||'',
+      kayak_rental:false, kayak_model:null, dossard:null, nationalite:null, activity:it.act }))));
+    for(let a=0;a<rows.length;a+=200){
+      const ins=await sbInsertMany(rows.slice(a,a+200));
+      ins.forEach(r=>getSlot(r.date,r.creneau,r.activity||'kayak').push({ name:r.nom, role:r.role, _id:r.id, user_id:r.user_id, group_id:r.group_id, referent:r.referent_name, rental:r.kayak_rental, kayakModel:r.kayak_model, dossard:r.dossard, nationality:r.nationalite }));
+    }
+    toast(`✅ ${rows.length} inscription(s) créée(s)${kxChanged?' · Kayak Cross activé':''}.`,'success');
+    PL.view='sum'; plRender();
+    try{ renderDayPanel(); renderCal(); }catch(e){}
+  }catch(e){
+    console.error(e);
+    if(msg){ msg.style.color='var(--red)'; msg.textContent='Erreur : '+(e&&e.message||e); }
+    toast('Erreur : '+(e&&e.message||e),'error');
+  }
+}
+
 // Carte intégrée à la page « Ma team » (partie utilisateur)
 async function plInitInline(){
   const card=document.getElementById('plCard'), host=document.getElementById('plHostInline');
