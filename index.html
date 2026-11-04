@@ -495,6 +495,10 @@ header .user-pill { color: #fff; }
 .pg-cell{padding-left:9px;}
 @media (max-width:700px){ .page-tab{font-size:.74rem !important; padding:8px 11px !important; letter-spacing:0 !important;} }
 
+
+#adminPendingBanner { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#dc2626; color:#fff; padding:10px 16px; font-size:.9rem; animation:pgPulse 1.8s ease-in-out infinite; position:relative; z-index:40; }
+#adminPendingBanner .btn { background:#fff; color:#b91c1c; font-weight:800; }
+@keyframes pgPulse { 0%,100% { background:#dc2626; } 50% { background:#b91c1c; } }
 </style>
 
 </head>
@@ -1613,6 +1617,7 @@ const TR = {
     costDateCol:'Date', costNameCol:'Nom Prénom', costTypeCol:'Séance', costPriceCol:'Tarif',
     costGrandTotal:'Total général',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Musculation', typeWithRental:'+ location',
+    qrPickDayFirst:'Choisis d\'abord un ou plusieurs jours ci-dessus.',
     navQuickReg:'Inscription rapide', navTeam:'Mon équipe', navPlanning:'Inscription séances', navAthletes:'Base athlètes',
     teamTitle:'📜 Historique de mes inscriptions', teamGroupLabel:'Groupe',
     teamSub:'Retrouvez ici le nom, prénom et le groupe de chaque athlète que vous avez inscrit sur le planning.',
@@ -1781,6 +1786,7 @@ const TR = {
     costDateCol:'Date', costNameCol:'Full name', costTypeCol:'Session', costPriceCol:'Price',
     costGrandTotal:'Grand total',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Weight room', typeWithRental:'+ rental',
+    qrPickDayFirst:'First pick one or more days above.',
     navQuickReg:'Quick registration', navTeam:'My team', navPlanning:'Session registration', navAthletes:'Athletes database',
     teamTitle:'📜 My registration history', teamGroupLabel:'Group',
     teamSub:'Here you can find the name and the group of every athlete you have registered on the planning.',
@@ -2129,7 +2135,7 @@ function friseAllows(name,dateK){
   return friseWindows(name).some(w=>dateK>=w.from&&dateK<=w.to);
 }
 function friseInfo(name){
-  const w=friseWindows(name); const f=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  const w=friseWindows(name); const f=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
   return w.length ? w.map(x=>`${f(x.from)} → ${f(x.to)}`).join(' · ') : '';
 }
 function fqIsMine(p){ return !!(S.session && p.user_id===S.session.user.id); }
@@ -2231,7 +2237,7 @@ function fqRenderTimeline(){
   for(let d=new Date(START.getFullYear(),START.getMonth(),1); d<=END; d=new Date(d.getFullYear(),d.getMonth()+1,1)){
     const from=Math.max(0,fqDayIdx(fqKey(d)));
     const to=Math.min(total,fqDayIdx(fqKey(new Date(d.getFullYear(),d.getMonth()+1,1))));
-    months+=`<div style="position:absolute;left:${from*FQ_DAYW}px;width:${(to-from)*FQ_DAYW}px;height:100%;border-left:1px solid var(--border);box-sizing:border-box;padding:4px 6px;font-size:.78rem;font-weight:700;overflow:hidden;white-space:nowrap">${d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</div>`;
+    months+=`<div style="position:absolute;left:${from*FQ_DAYW}px;width:${(to-from)*FQ_DAYW}px;height:100%;border-left:1px solid var(--border);box-sizing:border-box;padding:4px 6px;font-size:.78rem;font-weight:700;overflow:hidden;white-space:nowrap">${d.toLocaleDateString(LOCALE(),{month:'long',year:'numeric'})}</div>`;
   }
   const loads=[]; let maxLoad=1;
   for(let w=0; w*7<total; w++){
@@ -2242,10 +2248,10 @@ function fqRenderTimeline(){
   let weeks='';
   loads.forEach((load,w)=>{
     const wd=new Date(START); wd.setDate(wd.getDate()+w*7);
-    weeks+=`<div title="Semaine du ${wd.toLocaleDateString('fr-FR')} : ${load} athlète(s)" style="position:absolute;left:${w*7*FQ_DAYW}px;width:${7*FQ_DAYW}px;height:100%;box-sizing:border-box;border-left:1px solid #e5e7eb;text-align:center;font-size:.7rem;line-height:26px;background:rgba(37,99,235,${load?0.08+0.45*load/maxLoad:0});font-weight:${load?700:400};color:${load?'#1e3a8a':'#9ca3af'}">${load||''}</div>`;
+    weeks+=`<div title="Semaine du ${wd.toLocaleDateString(LOCALE())} : ${load} athlète(s)" style="position:absolute;left:${w*7*FQ_DAYW}px;width:${7*FQ_DAYW}px;height:100%;box-sizing:border-box;border-left:1px solid #e5e7eb;text-align:center;font-size:.7rem;line-height:26px;background:rgba(37,99,235,${load?0.08+0.45*load/maxLoad:0});font-weight:${load?700:400};color:${load?'#1e3a8a':'#9ca3af'}">${load||''}</div>`;
   });
   const grid=`background-image:linear-gradient(to right,#eef0f3 1px,transparent 1px);background-size:${7*FQ_DAYW}px 100%`;
-  const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  const fmt=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
   let rows='';
   if(!periods.length) rows=`<div style="padding:16px;color:var(--text3);font-size:.85rem">Aucun groupe déclaré pour le moment.</div>`;
   periods.forEach(p=>{
@@ -2488,7 +2494,7 @@ const FQ_HALF={am:' matin',pm:' ap.-midi',mu:' muscu'};
 function fqDetail(id){
   const p=FQ.rows.find(x=>x.id===id); if(!p) return;
   FQ.cur=p;
-  const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'long'});
+  const fmt=k=>fqParse(k).toLocaleDateString(LOCALE(),{weekday:'short',day:'numeric',month:'long'});
   const sm=p.summary||{}, st=fqStatus(p), aths=fqAths(p);
   const flag=(a)=>[a.am?'🌅':'',a.pm?'🌇':'',a.mu?'💪':''].join(' ').trim();
   document.getElementById('fqDTitle').textContent=`${st.icon} ${p.g||'Groupe'}`;
@@ -2504,7 +2510,7 @@ function fqDetail(id){
     h+=`<ul style="margin:0 0 6px;padding-left:18px">
       <li>✅ ${sm.sessions||0} séance(s) inscrite(s) directement (${sm.seats||0} inscriptions individuelles)</li>
       ${sm.requested?`<li>🕓 ${sm.requested} séance(s) sur créneau suivant : demande envoyée à l'admin, à valider</li>`:''}
-      ${(sm.unplaced||[]).length?`<li>⚠️ ${sm.unplaced.length} séance(s) non placée(s) (créneaux complets ou fermés) : ${esc(sm.unplaced.slice(0,6).map(u=>fqParse(u.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+(FQ_HALF[u.half]||'')).join(', '))}${sm.unplaced.length>6?'…':''}</li>`:''}
+      ${(sm.unplaced||[]).length?`<li>⚠️ ${sm.unplaced.length} séance(s) non placée(s) (créneaux complets ou fermés) : ${esc(sm.unplaced.slice(0,6).map(u=>fqParse(u.date).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'})+(FQ_HALF[u.half]||'')).join(', '))}${sm.unplaced.length>6?'…':''}</li>`:''}
       ${sm.dups?`<li>ℹ️ ${sm.dups} inscription(s) déjà existante(s) ignorée(s)</li>`:''}
       ${sm.error?`<li style="color:var(--red)">❌ ${esc(sm.error)}</li>`:''}
       ${sm.requestError?`<li style="color:var(--red)">❌ Demandes non enregistrées : ${esc(sm.requestError)}</li>`:''}
@@ -2549,7 +2555,7 @@ function fqFcOpen(id){
   FC.cur=row; FC.names=fqFcNames(row);
   const saved=(FC.rows[row.id]&&FC.rows[row.id].data)||{};
   FC.sel={}; FC.names.forEach(n=>{ FC.sel[n]={...(saved[n]||{})}; });
-  const f=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  const f=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
   document.getElementById('fqFcTitle').textContent=`📊 Prévisionnel — ${row.g||''} (${f(row.start_date)} → ${f(row.end_date)})`;
   document.getElementById('fqFcErr').textContent=FC.ok?'':'La table « frise_forecast » doit être créée dans Supabase (voir le SQL fourni).';
   closeModal('fqDetailModal');
@@ -2585,7 +2591,7 @@ function fqRenderForecast(){
   if(!FC.monday){ const t=new Date(); FC.monday=fqMondayOf((t<START||t>END)?START:t); }
   const days=[...Array(7)].map((_,i)=>{ const d=new Date(FC.monday); d.setDate(d.getDate()+i); return d; });
   const dn=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-  const fmt=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+  const fmt=d=>d.toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
   let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <b>📊 Prévisionnel de séances</b>
     <button class="btn btn-sm" onclick="fqFcShift(-1)">◀</button><span style="font-size:.85rem">semaine du ${fmt(days[0])} au ${fmt(days[6])}</span><button class="btn btn-sm" onclick="fqFcShift(1)">▶</button>
@@ -2614,10 +2620,10 @@ function fqRenderForecast(){
 // ── Impression / PDF de la frise (le navigateur propose « Enregistrer au format PDF ») ──
 function fqPrint(){
   const rows=[...FQ.rows].sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
-  const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
+  const fmt=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short',year:'numeric'});
   const tick=v=>v?'✔':'';
   let h=`<div class="print-title">🧭 Inscription des TEAM saison 2026 - 2027 — Winter Training Réunion</div>
-    <div class="print-sub">Édité le ${new Date().toLocaleDateString('fr-FR')}</div>`;
+    <div class="print-sub">Édité le ${new Date().toLocaleDateString(LOCALE())}</div>`;
   if(!rows.length) h+='<p class="print-empty">Aucun groupe déclaré.</p>';
   else{
     h+=`<table class="print-sheet"><thead><tr><th>Réservation</th><th>Groupe</th><th>Référent</th><th>Du</th><th>Au</th><th>Athlètes</th><th>Kayak matin</th><th>Kayak ap.-midi</th><th>Muscu</th><th>État</th></tr></thead><tbody>`;
@@ -3611,12 +3617,464 @@ function renderAdminTeams(){
 }
 
 
-function toggleLang(){ LANG = LANG==='fr'?'en':'fr'; applyI18n(); render(); }
+// ══════════════════════════════════════════════════════════════
+//  Anglais : traduction des textes écrits en dur (en plus du dictionnaire TR)
+//  - EN_PHRASES : phrase exacte → traduction
+//  - EN_RULES   : motifs avec nombres / noms → traduction
+//  Appliqué au DOM (texte, placeholder, title), aux toasts et aux confirm().
+// ══════════════════════════════════════════════════════════════
+function L(fr, en){ return LANG==='en' ? en : fr; }
+function LOCALE(){ return LANG==='en' ? 'en-GB' : 'fr-FR'; }
+
+var EN_PHRASES = {
+  // connexion / écrans
+  "Mot de passe oublié ?":"Forgot your password?",
+  "Envoyer le lien de réinitialisation":"Send reset link",
+  "Accès suspendu":"Access suspended",
+  "👁️ Mode consultation — tu peux voir le planning mais pas t'inscrire ni modifier d'inscriptions.":"👁️ View-only mode — you can see the schedule but cannot register or change registrations.",
+  "Inscription des TEAM saison 2026 - 2027":"TEAM registration season 2026 - 2027",
+  "🧭 Inscription des TEAM saison 2026 - 2027":"🧭 TEAM registration season 2026 - 2027",
+  "Fermer":"Close", "✕ Fermer":"✕ Close", "Annuler":"Cancel", "Ajouter":"Add", "+ Ajouter":"+ Add",
+  "7 jours":"7 days", "14 jours":"14 days", "30 jours":"30 days",
+  // demandes d'accès / profil
+  "🔐 Demandes d'accès":"🔐 Access requests",
+  "➕ Créer un accès directement":"➕ Create an account directly",
+  "Renseigne l'email de la personne : un compte est créé avec un mot de passe provisoire qui lui sera envoyé par email. Elle pourra ensuite se connecter et changer son mot de passe (Mon profil → Changer le mot de passe).":"Enter the person's email: an account is created with a temporary password sent by email. They can then log in and change it (My profile → Change password).",
+  "Rôle :":"Role:",
+  "Référent — peut s'inscrire et modifier":"Referent — can register and edit",
+  "Lecture seule — visuel du site uniquement":"Read-only — can only view the site",
+  "Créer l'accès":"Create account",
+  "✅ Validés":"✅ Approved", "🚫 Bloqués":"🚫 Blocked",
+  "👥 Récapitulatif par utilisateur":"👥 Summary by user",
+  "📇 Coordonnées de mon groupe / club":"📇 My group / club details",
+  "Ces informations apparaîtront sur la facture générée dans la feuille de suivi.":"This information will appear on the invoice generated in the attendance sheet.",
+  "🔒 Changer mon mot de passe":"🔒 Change my password",
+  "Nouveau mot de passe":"New password",
+  "Mettre à jour le mot de passe":"Update password",
+  // frise = inscription des teams
+  "Tu gères la frise : pour chaque demande, saisis le nom du groupe, ses athlètes et la période sur laquelle ils viennent. Les athlètes ne peuvent ensuite s'inscrire (inscription rapide) que sur les jours de leur période. Tu peux aussi inscrire le groupe automatiquement sur les créneaux (kayak matin / après-midi, muscu).":"You manage the team schedule: for each request, enter the group name, its athletes and the period they are coming. Athletes can then only register on the days of their period. You can also register the group automatically on the sessions (morning / afternoon kayak, gym).",
+  "Restreindre l'inscription des athlètes à leur période":"Restrict athlete registration to their period",
+  ": un athlète ne peut s'inscrire que sur les jours des périodes où il figure.":": an athlete can only register on the days of the periods they are part of.",
+  "➕ Ajouter un groupe":"➕ Add a group",
+  "📊 Mon prévisionnel de séances":"📊 My session forecast",
+  "Mois":"Month", "Athlètes / semaine":"Athletes / week",
+  "Aucun groupe déclaré pour le moment.":"No group declared yet.",
+  "📊 Prévisionnel de séances":"📊 Session forecast",
+  "🌅 Kayak matin":"🌅 Morning kayak", "🌇 Kayak après-midi":"🌇 Afternoon kayak", "💪 Muscu matin":"💪 Morning gym", "💪 Muscu après-midi":"💪 Afternoon gym",
+  "Nombre d'athlètes prévus par séance, tous groupes confondus (survole une case pour le détail par groupe). Prévisionnel indicatif : il n'inscrit personne.":"Number of athletes planned per session, all groups combined (hover a cell for the per-group detail). Indicative forecast: it does not register anyone.",
+  "Légende : ✅ réservation confirmée · ❌ date non confirmée · 🕓 demande de créneau en attente de validation de l'admin · ⚠️ des séances n'ont pas pu être placées · 🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu":"Legend: ✅ booking confirmed · ❌ date not confirmed · 🕓 session request awaiting admin approval · ⚠️ some sessions could not be placed · 🌅 morning kayak · 🌇 afternoon kayak · 💪 gym",
+  "Nom du groupe *":"Group name *", "Du *":"From *", "Athlètes *":"Athletes *",
+  "(au moins une case cochée par athlète du groupe ; les colonnes servent à l'inscription automatique)":"(at least one box ticked per group athlete; the columns are used for automatic registration)",
+  "Les cases cochées sont inscrites sur chaque jour ouvert de la période. En-tête de colonne = tout cocher pour la team.":"Ticked boxes are registered on every open day of the period. Column header = tick all for the team.",
+  "🔗 Groupe lié à une team : le nom et les athlètes suivent automatiquement la team (Base athlètes › Gestion des teams). Tu peux modifier ici les dates.":"🔗 Group linked to a team: the name and athletes automatically follow the team (Athletes database › Team management). You can change the dates here.",
+  "Réservation":"Booking",
+  "Inscrire aussi automatiquement sur les créneaux":"Also register automatically on the sessions",
+  "(cases cochées du tableau). Décoché : le groupe est seulement enregistré dans la frise et les athlètes s'inscrivent eux-mêmes sur leur période.":"(ticked boxes of the table). Unticked: the group is only saved in the schedule and athletes register themselves on their period.",
+  "✅ Valider et inscrire automatiquement":"✅ Confirm and register automatically",
+  "📊 Prévisionnel":"📊 Forecast",
+  "Coche pour chaque athlète les séances prévues. Elles s'appliquent à chaque jour ouvert de la période du groupe. C'est un prévisionnel : il n'inscrit personne, il aide à anticiper la fréquentation.":"Tick the planned sessions for each athlete. They apply to every open day of the group's period. This is a forecast: it does not register anyone, it helps anticipate attendance.",
+  "💾 Enregistrer le prévisionnel":"💾 Save forecast",
+  "🗑 Supprimer":"🗑 Delete", "✏️ Modifier":"✏️ Edit",
+  "📅 Stage du":"📅 Stay from", "✅ Réservation confirmée":"✅ Booking confirmed", "❌ Date non confirmée":"❌ Date not confirmed",
+  // inscription rapide
+  "athlète(s) sélectionné(s)":"athlete(s) selected", "Tout décocher":"Untick all", "Athlète":"Athlete",
+  "➕ Ajouter une personne d'un autre groupe (base athlètes)":"➕ Add a person from another group (athletes database)",
+  // planning (grille)
+  "🖨️ Print week (aperçu compact)":"🖨️ Print week (compact preview)",
+  "🖨️ Imprimer la semaine (aperçu compact)":"🖨️ Print week (compact preview)",
+  "🖨️ Feuilles d'émargement (semaine, lignes vides)":"🖨️ Attendance sheets (week, blank lines)",
+  "🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits.":"🛠 Admin: click a session to block it, tag it (CRRCK / CLUB), change its capacity or time, and manage registrants.",
+  "☑ Sélection multiple":"☑ Multi-select",
+  "👆 Clique toutes les séances voulues (même sur plusieurs semaines), puis « Inscrire ma team ».":"👆 Click all the sessions you want (even across several weeks), then « Register my team ».",
+  "👆 Clique sur une séance pour y inscrire ta team, ou active la sélection multiple.":"👆 Click a session to register your team, or turn on multi-select.",
+  "ordre de priorité":"priority order",
+  "dans la demi-journée : un créneau s'ouvre quand les précédents sont complets ·":"within the half-day: a slot opens when the previous ones are full ·",
+  "rouge = pas ouvert":"red = not open",
+  "(bloqué ou en attente de priorité)":"(blocked or waiting for priority)",
+  "= séance de kayak cross (fond orange, toujours ouverte, hors priorité)":"= kayak cross session (orange background, always open, outside priority)",
+  "↔ Glisse pour parcourir toute la saison":"↔ Swipe to browse the whole season",
+  "📍 Aujourd'hui":"📍 Today",
+  "🔒 Pas encore ouvert":"🔒 Not open yet", "🚫 Bloqué":"🚫 Blocked", "Vide":"Empty",
+  "Horaires":"Times", "Week-end":"Weekend",
+  // fiches séance
+  "Statut":"Status", "✅ Ouvert":"✅ Open", "Étiquette":"Label", "Aucune":"None", "Type de séance":"Session type",
+  "Nombre max de pratiquants (ce jour)":"Max participants (this day)",
+  "Horaire de la séance (ce jour)":"Session time (this day)",
+  "💾 Enregistrer la séance":"💾 Save session",
+  "Aucun inscrit.":"No one registered.", "Aucun inscrit pour l'instant.":"No one registered yet.",
+  "🗑 Vider la séance":"🗑 Clear session",
+  "➕ Ajouter une team entière":"➕ Add a whole team",
+  "➕ Ajouter un athlète de la base":"➕ Add an athlete from the database",
+  "Aucune team avec athlètes":"No team with athletes",
+  "Aucun athlète à inscrire":"No athlete to register",
+  "✓ déjà inscrit(e)":"✓ already registered", "⛔ hors période de la frise":"⛔ outside the schedule period", "⛔ pas dans la frise":"⛔ not in the schedule",
+  "🚫 Séance bloquée par l'administrateur.":"🚫 Session blocked by the administrator.",
+  "⏳ Séance pas encore ouverte : les créneaux s'ouvrent selon l'ordre de priorité.":"⏳ Session not open yet: slots open following the priority order.",
+  "✅ Inscrire":"✅ Register", "✅ Inscrire ma team":"✅ Register my team",
+  "✅ Inscrire sur ces séances":"✅ Register on these sessions",
+  "Les séances bloquées, déjà inscrites, hors période de la frise ou sans place sont ignorées et signalées.":"Blocked sessions, already registered ones, those outside the schedule period or without space are skipped and reported.",
+  "Inscription…":"Registering…", "Tout effacer":"Clear all", "Quitter":"Exit",
+  "Inscrire ma team":"Register my team", "Gérer cette séance":"Manage this session", "Sélectionner":"Select",
+  // admin planning
+  "🚣 Blocage & étiquette (CRRCK / CLUB) — Eaux vives":"🚣 Blocking & label (CRRCK / CLUB) — Whitewater",
+  "Coche un ou plusieurs jours dans le mini-calendrier pour appliquer le même blocage/label/capacité/horaire à tous en une fois (évite de répéter jour par jour). Sans sélection, la carte affiche le jour choisi dans le calendrier principal. Applicable immédiatement.":"Tick one or more days in the mini-calendar to apply the same block/label/capacity/time to all of them at once (no need to repeat day by day). With no selection, the card shows the day chosen in the main calendar. Applied immediately.",
+  "Tout désélectionner":"Deselect all",
+  "Aucun jour coché — la carte affiche le jour du calendrier principal.":"No day ticked — the card shows the day of the main calendar.",
+  "— Aucun label":"— No label", "🕐 Horaires de ce jour":"🕐 Times for this day", "(par défaut)":"(default)",
+  "Après-midi":"Afternoon", "🌇 Après-midi":"🌇 Afternoon", "+ Ajouter un créneau":"+ Add a slot",
+  "Astuce : clique sur 🕐 Horaire à côté d'un créneau ci-dessus pour le renommer.":"Tip: click 🕐 Time next to a slot above to rename it.",
+  "🕐 Horaires des créneaux de musculation":"🕐 Gym session times",
+  "Ajoute, renomme ou supprime les créneaux horaires (ex: \"7h30-9h00\"). Les 4 premiers créneaux comptent comme le matin, le reste comme l'après-midi (impression, planning).":"Add, rename or delete time slots (e.g. \"7h30-9h00\"). The first 4 slots count as morning, the rest as afternoon (printing, schedule).",
+  "🕐 Horaires personnalisés par date":"🕐 Custom times by date",
+  "Clique sur un jour ci-dessous pour modifier ses horaires (comme dans l'inscription rapide). Laisse vide = horaires par défaut. La priorité des inscriptions reste basée sur le nombre d'inscrits déjà présents sur chaque créneau — changer les horaires ne l'affecte pas.":"Click a day below to change its times (as in quick registration). Leave empty = default times. Registration priority is still based on the number of people already registered on each slot — changing times does not affect it.",
+  "= jour avec horaires personnalisés déjà définis.":"= day with custom times already set.",
+  "Aller à cette date":"Go to this date",
+  "💾 Enregistrer ces horaires":"💾 Save these times",
+  "🗑 Supprimer (revenir aux horaires par défaut)":"🗑 Delete (back to default times)",
+  "Aucun horaire personnalisé défini.":"No custom times set.",
+  // suivi
+  "📝 Feuille de suivi des présences":"📝 Attendance tracking sheet",
+  "Coche par personne, par jour, qui est venu sur la séance normale, le kayak cross, la location kayak cross, ou la musculation. Le total (séances + montant) se calcule automatiquement en bas.":"Tick for each person and each day who came to the normal session, kayak cross, kayak cross rental, or gym. The total (sessions + amount) is calculated automatically at the bottom.",
+  "👥 Récap utilisateurs":"👥 Users summary",
+  "Jour à cocher :":"Day to tick:",
+  "Aucun groupe sélectionné.":"No group selected.",
+  "💶 Récapitulatif / Facture du groupe":"💶 Group summary / Invoice",
+  "🖨️ Imprimer la facture":"🖨️ Print invoice",
+  "Aucun athlète dans ce groupe.":"No athlete in this group.",
+  // alerte admin
+  "🔔 Nouvelles demandes d'inscription à valider":"🔔 New registration requests to approve",
+  "Voir les demandes":"View requests", "Plus tard":"Later",
+  // — ajouts traduction —
+  "Ton email":"Your email",
+  "En attente de validation":"Pending approval",
+  "Synchronisé":"Synced",
+  "🔎 Filtrer par nom…":"🔎 Filter by name…",
+  "Tape un nom…":"Type a name…",
+  "🌅 Matin":"🌅 Morning",
+  "Matin":"Morning",
+  "matin":"morning",
+  "après-midi":"afternoon",
+  "🏳️ Gestion des teams & athlètes":"🏳️ Team & athlete management",
+  "Nom de la team / du groupe":"Team / group name",
+  "📇 Base de données des athlètes":"📇 Athletes database",
+  "Nom complet":"Full name",
+  "Rôle (ex: Athlète)":"Role (e.g. Athlete)",
+  "Pas de location":"No rental",
+  "Groupe / Team":"Group / Team",
+  "Prénom":"First name",
+  "Nom":"Last name",
+  "Répète le mot de passe":"Repeat the password",
+  "Nouveau mot de passe (min. 6 car.)":"New password (min. 6 chars)",
+  "🧭 Groupe":"🧭 Group",
+  "Groupe":"Group",
+  "Supprimer":"Delete",
+  "Ordre de priorité dans la demi-journée":"Priority order within the half-day",
+  "Athlètes présents dans la semaine (tous groupes confondus)":"Athletes present during the week (all groups)",
+  "Athlètes / semaine":"Athletes / week",
+  "Sélectionne un ou plusieurs jours (mini-calendrier ci-dessus, ou calendrier principal).":"Select one or more days (mini-calendar above, or main calendar).",
+  "💾 Enregistrer la période":"💾 Save the period",
+  "Retirer de la frise":"Remove from the schedule",
+  "— aucun —":"— none —",
+  "📇 Coordonnées (référent, club, adresse, contact)":"📇 Contact details (referent, club, address, contact)",
+  "Nom du référent":"Referent name",
+  "Téléphone":"Phone",
+  "💾 Enregistrer les coordonnées":"💾 Save contact details",
+  "Séance normale (kayak)":"Regular session (kayak)",
+  "☑️ Tout cocher":"☑️ Tick all",
+  "Séances kayak / kayak cross (12€)":"Kayak / kayak cross sessions (€12)",
+  "Tape un nom et choisis dans la liste…":"Type a name and pick from the list…",
+  "👥 Autres athlètes":"👥 Other athletes",
+  "🧭 Nouveau groupe":"🧭 New group",
+  "✏️ Modifier le groupe":"✏️ Edit group",
+  "💾 Enregistrer le groupe":"💾 Save group",
+  "Cliquer : toute la ligne":"Click: whole row",
+  "Période :":"Period:",
+  "Athlètes :":"Athletes:",
+  "Réservation :":"Booking:",
+  "Référent :":"Referent:",
+  "État :":"Status:",
+  "Note :":"Note:",
+  "🔗 Lié à la team":"🔗 Linked to the team",
+  "(composition synchronisée)":"(composition synced)",
+  "🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu":"🌅 morning kayak · 🌇 afternoon kayak · 💪 gym",
+  "✅ Valider l'accès":"✅ Approve access",
+  "🚫 Bloquer":"🚫 Block",
+  "👤 Référent (inscrit/modifie)":"👤 Referent (registers/edits)",
+  "✕ Annuler":"✕ Cancel",
+  "Réservation confirmée":"Booking confirmed",
+  "Date non confirmée":"Date not confirmed",
+  "✅ Réservation confirmée":"✅ Booking confirmed",
+  "❌ Date non confirmée":"❌ Date not confirmed",
+  "Période enregistrée : les athlètes peuvent s'inscrire dessus":"Period saved: athletes can register on it",
+  "Ancienne saisie, validée":"Old entry, approved",
+  "Ancienne saisie récupérée":"Old entry recovered",
+  "Inscrit":"Registered",
+  "(sans nom)":"(no name)",
+  "Aucun groupe déclaré.":"No group declared.",
+  "Autres athlètes":"Other athletes",
+  "Saisies précédentes (hors base)":"Previous entries (not in database)",
+  "Voici les groupes présents sur chaque période. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.":"Here are the groups present in each period. You can only register within your own group's period: if it is wrong or missing, contact the administrator.",
+  "Renseigne l'email de la personne : un compte est créé avec un mot de passe provisoire qui lui sera envoyé par email. Elle pourra ensuite se connecter et changer son mot de passe.":"Enter the person's email: an account is created with a temporary password sent to them by email. They can then log in and change their password.",
+  "Clique sur un jour ci-dessous pour modifier ses horaires (comme dans l'inscription rapide). Laisse vide = horaires par défaut. La priorité des inscriptions reste basée sur le nombre d'inscrits déjà présents sur chaque créneau.":"Click a day below to edit its times (as in quick registration). Leave empty = default times. Registration priority remains based on the number of people already registered on each slot.",
+  "Les dates de début et de fin sont requises.":"Start and end dates are required.",
+  "La date de fin doit être après le début.":"The end date must be after the start.",
+  "Coche au moins un athlète (une case suffit pour le faire figurer dans le groupe).":"Tick at least one athlete (one box is enough to include them in the group).",
+  "⏳ Enregistrement…":"⏳ Saving…",
+  "⏳ Inscription en cours…":"⏳ Registering…",
+  "✅ Enregistré":"✅ Saved",
+  "Choisis le compte utilisateur auquel rattacher cette team (sinon il ne la verra pas).":"Choose the user account to link this team to (otherwise they won't see it).",
+  "Renseigne un début et une fin de stage valides (ou laisse les deux vides).":"Enter a valid start and end date for the stay (or leave both empty).",
+  "Demande envoyée ! Tu recevras un email de confirmation quand ton accès sera validé.":"Request sent! You will receive a confirmation email once your access is approved.",
+  "Email envoyé ! Vérifie ta boîte (et tes spams).":"Email sent! Check your inbox (and spam).",
+  "Le mot de passe doit faire au moins 6 caractères.":"The password must be at least 6 characters long.",
+  "✅ Mot de passe mis à jour avec succès !":"✅ Password updated successfully!",
+  "Création en cours…":"Creating…",
+  "Erreur réseau — réessaie.":"Network error — please try again.",
+  "Erreur lors de l'inscription — réessaie.":"Registration error — please try again."
+};
+
+var EN_MONTHS = {janvier:'January',février:'February',mars:'March',avril:'April',mai:'May',juin:'June',juillet:'July',août:'August',septembre:'September',octobre:'October',novembre:'November',décembre:'December',
+  'janv.':'Jan.','févr.':'Feb.','avr.':'Apr.','juil.':'Jul.','sept.':'Sep.','oct.':'Oct.','nov.':'Nov.','déc.':'Dec.'};
+var EN_DAYS = {lundi:'Monday',mardi:'Tuesday',mercredi:'Wednesday',jeudi:'Thursday',vendredi:'Friday',samedi:'Saturday',dimanche:'Sunday'};
+
+var EN_RULES = [
+  [/^Texte du label personnalisé pour "(.*)" :$/, "Custom label text for \"$1\":"],
+  [/^Nombre de participants max pour "(.*)" \(appliqué à (\d+) jour\(s\) : (.*)\) :$/, "Max participants for \"$1\" (applied to $2 day(s): $3):"],
+  [/^Nouvel horaire pour "(.*)" \(appliqué aux (\d+) jour\(s\) concernés\) :$/, "New time for \"$1\" (applied to the $2 affected day(s)):"],
+  [/^Annuler l'inscription de (.*) \?$/, "Cancel the registration of $1?"],
+  [/^Le créneau (.*) est plein\.\nDemande d'inscription sur (.*) \(le (.*)\)\.\n\nNoms des personnes \(séparés par une virgule\) :$/, "Slot $1 is full.\nRegistration request for $2 (on $3).\n\nNames of the people (comma-separated):"],
+  [/^(.*) — du (.*) au (.*)$/, "$1 — from $2 to $3"],
+  [/^(\d+) athlète\(s\) ?(.*)$/, "$1 athlete(s) $2"],
+  [/^(\d+) athlète\(s\)$/, "$1 athlete(s)"],
+  [/^Semaine du (.*) : (\d+) athlète\(s\)$/, "Week of $1: $2 athlete(s)"],
+  [/^(\d+) demande\(s\) de créneau en attente de l'admin$/, "$1 slot request(s) awaiting admin approval"],
+  [/^(\d+) séance\(s\) non placée\(s\)$/, "$1 session(s) not placed"],
+  [/^(\d+) séances?\(s\)$/, "$1 session(s)"],
+  [/^(\d+) séance\(s\)$/, "$1 session(s)"],
+  [/^📲 (\d+) demande\(s\) de créneau à valider \(voir Suivi\)$/, "📲 $1 slot request(s) to approve (see Tracking)"],
+  [/^📲 Demandes de créneau \((\d+)\)$/, "📲 Slot requests ($1)"],
+  [/^✅ Réservation confirmée · 🔗 Lié à la frise · 👥 (\d+) athlète\(s\)$/, "✅ Booking confirmed · 🔗 Linked to the schedule · 👥 $1 athlete(s)"],
+  [/^(.*)Réservation confirmée · 🔗 Lié à la frise · 👥 (\d+) athlète\(s\)$/, "$1Booking confirmed · 🔗 Linked to the schedule · 👥 $2 athlete(s)"],
+  [/^(.*)Date non confirmée · 🔗 Lié à la frise · 👥 (\d+) athlète\(s\)$/, "$1Date not confirmed · 🔗 Linked to the schedule · 👥 $2 athlete(s)"],
+  [/^→ (\d+) jour\(s\) ouvert\(s\), (\d+) athlète\(s\), (\d+) inscription\(s\) individuelle\(s\) à créer\.$/, "→ $1 open day(s), $2 athlete(s), $3 individual registration(s) to create."],
+  [/^(.*)(\d+) séance\(s\) inscrite\(s\) directement \((\d+) inscriptions individuelles\)$/, "$1$2 session(s) registered directly ($3 individual registrations)"],
+  [/^TOTAL GROUPE — (.*)$/, "GROUP TOTAL — $1"],
+  [/^📊 Prévisionnel — (.*)$/, "📊 Forecast — $1"],
+  [/^Connecté en tant que (.*)$/, "Signed in as $1"],
+  [/^(\d+) séance\(s\)$/, "$1 session(s)"],
+  [/^⚠️ (\d+) séance\(s\) non placée\(s\) \(créneaux complets ou fermés\) : (.*)$/, "⚠️ $1 session(s) not placed (full or closed slots): $2"],
+  [/^(\d+) inscription\(s\) déjà existante\(s\) ignorée\(s\)$/, "$1 existing registration(s) skipped"],
+  // toasts / confirm : messages courants
+  [/^Erreur ?: ([\s\S]*)$/, "Error: $1"],
+  [/^Erreur\.?$/, "Error."],
+  [/^Erreur sauvegarde config$/, "Error saving settings"],
+  [/^Erreur lors de la validation\.$/, "Error while approving."],
+  [/^Erreur lors du changement de rôle\.$/, "Error while changing role."],
+  [/^Erreur lors de l'inscription — réessay(?:e|ez)\.$/, "Registration error — please try again."],
+  [/^Erreur réseau — réessayez\.$/, "Network error — please try again."],
+  [/^Renseigne un début et une fin de stage valides\.$/, "Enter a valid start and end date for the stay."],
+  [/^📅 Période du groupe « (.*) » enregistrée dans la frise \((\d+) athlète\(s\)\)\.$/, "📅 Period of group « $1 » saved in the schedule ($2 athlete(s))."],
+  [/^Retirer cette team de la frise \? Ses athlètes ne pourront plus s'inscrire tant qu'une période n'est pas renseignée\.$/, "Remove this team from the schedule? Its athletes will no longer be able to register until a period is set."],
+  [/^Aucune ancienne entrée à récupérer\.$/, "No old entry to recover."],
+  [/^♻️ (\d+) ancienne\(s\) entrée\(s\) récupérée\(s\) dans la frise\.$/, "♻️ $1 old entry(ies) recovered in the schedule."],
+  [/^Seul l'administrateur gère la frise\.$/, "Only the administrator manages the team schedule."],
+  [/^Ta team n'a pas encore de période dans la frise : contacte l'administrateur\.$/, "Your team has no period in the schedule yet: contact the administrator."],
+  [/^👁️ Ton compte est en mode consultation : tu ne peux pas t'inscrire\.$/, "👁️ Your account is view-only: you cannot register."],
+  [/^👁️ Ton compte est en mode consultation : tu ne peux pas modifier d'inscriptions\.$/, "👁️ Your account is view-only: you cannot change registrations."],
+  [/^👁️ Ton compte est en mode consultation\.$/, "👁️ Your account is view-only."],
+  [/^Le prévisionnel est géré par l'administrateur\.$/, "The forecast is managed by the administrator."],
+  [/^📊 Prévisionnel enregistré\.$/, "📊 Forecast saved."],
+  [/^Supprimer le groupe « (.*) » \?([\s\S]*)$/, "Delete group « $1 »?$2"],
+  [/Ses inscriptions automatiques et ses demandes de créneau en attente seront aussi supprimées\./, "Its automatic registrations and pending slot requests will also be deleted."],
+  [/^Groupe supprimé\.$/, "Group deleted."],
+  [/^Déjà coché pour tout le groupe\.$/, "Already ticked for the whole group."],
+  [/^✅ Kayak Cross coché pour tout le groupe — décoche les absents si besoin\.$/, "✅ Kayak Cross ticked for the whole group — untick absentees if needed."],
+  [/^⚠️ La colonne "(.*)" n'existe pas encore dans Supabase — impossible d'enregistrer la location par défaut pour l'instant\. Vois avec ton développeur pour l'ajouter \(SQL fourni\)\.$/, "⚠️ The column \"$1\" does not exist in Supabase yet — the default rental cannot be saved for now. Ask your developer to add it (SQL provided)."],
+  [/^⚠️ La colonne "(.*)" n'existe pas encore dans Supabase \(table teams\)\.$/, "⚠️ The column \"$1\" does not exist in Supabase yet (teams table)."],
+  [/^✅ Team liée au compte\.$/, "✅ Team linked to the account."],
+  [/^✅ Label mis à jour sur (\d+) jour\(s\)\.$/, "✅ Label updated on $1 day(s)."],
+  [/^✅ Capacité de "(.*)" fixée à (\d+) sur (\d+) jour\(s\)\.$/, "✅ Capacity of \"$1\" set to $2 on $3 day(s)."],
+  [/^✅ Horaire changé : "(.*)" → "(.*)" sur (\d+) jour\(s\)\.$/, "✅ Time changed: \"$1\" → \"$2\" on $3 day(s)."],
+  [/^✅ Créneau "(.*)" ajouté sur (\d+) jour\(s\)$/, "✅ Slot \"$1\" added on $2 day(s)"],
+  [/^(\d+) inscription\(s\) au total sur "(.*)" pour les jours concernés\. Ces inscriptions ne seront pas supprimées mais n'apparaîtront plus si tu retires ce créneau\. Continuer \?$/, "$1 registration(s) in total on \"$2\" for the days concerned. They will not be deleted but will no longer appear if you remove this slot. Continue?"],
+  [/^Remettre les horaires par défaut pour (\d+) jour\(s\) \?$/, "Reset to default times for $1 day(s)?"],
+  [/^Ce créneau existe déjà$/, "This slot already exists"],
+  [/^✅ Créneau ajouté$/, "✅ Slot added"],
+  [/^✅ Créneau renommé : "(.*)" → "(.*)" \(les inscriptions déjà enregistrées gardent l'ancien nom\)$/, "✅ Slot renamed: \"$1\" → \"$2\" (existing registrations keep the old name)"],
+  [/^Supprimer le créneau "(.*)" \? Les inscriptions déjà enregistrées sur ce créneau resteront visibles dans l'historique, mais il ne sera plus proposé pour de nouvelles inscriptions\.$/, "Delete the slot \"$1\"? Existing registrations on this slot will remain visible in the history, but it will no longer be offered for new registrations."],
+  [/^🗑️ Créneau supprimé$/, "🗑️ Slot deleted"],
+  [/^⚠️ Horaire non modifié : ([\s\S]*)$/, "⚠️ Time not changed: $1"],
+  [/^Cette séance a (\d+) inscrit\(s\)\.\nOK = les retirer en la bloquant\nAnnuler = les garder inscrits$/, "This session has $1 registrant(s).\nOK = remove them while blocking\nCancel = keep them registered"],
+  [/^Capacité invalide\.$/, "Invalid capacity."],
+  [/^✅ Séance enregistrée$/, "✅ Session saved"],
+  [/^⚠️ Suppression refusée par Supabase \(policy DELETE admin sur inscriptions\)\.$/, "⚠️ Deletion refused by Supabase (admin DELETE policy on registrations)."],
+  [/^Retirer les (\d+) inscrit\(s\) de cette séance \?$/, "Remove the $1 registrant(s) from this session?"],
+  [/^Déjà inscrit\(s\) sur cette séance\.$/, "Already registered on this session."],
+  [/^Capacité dépassée : (\d+)\/(\d+)\.\nAjouter quand même \?$/, "Capacity exceeded: $1/$2.\nAdd anyway?"],
+  [/^✅ (\d+) ajouté\(s\)(?: \((\d+) déjà présent\(s\)\))?$/, "✅ $1 added"],
+  [/^Nom introuvable dans la base : choisis un nom proposé dans la liste\.$/, "Name not found in the database: choose a name from the list."],
+  [/^Aucune team avec des athlètes ne t'est attribuée : contacte l'administrateur\.$/, "No team with athletes is assigned to you: contact the administrator."],
+  [/^🚫 Séance bloquée\.$/, "🚫 Session blocked."],
+  [/^⏳ Séance pas encore ouverte \(priorité\)\.$/, "⏳ Session not open yet (priority)."],
+  [/^Coche au moins un athlète\.$/, "Tick at least one athlete."],
+  [/^⛔ Nom absent de la base athlètes : (.*)\. Seuls les athlètes de la base peuvent être inscrits\.$/, "⛔ Name not in the athletes database: $1. Only athletes from the database can be registered."],
+  [/^⛔ Hors période de la frise, non inscrit\(e\) : (.*)$/, "⛔ Outside the schedule period, not registered: $1"],
+  [/^⛔ Hors période de la frise : (.*)$/, "⛔ Outside the schedule period: $1"],
+  [/^⚠️ Déjà inscrit\(e\) sur ce type de séance ce jour-là, ignoré\(e\) : (.*)$/, "⚠️ Already registered for this type of session that day, skipped: $1"],
+  [/^(?:❌ )?Déjà inscrit\(e\) sur ce type de séance ce jour-là : (.*)$/, "Already registered for this type of session that day: $1"],
+  [/^❌ Erreur serveur \((.*)\) : (.*)$/, "❌ Server error ($1): $2"],
+  [/^🚫 Ce créneau est bloqué par l'administrateur\.$/, "🚫 This slot is blocked by the administrator."],
+  [/^(\d+) inscription\(s\) ajoutée\(s\) sur (.*) !$/, "$1 registration(s) added on $2!"],
+  [/^Tu ne peux annuler que les inscriptions des athlètes de ta team\.$/, "You can only cancel registrations of your own team's athletes."],
+  [/^Connecte-toi pour faire une demande\.$/, "Log in to make a request."],
+  [/^Aucun créneau suivant ce jour-là\.$/, "No later slot that day."],
+  [/^⚠️ Demande non enregistrée dans l'app \(table manquante \?\), envoi par WhatsApp quand même\.$/, "⚠️ Request not saved in the app (missing table?), sending via WhatsApp anyway."],
+  [/^📲 Demande envoyée\. Envoie le message WhatsApp pour prévenir l'admin\.$/, "📲 Request sent. Send the WhatsApp message to notify the admin."],
+  [/^Il reste (\d+) place\(s\) sur (.*), (\d+) demandée\(s\)\. Ouvrir le créneau et inscrire tout le monde \?$/, "$1 place(s) left on $2, $3 requested. Open the slot and register everyone?"],
+  [/^✅ Demande acceptée, personnes inscrites\.$/, "✅ Request accepted, people registered."],
+  [/^Demande refusée\.$/, "Request declined."],
+  [/^Connecte-toi pour rejoindre la liste d'attente\.$/, "Log in to join the waiting list."],
+  [/^Tu es déjà sur la liste d'attente\.$/, "You are already on the waiting list."],
+  [/^⏳ Ajouté\(e\) à la liste d'attente pour (.*) !$/, "⏳ Added to the waiting list for $1!"],
+  [/^Export CSV téléchargé !$/, "CSV export downloaded!"],
+  [/^Sélectionne un jour dans le calendrier ci-dessus \(ou une date\)\.$/, "Select a day in the calendar above (or a date)."],
+  [/^(\d+) groupe\(s\) déjà inscrit\(s\) sur "(.*)" ce jour-là\. Ces inscriptions ne seront pas supprimées mais n'apparaîtront plus si tu retires ce créneau\. Continuer \?$/, "$1 group(s) already registered on \"$2\" that day. They will not be deleted but will no longer appear if you remove this slot. Continue?"],
+  [/^Supprimer les horaires personnalisés du (.*) \?$/, "Delete the custom times for $1?"],
+  [/^Mot de passe copié$/, "Password copied"],
+  [/^✅ Accès validé pour (.*)$/, "✅ Access approved for $1"],
+  [/^Utilisateur bloqué\.$/, "User blocked."], [/^Utilisateur débloqué\.$/, "User unblocked."],
+  // texte dynamique des fiches / grille
+  [/^(\d+) séances? sélectionnées?$/, "$1 session(s) selected"],
+  [/^(\d+) séances?$/, "$1 session(s)"],
+  [/^Ma team ?: (.*)$/, "My team: $1"],
+  [/^Inscrits \((\d+)\/(\d+)\)$/, "Registered ($1/$2)"],
+  [/^✅ Inscrire (\d+) athlètes?$/, "✅ Register $1 athlete(s)"],
+  [/^— défaut : (\d+)$/, "— default: $1"],
+  [/^Capacité \((\d+)\) et horaires du fitness : réglage global dans Admin › Salle de musculation\.$/, "Capacity ($1) and gym times: global setting in Admin › Gym."],
+  [/^\+(\d+) more$/, "+$1 more"],
+  [/^\+(\d+) autres$/, "+$1 more"],
+  [/^S'ouvre quand (.*) est complet$/, "Opens when $1 is full"],
+  [/^(\d+) demande\(s\) de créneau à valider \(voir Suivi\)$/, "$1 session request(s) to approve (see Tracking)"],
+  [/^♻️ Récupérer mes anciennes entrées \((\d+)\)$/, "♻️ Recover my old entries ($1)"],
+  [/^(\d+) groupe\(s\) · (\d+) athlète\(s\) déclaré\(s\)$/, "$1 group(s) · $2 athlete(s) declared"],
+  [/^(\d+) inscrit \/ (\d+)$/, "$1 registered / $2"], [/^(\d+) inscrits \/ (\d+)$/, "$1 registered / $2"],
+  [/^🔢 Capacité \((\d+)\)$/, "🔢 Capacity ($1)"],
+  [/^semaine du (.*) au (.*)$/, "week of $1 to $2"],
+  [/^(\d+) demande\(s\) d'inscription en attente$/, "$1 registration request(s) pending"],
+  [/^🔔 (\d+) nouvelle\(s\) demande\(s\) d'inscription à valider$/, "🔔 $1 new registration request(s) to approve"]
+];
+
+function trEn(str){
+  if(typeof str!=='string' || !str) return str;
+  const m = str.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  const lead=m[1], core=m[2], trail=m[3];
+  if(!core) return str;
+  const flat = core.replace(/\s+/g,' ');
+  let out = EN_PHRASES[core]!==undefined ? EN_PHRASES[core] : EN_PHRASES[flat];
+  if(out===undefined){
+    for(const [re,rep] of EN_RULES){ if(re.test(core)){ out = core.replace(re,rep); break; } }
+  }
+  if(out===undefined && core.indexOf('\n')>=0){
+    const parts = core.split('\n').map(l=>trEn(l));
+    const joined = parts.join('\n');
+    if(joined!==core) out = joined;
+  }
+  if(out===undefined && flat!==core){
+    for(const [re,rep] of EN_RULES){ if(re.test(flat)){ out = flat.replace(re,rep); break; } }
+  }
+  if(out===undefined){
+    // dates en français (mois / jours)
+    if(/(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|janv\.|févr\.|avr\.|juil\.|sept\.|oct\.|nov\.|déc\.|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i.test(core)
+       && !/[a-z]{3,} (the|and|of)\b/i.test(core)){
+      let o=core;
+      for(const k in EN_MONTHS) o=o.replace(new RegExp('(^|[^A-Za-zÀ-ÿ])'+k.replace('.','\\.')+'(?![A-Za-zÀ-ÿ])','gi'),(x,p)=>p+EN_MONTHS[k]);
+      for(const k in EN_DAYS)   o=o.replace(new RegExp('(^|[^A-Za-zÀ-ÿ])'+k+'(?![A-Za-zÀ-ÿ])','gi'),(x,p)=>p+EN_DAYS[k]);
+      if(o!==core) out=o;
+    }
+  }
+  return out===undefined ? str : lead+out+trail;
+}
+
+// ── Couche DOM : texte, placeholder, title ──
+var _i18nNodes = new Set();       // textes / éléments traduits (pour pouvoir revenir au français)
+var _i18nOrig = new WeakMap();    // noeud → {orig,out}
+var _i18nObs = null, _i18nQueue = new Set(), _i18nRaf = 0;
+var I18N_ATTRS = ['placeholder','title','aria-label'];
+
+function i18nTranslateText(n){
+  const p = n.parentElement;
+  if(!p || /^(SCRIPT|STYLE|TEXTAREA|NOSCRIPT)$/.test(p.tagName)) return;
+  const v = n.nodeValue; if(!v || !v.trim()) return;
+  const rec = _i18nOrig.get(n);
+  if(rec && rec.out===v) return;            // déjà traduit
+  const out = trEn(v);
+  if(out!==v){ _i18nOrig.set(n,{orig:v,out}); _i18nNodes.add(n); n.nodeValue = out; }
+}
+function i18nTranslateAttrs(el){
+  for(const a of I18N_ATTRS){
+    const v = el.getAttribute && el.getAttribute(a); if(!v) continue;
+    const key = '__i18n_'+a, rec = el[key];
+    if(rec && rec.out===v) continue;
+    const out = trEn(v);
+    if(out!==v){ el[key]={orig:v,out}; _i18nNodes.add(el); el.setAttribute(a,out); }
+  }
+}
+function i18nWalk(root){
+  if(!root) return;
+  if(root.nodeType===3){ i18nTranslateText(root); return; }
+  if(root.nodeType!==1) return;
+  i18nTranslateAttrs(root);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);
+  let n; while((n=w.nextNode())){ if(n.nodeType===3) i18nTranslateText(n); else i18nTranslateAttrs(n); }
+}
+function i18nFlush(){
+  _i18nRaf = 0;
+  if(LANG!=='en') { _i18nQueue.clear(); return; }
+  const items = [..._i18nQueue]; _i18nQueue.clear();
+  items.forEach(i18nWalk);
+  if(_i18nObs) _i18nObs.takeRecords();      // ignore nos propres modifications
+}
+function i18nQueueNode(n){ _i18nQueue.add(n); if(!_i18nRaf) _i18nRaf = requestAnimationFrame(i18nFlush); }
+
+function i18nSync(){
+  if(LANG==='en'){
+    if(!_i18nObs){
+      _i18nObs = new MutationObserver(muts=>{
+        if(LANG!=='en') return;
+        muts.forEach(m=>{
+          if(m.type==='childList') m.addedNodes.forEach(i18nQueueNode);
+          else if(m.type==='characterData') i18nQueueNode(m.target);
+          else if(m.type==='attributes') i18nQueueNode(m.target);
+        });
+      });
+    }
+    _i18nObs.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:I18N_ATTRS});
+    i18nWalk(document.body);
+    _i18nObs.takeRecords();
+  } else {
+    if(_i18nObs){ _i18nObs.disconnect(); }
+    _i18nNodes.forEach(x=>{
+      if(!x.isConnected){ _i18nNodes.delete(x); return; }
+      if(x.nodeType===3){ const r=_i18nOrig.get(x); if(r && x.nodeValue===r.out) x.nodeValue=r.orig; }
+      else { for(const a of I18N_ATTRS){ const r=x['__i18n_'+a]; if(r && x.getAttribute(a)===r.out) x.setAttribute(a,r.orig); } }
+    });
+    _i18nNodes.clear();
+  }
+}
+
+// toasts et confirm() traduits aussi
+(function(){
+  const _c = window.confirm.bind(window);
+  window.confirm = function(m){ return _c(LANG==='en' ? trEn(String(m)) : m); };
+})();
+
+
+function toggleLang(){ LANG = LANG==='fr'?'en':'fr'; applyI18n(); render(); i18nSync(); }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIG
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const START = new Date(2026,6,6);   // 6 juillet 2026
+const START = new Date(2026,10,1);  // 1er novembre 2026 (saison novembre → mars)
 const END   = new Date(2027,2,31);  // 31 mars 2027
 
 // Retourne la date du jour (calendrier réel), bornée à la période de la saison [START, END].
@@ -3802,6 +4260,7 @@ async function submitAuth(){
 async function logout(){
   await sb.auth.signOut();
   S.session=null; S.profile=null; S.isAdmin=false; S.isReadonly=false;
+  adminPendingClear();
   ['pendingScreen','blockedScreen','resetPwdScreen','appHeader','appBody','readonlyBanner'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display='none';
@@ -3855,6 +4314,8 @@ async function onAuthed(session){
     if(pbQ0) pbQ0.style.display = (!S.isAdmin && !QUICKREG_FOR_USERS) ? 'none' : '';
     if(usePlanning && !S.isAdmin) S.view = 'planning';
     setPage(usePlanning ? 'planning' : 'quickreg'); }
+  setTimeout(i18nSync,0);
+  if(S.isAdmin) adminPendingStart();
   document.getElementById('userPill').style.display='inline-flex';
   document.getElementById('userPill').textContent = (profile?.full_name || session.user.email);
   document.getElementById('profileBtn').style.display='inline-block';
@@ -4607,7 +5068,7 @@ function renderKayakSlotParams(){
   const multi = days.length > 1;
   const headerLabel = multi
     ? `${days.length} jours sélectionnés : ${days.join(', ')}`
-    : (()=>{ const dd=parseDate(days[0]); return dd.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}); })();
+    : (()=>{ const dd=parseDate(days[0]); return dd.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'}); })();
   let h = `<div style="font-size:.78rem;font-weight:600;color:var(--text2);margin-bottom:8px">📅 ${esc(headerLabel)}</div>`;
 
   // Union des créneaux (triée chronologiquement) sur tous les jours sélectionnés
@@ -5075,7 +5536,7 @@ function renderPlanningGrid(){
 
   // Bouton impression planning semaine
   html += `<div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
-    <button class="btn btn-sm" onclick="printPlanningGrid()">🖨️ Print week (aperçu compact)</button>
+    <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
   </div>`;
 
@@ -5160,7 +5621,7 @@ function renderPlanningGrid(){
       // Label (KX, CRRCK, CLUB)
       if(kx)  cellHtml+=`<span class="pg-kx-badge">🏄 KAYAK CROSS</span><br>`;
       if(label&&label!=='KX') cellHtml+=`<span class="pg-slot-lbl pg-lbl-${label}">${label}</span><br>`;
-      if(blocked) cellHtml+=`<span class="pg-blocked-tag">🚫 Blocked</span>`;
+      if(blocked) cellHtml+=`<span class="pg-blocked-tag">${L('🚫 Bloqué','🚫 Blocked')}</span>`;
       else {
         if(pri && pri.locked) cellHtml+=`<span class="pg-blocked-tag" title="S'ouvre quand ${esc(pri.waitFor)} est complet">🔒 Pas encore ouvert</span><br>`;
         // Compteur
@@ -5172,8 +5633,8 @@ function renderPlanningGrid(){
           const hasRental = a.rental||a.kayakModel;
           cellHtml+=`<span class="pg-ath${isKxAth?' pg-ath-kx':''}${hasRental?' pg-ath-rental':''}" title="${esc(a.name)}">${esc(a.name.split(' ')[0])} ${esc((a.name.split(' ')[1]||'').charAt(0)+'.')}</span>`;
         });
-        if(aths.length>MAX_SHOW) cellHtml+=`<span class="pg-more">+${aths.length-MAX_SHOW} more</span>`;
-        if(!aths.length) cellHtml+=`<span class="pg-empty">Empty</span>`;
+        if(aths.length>MAX_SHOW) cellHtml+=`<span class="pg-more">+${aths.length-MAX_SHOW} ${L('autres','more')}</span>`;
+        if(!aths.length) cellHtml+=`<span class="pg-empty">${L('Vide','Empty')}</span>`;
       }
       cellHtml+='</div>';
       { const selOn = !S.isAdmin && pgIsSel(k,slot);
@@ -5245,7 +5706,7 @@ function pgRenderSheet(){
   const c = cap(slot,dateK,act);
   const hasCustomCap = isKayak && S.dateCapacity && S.dateCapacity[dateK] && S.dateCapacity[dateK][slot]!=null;
   const d = parseDate(dateK);
-  const title = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const title = d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'});
   const teams = (S.teams||[]).filter(tm=>tm.members && tm.members.length);
   const fld = 'style="width:100%;padding:6px 8px;font-size:.85rem"';
   const lbl = 'style="font-size:.72rem;font-weight:700;color:var(--text3);display:block;margin:10px 0 3px"';
@@ -5497,7 +5958,7 @@ function pgRenderUserSheet(){
   const locked = isKayak && isLocked(dateK,slot);
   const closed = !!cfg.blocked || locked;
   const d = parseDate(dateK);
-  const title = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const title = d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'});
   const inSlot = new Set(store.map(a=>(a.name||'').trim().toLowerCase()));
   const members = (S.myTeam.members||[]).filter(m=>m.athlete).map(m=>m.athlete);
   const friseOn = friseRestrictActive();
@@ -5656,7 +6117,7 @@ function pgRenderMultiSheet(){
   const days = Object.keys(_pgMulti.sel).sort();
   const sessions = days.map(k=>{
     const d = parseDate(k);
-    const lab = d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+    const lab = d.toLocaleDateString(LOCALE(),{weekday:'short',day:'numeric',month:'short'});
     const slots = [..._pgMulti.sel[k]].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
     return `<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--border);font-size:.84rem">
       <b style="min-width:92px;text-transform:capitalize">${esc(lab)}</b>
@@ -5729,6 +6190,7 @@ function pgScrollBy(dir){
   nw.scrollBy({ left: dir*(th?th.offsetWidth:130)*7, behavior:'smooth' });
 }
 function pgGoMonth(y,m){ const d=new Date(y,m,1); pgScrollTo(dk(d<START?START:d), true); }
+// Raccourcis de la saison : de novembre 2026 à mars 2027
 function pgGoToday(){ pgScrollTo(dk(todayClamped()), true); }
 var _pgRaf = 0;
 function pgOnScroll(){
@@ -6820,6 +7282,7 @@ function sendWA(){
   window.open('https://wa.me/?text='+encodeURIComponent(tx),'_blank');
 }
 function toast(msg,type=''){
+  if(LANG==='en') msg = trEn(String(msg));
   const el=document.getElementById('toast');
   el.textContent=msg;
   el.className='toast show'+(type?` t-${type}`:'');
@@ -7093,7 +7556,7 @@ function loadCustomSlotEditor(){
   const lblEl = document.getElementById('csEditorDateLabel');
   if(lblEl){
     const d = parseDate(dateK);
-    lblEl.textContent = `📅 ${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}`;
+    lblEl.textContent = `📅 ${d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long',year:'numeric'})}`;
   }
   renderCustomSlotEditor();
   document.getElementById('customSlotEditor').style.display = 'block';
@@ -7393,6 +7856,7 @@ async function approveUser(userId, name, email, arrival, departure){
   } catch(e){}
   toast(`✅ Accès validé pour ${name}`,'success');
   await openAccessRequests();
+  adminPendingAlert(false);
 }
 
 async function blockUser(userId){
@@ -7400,6 +7864,7 @@ async function blockUser(userId){
   if(error){ toast('Erreur.','error'); return; }
   toast('Utilisateur bloqué.','success');
   await openAccessRequests();
+  adminPendingAlert(false);
 }
 
 async function unblockUser(userId){
@@ -7407,6 +7872,79 @@ async function unblockUser(userId){
   if(error){ toast('Erreur.','error'); return; }
   toast('Utilisateur débloqué.','success');
   await openAccessRequests();
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  Alerte admin : nouvelles demandes d'inscription à valider
+//  - fenêtre visible à la connexion + bandeau rouge persistant
+//  - vérification automatique toutes les 60 s (le mail part via la fonction notify-registration)
+// ══════════════════════════════════════════════════════════════
+var _pendingLast = -1, _pendingTimer = 0, _pendingModalShown = false;
+
+function adminPendingClear(){
+  clearInterval(_pendingTimer); _pendingTimer = 0; _pendingLast = -1; _pendingModalShown = false;
+  document.getElementById('adminPendingBanner')?.remove();
+  document.getElementById('pendingAlertModal')?.remove();
+}
+function pendingNames(list){
+  return list.slice(0,4).map(p=>p.full_name||p.email).join(', ') + (list.length>4 ? ' …' : '');
+}
+function updatePendingBanner(list){
+  let b = document.getElementById('adminPendingBanner');
+  if(!list.length){ b?.remove(); return; }
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'adminPendingBanner';
+    const hdr = document.getElementById('appHeader');
+    hdr.parentNode.insertBefore(b, hdr.nextSibling);
+  }
+  b.innerHTML = `<span style="font-size:1.2rem">🔔</span>
+    <span style="flex:1;min-width:200px"><b>${list.length} ${L('nouvelle(s) demande(s) d\'inscription à valider','new registration request(s) to approve')}</b> — ${esc(pendingNames(list))}</span>
+    <button class="btn btn-sm" onclick="pendingGo()">${L('Voir les demandes','View requests')}</button>`;
+}
+function pendingGo(){
+  document.getElementById('pendingAlertModal')?.remove();
+  openAccessRequests();
+}
+function showPendingModal(list){
+  document.getElementById('pendingAlertModal')?.remove();
+  const el = document.createElement('div');
+  el.id = 'pendingAlertModal';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:14px';
+  el.innerHTML = `<div style="background:var(--white);color:var(--text);border-radius:var(--radius);border-top:6px solid #dc2626;box-shadow:0 14px 50px rgba(0,0,0,.4);width:100%;max-width:440px;padding:20px">
+    <div style="font-size:1.15rem;font-weight:800;color:#b91c1c;margin-bottom:6px">🔔 ${L('Nouvelles demandes d\'inscription à valider','New registration requests to approve')}</div>
+    <p style="margin:0 0 10px;font-size:.9rem">${list.length} ${L('personne(s) attendent ta validation :','person(s) waiting for your approval:')}</p>
+    <div style="max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      ${list.slice(0,10).map(p=>`<div style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:.86rem"><b>${esc(p.full_name||'—')}</b><br><span style="color:var(--text3)">${esc(p.email||'')}</span></div>`).join('')}
+      ${list.length>10?`<div style="padding:8px 10px;font-size:.8rem;color:var(--text3)">+ ${list.length-10} ${L('autres','more')}</div>`:''}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" style="flex:1" onclick="pendingGo()">${L('Voir les demandes','View requests')}</button>
+      <button class="btn" onclick="document.getElementById('pendingAlertModal').remove()">${L('Plus tard','Later')}</button>
+    </div></div>`;
+  document.body.appendChild(el);
+}
+async function adminPendingAlert(showModal){
+  if(!S.isAdmin) return;
+  const { data, error } = await sb.from('profiles').select('id,full_name,email,created_at')
+    .eq('approved',false).eq('blocked',false).eq('is_admin',false).order('created_at',{ascending:false});
+  if(error) return;
+  const list = data || [];
+  updatePendingBanner(list);
+  const badge = document.getElementById('pendingBadge');
+  if(badge){ badge.style.display = list.length ? 'inline' : 'none'; badge.textContent = list.length; }
+  if(list.length && _pendingLast>=0 && list.length>_pendingLast){
+    toast('🔔 '+L('Nouvelle demande d\'inscription !','New registration request!'),'success');
+  }
+  if(showModal && list.length && !_pendingModalShown){ _pendingModalShown = true; showPendingModal(list); }
+  _pendingLast = list.length;
+}
+function adminPendingStart(){
+  if(!S.isAdmin) return;
+  adminPendingAlert(true);
+  clearInterval(_pendingTimer);
+  _pendingTimer = setInterval(()=>adminPendingAlert(false), 60000);
 }
 
 async function refreshPendingBadge(){
@@ -7931,3 +8469,5 @@ function renderRecap(start, days){
 </script>
 </body>
 </html>
+
+  
