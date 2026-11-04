@@ -1052,8 +1052,10 @@ header .user-pill { color: #fff; }
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input class="field" id="adminTeamNameInput" placeholder="Nom de la team / du groupe" style="flex:1;min-width:180px">
           <select class="field" id="adminTeamOwnerSelect" style="flex:1;min-width:220px"></select>
-          <label style="font-size:.78rem;display:flex;gap:6px;align-items:center">📅 Stage du <input type="date" class="field" id="adminTeamStart" min="2026-07-06" max="2027-03-31"> au <input type="date" class="field" id="adminTeamEnd" min="2026-07-06" max="2027-03-31"></label>
+          <label style="font-size:.78rem;display:flex;gap:6px;align-items:center">📅 Stage du <b style="color:var(--red)">*</b> <input type="date" class="field" id="adminTeamStart" min="2026-07-06" max="2027-03-31"> au <input type="date" class="field" id="adminTeamEnd" min="2026-07-06" max="2027-03-31"></label>
           <span id="adminTeamResaWrap"></span>
+          <label style="font-size:.78rem;display:flex;gap:6px;align-items:center;flex-basis:100%">➕ 2ᵉ période (optionnel) du <input type="date" class="field" id="adminTeamStart2" min="2026-07-06" max="2027-03-31"> au <input type="date" class="field" id="adminTeamEnd2" min="2026-07-06" max="2027-03-31"></label>
+          <span style="flex-basis:100%;font-size:.72rem;color:var(--text3)">🔗 La team est ajoutée automatiquement à la frise avec ses périodes (même nom de groupe, athlètes synchronisés).</span>
           <button class="btn btn-sm btn-primary" id="aTeamsCreateBtn" onclick="adminCreateTeamForUser()"></button>
         </div>
         <div id="adminTeamsMsg" style="font-size:.78rem;margin-top:6px;min-height:1em"></div>
@@ -1309,6 +1311,15 @@ header .user-pill { color: #fff; }
       <button class="btn" id="mMoveCancelBtn" onclick="closeModal('moveModal')">Annuler / Cancel</button>
       <button class="btn btn-primary" id="mMoveConfirmBtn" onclick="confirmMove()">Déplacer / Move</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal Bloquer une journée (planning) -->
+<div class="modal-bg" id="dayBlockModal">
+  <div class="modal-box" style="max-width:440px">
+    <h3 id="dayBlockTitle">🚫</h3>
+    <div id="dayBlockBody"></div>
+    <div class="modal-actions" id="dayBlockActions"></div>
   </div>
 </div>
 
@@ -3513,21 +3524,30 @@ async function adminCreateTeamForUser(){
   if(!name){ if(msg){ msg.style.color='var(--red)'; msg.textContent = t('teamErrAdminCreate'); } return; }
   if(!ownerId){ if(msg){ msg.style.color='var(--red)'; msg.textContent = "Choisis le compte utilisateur auquel rattacher cette team (sinon il ne la verra pas)."; } return; }
   const start = document.getElementById('adminTeamStart')?.value || '', end = document.getElementById('adminTeamEnd')?.value || '';
-  if((start||end) && (!start||!end||end<start)){ if(msg){ msg.style.color='var(--red)'; msg.textContent='Renseigne un début et une fin de stage valides (ou laisse les deux vides).'; } return; }
-  const { data:newTeam, error } = await sb.from('teams').insert({ owner_user_id: ownerId, name, status:'draft' }).select().single();
-  if(error){ if(msg){ msg.style.color='var(--red)'; msg.textContent = error.message; } return; }
-  let periodMsg='';
-  if(start && end && newTeam){
-    const pe = await fqUpsertTeamPeriod({ ...newTeam, members:[] }, start, end, document.getElementById('adminTeamResa')?.value);
-    periodMsg = pe ? ' ⚠️ Période non enregistrée dans la frise : '+pe : ' 📅 Période ajoutée à la frise.';
+  const start2 = document.getElementById('adminTeamStart2')?.value || '', end2 = document.getElementById('adminTeamEnd2')?.value || '';
+  const bad = m => { if(msg){ msg.style.color='var(--red)'; msg.textContent=m; } };
+  if(!start || !end || end<start){ bad('Renseigne le début et la fin du stage : la team est ajoutée à la frise avec cette période.'); return; }
+  if(start2||end2){
+    if(!start2||!end2||end2<start2){ bad('2ᵉ période : renseigne un début et une fin valides (ou laisse les deux vides).'); return; }
+    if(start2<=end && end2>=start){ bad('Les deux périodes se chevauchent.'); return; }
   }
-  if(msg){ msg.style.color=periodMsg.includes('⚠️')?'#b45309':'#15803d'; msg.textContent = t('teamCreatedForGroup')+periodMsg; }
-  document.getElementById('adminTeamNameInput').value='';
-  if(document.getElementById('adminTeamStart')) document.getElementById('adminTeamStart').value='';
-  if(document.getElementById('adminTeamEnd')) document.getElementById('adminTeamEnd').value='';
+  const { data:newTeam, error } = await sb.from('teams').insert({ owner_user_id: ownerId, name, status:'draft' }).select().single();
+  if(error){ bad(error.message); return; }
+  const resa = document.getElementById('adminTeamResa')?.value;
+  const errs=[]; let nb=0;
+  for(const [st,en] of [[start,end],[start2,end2]]){
+    if(!st||!en||!newTeam) continue;
+    const pe = await fqUpsertTeamPeriod({ ...newTeam, members:[] }, st, en, resa);
+    if(pe) errs.push(pe); else nb++;
+  }
+  const periodMsg = errs.length ? ' ⚠️ Période non enregistrée dans la frise : '+errs[0] : ` 📅 ${nb} période${nb>1?'s':''} ajoutée${nb>1?'s':''} à la frise.`;
+  if(msg){ msg.style.color=errs.length?'#b45309':'#15803d'; msg.textContent = t('teamCreatedForGroup')+periodMsg; }
+  ['adminTeamNameInput','adminTeamStart','adminTeamEnd','adminTeamStart2','adminTeamEnd2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   await fqLoadRows();
   await loadTeamsData();
   renderAdminTeams();
+  try{ if(document.getElementById('fqNotice')) fqRenderTimeline(); }catch(e){}
+  if(!errs.length) toast(`🔗 « ${name} » ajoutée à la frise (${nb} période${nb>1?'s':''}).`,'success');
 }
 
 async function adminSetTeamOwner(teamId){
@@ -4298,6 +4318,7 @@ let S = {
   dateCapacity:{},  // { "2026-07-15": { "7h-8h":15, "8h-9h":20 } } → capacité spécifique à une date
   closedDow:{},
   customClosed:{},
+  closedReason:{},   // { "2026-12-25": {type:'holiday'|'competition'|'other', text:''} } → motif d'une journée bloquée par l'admin
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
   // Paramètres par créneau kayak (eaux vives) : { "2026-07-07": { "9h-10h": { blocked:false, label:'' } } }
@@ -4588,6 +4609,7 @@ async function saveConfig() {
   const cfg = {
     closedDow:      S.closedDow,
     customClosed:   S.customClosed,
+    closedReason:   S.closedReason,
     capacity:       S.capacity,
     morningOrder:   S.morningOrder,
     afternoonOrder: S.afternoonOrder,
@@ -4614,6 +4636,7 @@ async function loadConfig() {
   const cfg = rows[0].value;
   if (cfg.closedDow      !== undefined) S.closedDow      = cfg.closedDow;
   if (cfg.customClosed   !== undefined) S.customClosed   = cfg.customClosed;
+  if (cfg.closedReason   !== undefined) S.closedReason   = cfg.closedReason || {};
   if (cfg.capacity       !== undefined) S.capacity       = cfg.capacity;
   if (cfg.morningOrder   !== undefined) S.morningOrder   = cfg.morningOrder;
   if (cfg.afternoonOrder !== undefined) S.afternoonOrder = cfg.afternoonOrder;
@@ -4679,9 +4702,16 @@ function isClosed(d){
   return false;
 }
 function outOfRange(d){ return d<START||d>END; }
+// Motif d'une journée bloquée par l'admin (Compétition / Jour férié / Autre), traduit selon la langue.
+function closedReasonLabel(k){
+  const r=(S.closedReason||{})[k]; if(!r) return '';
+  if(r.type==='competition') return L('🏆 Compétition','🏆 Competition');
+  if(r.type==='holiday')     return L('🎌 Jour férié','🎌 Public holiday');
+  return (r.text||'').trim();
+}
 function closedLabel(d){
   const k=dk(d);
-  if(S.customClosed[k]===true) return t('closedAdmin');
+  if(S.customClosed[k]===true) return closedReasonLabel(k) || t('closedAdmin');
   if(S.closedDow[d.getDay()])  return t('closed');
   return '';
 }
@@ -4847,6 +4877,87 @@ async function pgOpenAllDay(dateK, on){
   toast(on?'🔓 Tous les créneaux du jour sont ouverts':'🔒 Priorité rétablie sur ce jour','success');
 }
 // Raccourci dans une case du tableau (sans ouvrir la fiche)
+// ── Blocage d'une journée complète depuis le planning (Compétition / Jour férié / Autre) ──
+var _dbm = { k:null, type:'competition' };
+function pgDayHeadExtra(d,k){
+  if(outOfRange(d)) return '';
+  let h='';
+  const reason = S.customClosed[k]===true ? closedReasonLabel(k) : '';
+  if(reason) h += `<br><span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.92);color:#b91c1c;font-size:.6rem;font-weight:800">${esc(reason)}</span>`;
+  if(S.isAdmin){
+    const closed = isClosed(d);
+    h += `<br><button type="button" style="margin-top:3px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.18);color:inherit;border-radius:5px;font-size:.6rem;line-height:1;padding:2px 6px;cursor:pointer"
+      title="${esc(closed ? L('Gérer cette journée bloquée','Manage this blocked day') : L('Bloquer la journée complète (compétition, férié…)','Block the whole day (competition, holiday…)'))}"
+      onclick="event.stopPropagation();pgDayMenu('${k}')">${closed ? '🔓' : '🚫'}</button>`;
+  }
+  return h;
+}
+function pgDayRegCount(k){
+  let n=0;
+  try{ allSlots(k).forEach(sl=>{ n += (getSlot(k,sl)||[]).length; }); }catch(e){}
+  try{ (S.muscuSlots||[]).forEach(sl=>{ n += (getSlot(k,sl,'muscu')||[]).length; }); }catch(e){}
+  return n;
+}
+function pgDayMenu(k){
+  if(!S.isAdmin) return;
+  const d=parseDate(k);
+  const adminClosed = S.customClosed[k]===true;
+  const weekClosed  = !adminClosed && isClosed(d);      // fermé par le réglage « jours de la semaine »
+  const cur = (S.closedReason||{})[k]||{};
+  _dbm = { k, type: cur.type||'competition' };
+  const dateTxt = d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const box = document.getElementById('dayBlockBody');
+  if(!box) return;
+  const n = pgDayRegCount(k);
+  let h = `<p style="margin:0 0 10px;font-weight:700;text-transform:capitalize">${esc(dateTxt)}</p>`;
+  if(weekClosed){
+    h += `<p style="font-size:.84rem;margin:0 0 12px">${esc(L("Cette journée est fermée par le réglage des jours de la semaine. Tu peux l'ouvrir exceptionnellement.","This day is closed by the weekday setting. You can open it as an exception."))}</p>`;
+    document.getElementById('dayBlockActions').innerHTML = `<button class="btn" onclick="closeModal('dayBlockModal')">${esc(L('Fermer','Close'))}</button>
+      <button class="btn btn-primary" onclick="pgDayReopen()">${esc(L('🔓 Ouvrir cette journée','🔓 Open this day'))}</button>`;
+  } else {
+    const opt=(v,lbl)=>`<label style="display:flex;gap:8px;align-items:center;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;font-weight:600">
+        <input type="radio" name="dbmType" value="${v}" ${_dbm.type===v?'checked':''} onchange="pgDayType(this.value)"> ${lbl}</label>`;
+    h += `<p style="font-size:.82rem;margin:0 0 8px;color:var(--text2)">${esc(adminClosed ? L('Journée bloquée. Modifie le motif ou rouvre-la.','Day is blocked. Change the reason or reopen it.') : L('Motif du blocage de la journée complète :','Reason for blocking the whole day:'))}</p>
+      ${opt('competition', esc(L('🏆 Compétition','🏆 Competition')))}
+      ${opt('holiday', esc(L('🎌 Jour férié','🎌 Public holiday')))}
+      ${opt('other', esc(L('✏️ Autre motif','✏️ Other reason')))}
+      <input class="field" id="dbmOther" maxlength="40" placeholder="${esc(L('Motif (ex. Stage fermé, Maintenance…)','Reason (e.g. Camp closed, Maintenance…)'))}" value="${esc(cur.type==='other'?(cur.text||''):'')}" style="width:100%;margin:2px 0 8px;display:${_dbm.type==='other'?'block':'none'}">`;
+    if(n) h += `<p style="font-size:.76rem;color:#b45309;margin:4px 0 0">${esc(L(`⚠️ ${n} inscription(s) sur cette journée resteront enregistrées mais invisibles tant que la journée est bloquée.`,`⚠️ ${n} registration(s) on this day will stay saved but hidden while the day is blocked.`))}</p>`;
+    document.getElementById('dayBlockActions').innerHTML = `<button class="btn" onclick="closeModal('dayBlockModal')">${esc(L('Annuler','Cancel'))}</button>
+      ${adminClosed?`<button class="btn" style="color:var(--green,#15803d)" onclick="pgDayReopen()">${esc(L('🔓 Rouvrir la journée','🔓 Reopen the day'))}</button>`:''}
+      <button class="btn btn-primary" onclick="pgDayBlock()">${esc(adminClosed ? L('💾 Mettre à jour le motif','💾 Update reason') : L('🚫 Bloquer la journée','🚫 Block the day'))}</button>`;
+  }
+  document.getElementById('dayBlockTitle').textContent = L('🚫 Bloquer une journée','🚫 Block a day');
+  box.innerHTML = h;
+  document.getElementById('dayBlockModal').classList.add('show');
+}
+function pgDayType(v){
+  _dbm.type=v;
+  const o=document.getElementById('dbmOther'); if(o){ o.style.display = v==='other'?'block':'none'; if(v==='other') o.focus(); }
+}
+async function pgDayBlock(){
+  if(!S.isAdmin || !_dbm.k) return;
+  const k=_dbm.k;
+  const text = _dbm.type==='other' ? ((document.getElementById('dbmOther')||{}).value||'').trim() : '';
+  S.customClosed[k]=true;
+  S.closedReason = S.closedReason||{};
+  S.closedReason[k]={ type:_dbm.type, text };
+  if(S.selectedDate && dk(S.selectedDate)===k) S.selectedDate=null;
+  closeModal('dayBlockModal');
+  await saveConfig(); render();
+  toast(L(`🚫 ${k} bloqué : ${closedReasonLabel(k)||'Fermé (admin)'}`,`🚫 ${k} blocked: ${closedReasonLabel(k)||'Closed (admin)'}`),'success');
+}
+async function pgDayReopen(){
+  if(!S.isAdmin || !_dbm.k) return;
+  const k=_dbm.k, d=parseDate(k);
+  delete S.customClosed[k];
+  if(S.closedReason) delete S.closedReason[k];
+  if(isClosed(d)) S.customClosed[k]=false;     // jour fermé par la semaine : ouverture exceptionnelle
+  closeModal('dayBlockModal');
+  await saveConfig(); render();
+  toast(L(`🔓 ${k} rouvert`,`🔓 ${k} reopened`),'success');
+}
+
 // ── Priorité sur une période : cocher P1…P4, choisir les dates, ouvrir / rétablir d'un coup (admin) ──
 var _pgPer = { from:'', to:'', ranks:new Set([2,3,4]), half:'both', open:false };
 function pgPerToggle(){ _pgPer.open=!_pgPer.open; renderPlanningGrid(); }
@@ -5911,6 +6022,7 @@ function renderPlanningGrid(){
     html+=`<th data-date="${k}" class="${isToday?'pg-today-head':''}${closed?' pg-day-closed':''}" style="min-width:120px${d.getDate()===1?';border-left:3px solid #fff':''}">
       ${t('dowNames')[d.getDay()]}<br>
       <span style="font-size:.65rem;font-weight:400;opacity:.9">${d.getDate()} ${months[d.getMonth()]}</span>
+      ${pgDayHeadExtra(d,k)}
     </th>`;
   });
   html += '</tr></thead><tbody>';
@@ -7572,6 +7684,7 @@ function toggleDow(dow){
 function adminToggleClose(){
   const v=document.getElementById('adminCloseDate').value;
   if(!v){ toast(t('toastNoDate'),'error'); return; }
+  if(S.closedReason) delete S.closedReason[v];
   if(S.customClosed[v]===undefined){
     S.customClosed[v]=true;
     toast(`${v} ${t('toastDateClosed')}`,'success');
