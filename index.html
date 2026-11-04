@@ -499,6 +499,37 @@ header .user-pill { color: #fff; }
 #adminPendingBanner { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#dc2626; color:#fff; padding:10px 16px; font-size:.9rem; animation:pgPulse 1.8s ease-in-out infinite; position:relative; z-index:40; }
 #adminPendingBanner .btn { background:#fff; color:#b91c1c; font-weight:800; }
 @keyframes pgPulse { 0%,100% { background:#dc2626; } 50% { background:#b91c1c; } }
+
+/* ── Couleurs des créneaux du planning : vert = ouvert · orange = Kayak Cross uniquement ── */
+:root{
+  --slot-open:#5f8f23;  --slot-open-bg:#e6f3d2;
+  --slot-mid:#c79a12;   --slot-mid-bg:#faf0c6;
+  --slot-full:#d1495b;  --slot-full-bg:#fbe0e3;
+  --slot-blocked:#dc2626; --slot-blocked-bg:#fecaca;
+  --slot-kx:#f97316;    --slot-kx-bg:#ffedd5;
+}
+.planning-grid td:not(:first-child){ height:1px; }                       /* permet à la couleur de remplir toute la case */
+.planning-grid td > .pg-cell{ height:100%; box-sizing:border-box; border-radius:0; transition:filter .12s; }
+.planning-grid td:hover > .pg-cell{ filter:brightness(.96) saturate(1.1); }
+.planning-grid td > .pg-cell.pg-cell-open { background:var(--slot-open-bg); box-shadow:inset 5px 0 0 var(--slot-open); }
+.planning-grid td > .pg-cell.pg-cell-mid  { background:var(--slot-mid-bg);  box-shadow:inset 5px 0 0 var(--slot-mid); }
+.planning-grid td > .pg-cell.pg-cell-full { background:var(--slot-full-bg) !important; box-shadow:inset 5px 0 0 var(--slot-full); }
+.planning-grid td > .pg-cell.pg-cell-kx   { background:var(--slot-kx-bg) !important; box-shadow:inset 5px 0 0 var(--slot-kx); }
+.planning-grid td > .pg-cell.pg-cell-CRRCK{ background:#ede9fe !important; box-shadow:inset 5px 0 0 #7c3aed; }
+.planning-grid td > .pg-cell.pg-cell-CLUB { background:#ccfbf1 !important; box-shadow:inset 5px 0 0 #0d9488; }
+.planning-grid td > .pg-cell.pg-cell-blocked, .planning-grid td > .pg-cell.pg-cell-locked { background:var(--slot-blocked-bg) !important; box-shadow:inset 5px 0 0 var(--slot-blocked); }
+.planning-grid td > .pg-cell.pg-cell-today{ outline:2px solid var(--sevi-olive-d,#3e4a18); outline-offset:-2px; }
+.pg-count-open{ background:var(--slot-open); color:#fff; }
+.pg-count-mid { background:var(--slot-mid);  color:#fff; }
+.pg-count-full{ background:var(--slot-full); color:#fff; }
+.pg-empty{ color:#6b8a3a; font-style:italic; }
+.pg-ath-out{ color:#b91c1c; font-weight:700; text-decoration:underline wavy #b91c1c; text-underline-offset:2px; }
+.pg-sw{ display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:middle; margin-right:3px; }
+.pg-colors{ display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; }
+/* même logique de couleurs ailleurs : le orange n'est plus utilisé que pour le Kayak Cross */
+.cc-dot.d-orange{ background:var(--slot-mid); }
+.s-mid .slot-progress-fill{ background:var(--slot-mid); }
+.slot-card.s-open{ border-color:#a8d26b; background:#f1f8e4; }
 </style>
 
 </head>
@@ -2212,6 +2243,30 @@ function friseAllows(name,dateK){
 function friseInfo(name){
   const w=friseWindows(name); const f=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
   return w.length ? w.map(x=>`${f(x.from)} → ${f(x.to)}`).join(' · ') : '';
+}
+// ── Contrôle admin : inscrit hors de sa période de la frise ──
+var _fwMemo={rows:null,map:{}};
+function friseWindowsAdmin(name){
+  if(_fwMemo.rows!==FQ.rows) _fwMemo={rows:FQ.rows,map:{}};
+  const key=fqNorm(name);
+  if(_fwMemo.map[key]) return _fwMemo.map[key];
+  const rows=FQ.rows||[];
+  let w=rows.filter(p=>fqAths(p).some(a=>fqNorm(a.name)===key));
+  if(!w.length) w=rows.filter(p=>fqNorm(p.g)===key);          // nom de groupe saisi à la place d'un athlète (ex. « Poland »)
+  return _fwMemo.map[key]=w.map(p=>({from:p.start_date,to:p.end_date,g:p.g}));
+}
+function friseOutAdmin(name,dateK){
+  if(!S.isAdmin || S.friseRestrict===false || FQ.ok!==true) return false;
+  return !friseWindowsAdmin(name).some(w=>dateK>=w.from&&dateK<=w.to);
+}
+function friseInfoAdmin(name){
+  const w=friseWindowsAdmin(name), f=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
+  return w.length ? w.map(x=>`${f(x.from)} → ${f(x.to)}`).join(' · ') : L('absent de la frise','not in the schedule');
+}
+function friseOutMsg(names,dateK){
+  const day=fqParse(dateK).toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'});
+  const lines=names.map(n=>`• ${n} — ${friseInfoAdmin(n)}`).join('\n');
+  return L(`⚠️ Hors période de la frise :\n${lines}\n\nInscrire quand même le ${day} ?`,`⚠️ Outside the schedule period:\n${lines}\n\nRegister anyway on ${day}?`);
 }
 function fqIsMine(p){ return !!(S.session && p.user_id===S.session.user.id); }
 function fqCanSee(p){ return true; }   // noms visibles par tous les utilisateurs connectés
@@ -6002,7 +6057,14 @@ function renderPlanningGrid(){
 
   if(isKayak) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px"><span class="pg-kx-badge">🏄 KAYAK CROSS</span> = séance de kayak cross (fond orange, toujours ouverte, hors priorité)</p>`;
 
-  html += `<p class="pg-swipe-hint">↔ Glisse pour parcourir toute la saison</p>`;
+  html += `<p class="pg-legend pg-colors" style="font-size:.74rem;color:var(--text2);margin:0 0 8px">
+    <span><span class="pg-sw" style="background:var(--slot-open)"></span>${L('Ouvert','Open')}</span>
+    <span><span class="pg-sw" style="background:var(--slot-mid)"></span>${L('Bien rempli (≥ 60 %)','Filling up (≥ 60%)')}</span>
+    <span><span class="pg-sw" style="background:var(--slot-full)"></span>${L('Complet','Full')}</span>
+    <span><span class="pg-sw" style="background:var(--slot-blocked)"></span>${L('Bloqué / pas encore ouvert','Blocked / not open yet')}</span>
+    ${isKayak?`<span><span class="pg-sw" style="background:var(--slot-kx)"></span>Kayak Cross</span><span><span class="pg-sw" style="background:#7c3aed"></span>CRRCK</span><span><span class="pg-sw" style="background:#0d9488"></span>CLUB</span>`:''}
+    ${S.isAdmin?`<span style="color:#b91c1c;font-weight:700">⚠️ ${L('inscrit hors période de la frise','registered outside schedule period')}</span>`:''}</p>
+  <p class="pg-swipe-hint">↔ Glisse pour parcourir toute la saison</p>`;
 
   // Tableau
   html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><div class="pg-blocks">`;
@@ -6060,6 +6122,8 @@ function renderPlanningGrid(){
       else if(kx) cellClass += ' pg-cell-kx';
       else if(label && label!=='KX') cellClass += ` pg-cell-${label}`;
       else if(aths.length>=c) cellClass += ' pg-cell-full';
+      else if(c>0 && aths.length/c>=0.6) cellClass += ' pg-cell-mid';
+      else cellClass += ' pg-cell-open';
 
       // Badge count
       const pct = aths.length/c;
@@ -6087,7 +6151,8 @@ function renderPlanningGrid(){
         aths.slice(0,MAX_SHOW).forEach(a=>{
           const isKxAth = kx;
           const hasRental = a.rental||a.kayakModel;
-          cellHtml+=`<span class="pg-ath${isKxAth?' pg-ath-kx':''}${hasRental?' pg-ath-rental':''}" title="${esc(a.name)}">${esc(a.name.split(' ')[0])} ${esc((a.name.split(' ')[1]||'').charAt(0)+'.')}</span>`;
+          const outP = S.isAdmin && friseOutAdmin(a.name,k);
+          cellHtml+=`<span class="pg-ath${isKxAth?' pg-ath-kx':''}${hasRental?' pg-ath-rental':''}${outP?' pg-ath-out':''}" title="${esc(a.name)}${outP?' — '+esc(L('hors période de la frise','outside the schedule period'))+' ('+esc(friseInfoAdmin(a.name))+')':''}">${outP?'⚠️ ':''}${esc(a.name.split(' ')[0])} ${esc((a.name.split(' ')[1]||'').charAt(0)+'.')}</span>`;
         });
         if(aths.length>MAX_SHOW) cellHtml+=`<span class="pg-more">+${aths.length-MAX_SHOW} ${L('autres','more')}</span>`;
         if(!aths.length) cellHtml+=`<span class="pg-empty">${L('Vide','Empty')}</span>`;
@@ -6170,7 +6235,7 @@ function pgRenderSheet(){
   const inscrits = store.length ? store.map((a,i)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:.85rem">
       <span style="color:var(--text3);width:20px">${i+1}.</span>
-      <span style="flex:1">${esc(a.name)}${a.role&&a.role!=='Athlète'?` <small style="color:var(--text3)">(${esc(a.role)})</small>`:''}${a.referent?` <small style="color:var(--text3)">· ${esc(a.referent)}</small>`:''}</span>
+      <span style="flex:1">${esc(a.name)}${(S.isAdmin&&friseOutAdmin(a.name,dateK))?` <small style="color:#b91c1c;font-weight:700">⚠️ ${esc(L('hors période','outside period'))} (${esc(friseInfoAdmin(a.name))})</small>`:''}${a.role&&a.role!=='Athlète'?` <small style="color:var(--text3)">(${esc(a.role)})</small>`:''}${a.referent?` <small style="color:var(--text3)">· ${esc(a.referent)}</small>`:''}</span>
       <button class="btn btn-sm" style="color:var(--red)" title="Retirer" onclick="pgRemoveAthlete('${a._id}')">✕</button>
     </div>`).join('')
     : '<p style="color:var(--text3);font-size:.82rem;margin:6px 0">Aucun inscrit.</p>';
@@ -6371,6 +6436,8 @@ async function pgInsertEntries(entries, ownerId, referent){
   if(!todo.length){ toast('Déjà inscrit(s) sur cette séance.','error'); return; }
   const c = cap(slot,dateK,act);
   if(store.length+todo.length > c && !confirm(`Capacité dépassée : ${store.length+todo.length}/${c}.\nAjouter quand même ?`)) return;
+  { const out=todo.filter(e=>friseOutAdmin(e.name.trim(),dateK)).map(e=>e.name.trim());
+    if(out.length && !confirm(friseOutMsg(out,dateK))) return; }
   const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
   const payload = todo.map(e=>({
     date:dateK, creneau:slot, nom:e.name.trim(), role:e.role||'Athlète',
@@ -7418,6 +7485,8 @@ async function submitRegistration(){
   { const unk = unknownAthleteNames(participants.map(p=>p.name));
     if(unk.length){ toast('⛔ Nom absent de la base athlètes : '+unk.join(', ')+'. Seuls les athlètes de la base peuvent être inscrits.','error'); return; } }
   { const bad=participants.filter(p=>!friseAllows(p.name, dateK)); if(bad.length){ toast('⛔ Hors période de la frise : '+bad.map(b=>b.name).join(', '),'error'); return; } }
+  { const out=participants.filter(p=>friseOutAdmin(p.name,dateK)).map(p=>p.name);
+    if(out.length && !confirm(friseOutMsg(out,dateK))) return; }
   const free = cap(slot,dateK) - getSlot(dateK,slot).length;
   if(participants.length > free){ toast(`Only ${free} spot(s) left on this slot.`,'error'); return; }
   const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
