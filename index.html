@@ -352,6 +352,52 @@ select.field { min-width: 110px; cursor: pointer; }
 .pg-act-btn { padding:5px 14px;border-radius:20px;border:1.5px solid var(--border2);background:white;font-size:.76rem;font-weight:600;cursor:pointer; }
 .pg-act-btn.active { background:var(--accent);color:white;border-color:var(--accent); }
 .pg-act-btn.muscu-act.active { background:#0d9488;border-color:#0d9488; }
+
+/* ══ Adaptation téléphone : grille qui glisse, onglets défilants, boutons tactiles ══ */
+.pg-swipe-hint { display:none; }
+.planning-grid th:first-child, .planning-grid td:first-child { position:sticky; left:0; z-index:3; }
+@media (max-width: 700px) {
+  header { padding: 0 10px; gap: 6px; }
+  header .brand-text p { display:none; }
+  .header-actions { gap: 5px; }
+  .user-pill { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-body { padding: 12px 8px 90px; }
+  .page-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 6px; margin-bottom: 12px; }
+  .page-tabs::-webkit-scrollbar { display:none; }
+  .page-tab { flex: 0 0 auto; min-width: 0; white-space: nowrap; padding: 10px 14px; font-size: .88rem; }
+  .cal-nav { gap: 6px; }
+  .cal-nav-center { width: 100%; order: -1; justify-content: space-between; }
+  .nav-btn { padding: 9px 12px; }
+  .btn, .view-btn, .nav-btn { min-height: 38px; }
+  /* Grille : on glisse horizontalement, la colonne des horaires reste collée à gauche */
+  .pg-swipe-hint { display:block; font-size:.72rem; color:var(--text3); margin:0 0 6px; }
+  .planning-wrap { margin: 0 -8px; border-radius: 0; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .planning-grid { width: auto; min-width: 100%; }
+  .planning-grid th { min-width: 138px !important; scroll-snap-align: start; scroll-margin-left: 60px; }
+  .planning-grid td { min-width: 138px; scroll-snap-align: start; scroll-margin-left: 60px; }
+  .planning-grid th:first-child, .planning-grid td:first-child { min-width: 58px !important; width: 58px; padding: 6px 4px; font-size: .64rem; scroll-snap-align: none; box-shadow: 2px 0 4px rgba(0,0,0,.12); }
+  .pg-cell { min-height: 64px; padding: 5px 6px; font-size: .8rem; }
+  #pgSheet { padding: 8px !important; align-items: flex-end !important; }
+  #pgSheet > div { max-height: 92vh; overflow-y: auto; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  #pgMultiBar { padding: 10px 10px calc(10px + env(safe-area-inset-bottom)) !important; }
+  #pgMultiBar .btn { flex: 1 1 auto; }
+  .planning-wrap table, .admin-grid { font-size: .85rem; }
+}
+
+/* ── Saison : mois et grille qui glissent ── */
+.month-strip { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+.month-page { flex:0 0 100%; min-width:0; scroll-snap-align:start; }
+.month-name { font-weight:800; text-align:center; margin:0 0 6px; text-transform:capitalize; }
+.pg-months { display:flex; gap:6px; overflow-x:auto; margin:0 0 8px; padding-bottom:2px; scrollbar-width:none; }
+.pg-months::-webkit-scrollbar { display:none; }
+.pg-months .btn { flex:0 0 auto; text-transform:capitalize; }
+
+/* ── Blocs semaine : Lun–Ven puis Sam–Dim, chacun avec ses horaires ── */
+.pg-blocks { display:flex; align-items:flex-start; width:max-content; }
+.planning-grid.pg-block { width:auto; flex:0 0 auto; border-left:3px solid #0f172a; }
+.planning-grid.pg-block th:first-child, .planning-grid.pg-block td:first-child { min-width:70px; width:70px; }
+.pg-block-we th:not(:first-child) { background:#475569; }
+.pg-block-we th:first-child { background:#334155; }
 </style>
 
 <style id="sevi-theme">
@@ -668,10 +714,10 @@ header .user-pill { color: #fff; }
   <div class="page-tabs" id="pageTabs">
     <button class="page-tab active" id="pbQuickReg" onclick="setPage('quickreg')">⚡ <span id="navQuickReg">Quick registration</span></button>
     <button class="page-tab" id="pbTeam" onclick="setPage('team')">👥 <span id="navTeam">My team</span></button>
-    <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Planning</span></button>
+    <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Inscription séances</span></button>
     <button class="page-tab" id="pbAthletes" style="display:none" onclick="setPage('athletes')">📇 <span id="navAthletes">Athlete database</span></button>
     <button class="page-tab" id="pbSuivi" style="display:none" onclick="setPage('suivi')">📝 <span id="navSuivi">Suivi</span></button>
-    <button class="page-tab" id="pbFreq" style="display:none" onclick="setPage('freq')">🧭 <span>Frise</span></button>
+    <button class="page-tab" id="pbFreq" style="display:none" onclick="setPage('freq')">🧭 <span>Inscription des TEAM saison 2026 - 2027</span></button>
   </div>
 
   <div class="quick-reg-card" id="quickRegPanel">
@@ -1054,7 +1100,7 @@ header .user-pill { color: #fff; }
   <!-- Frise des groupes : chaque référent déclare son groupe, l'inscription se fait automatiquement -->
   <div id="freqPage" style="display:none">
     <div class="quick-reg-card">
-      <h2>🧭 Frise des groupes</h2>
+      <h2>🧭 Inscription des TEAM saison 2026 - 2027</h2>
       <p class="qr-sub" id="fqIntro"></p>
       <label id="fqRestrictWrap" style="display:none;gap:8px;align-items:center;cursor:pointer;font-size:.82rem;margin-bottom:10px;padding:8px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px"><input type="checkbox" id="fqRestrict" onchange="fqToggleRestrict(this.checked)"> 🔒 <span><b>Restreindre l'inscription des athlètes à leur période</b> : un athlète ne peut s'inscrire que sur les jours des périodes où il figure.</span></label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
@@ -1539,7 +1585,7 @@ const TR = {
     costDateCol:'Date', costNameCol:'Nom Prénom', costTypeCol:'Séance', costPriceCol:'Tarif',
     costGrandTotal:'Total général',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Musculation', typeWithRental:'+ location',
-    navQuickReg:'Inscription rapide', navTeam:'Mon équipe', navPlanning:'Planning', navAthletes:'Base athlètes',
+    navQuickReg:'Inscription rapide', navTeam:'Mon équipe', navPlanning:'Inscription séances', navAthletes:'Base athlètes',
     teamTitle:'📜 Historique de mes inscriptions', teamGroupLabel:'Groupe',
     teamSub:'Retrouvez ici le nom, prénom et le groupe de chaque athlète que vous avez inscrit sur le planning.',
     teamEmpty:"Vous n'avez inscrit personne pour le moment. Utilisez l'inscription rapide ou le planning pour ajouter des athlètes.",
@@ -1707,7 +1753,7 @@ const TR = {
     costDateCol:'Date', costNameCol:'Full name', costTypeCol:'Session', costPriceCol:'Price',
     costGrandTotal:'Grand total',
     typeSlalom:'🚣 Slalom', typeKX:'🏄 Kayak Cross', typeMuscu:'🏋️ Weight room', typeWithRental:'+ rental',
-    navQuickReg:'Quick registration', navTeam:'My team', navPlanning:'Planning', navAthletes:'Athletes database',
+    navQuickReg:'Quick registration', navTeam:'My team', navPlanning:'Session registration', navAthletes:'Athletes database',
     teamTitle:'📜 My registration history', teamGroupLabel:'Group',
     teamSub:'Here you can find the name and the group of every athlete you have registered on the planning.',
     teamEmpty:"You haven't registered anyone yet. Use quick registration or the planning to add athletes.",
@@ -2542,7 +2588,7 @@ function fqPrint(){
   const rows=[...FQ.rows].sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
   const fmt=k=>fqParse(k).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
   const tick=v=>v?'✔':'';
-  let h=`<div class="print-title">🧭 Frise des groupes — Winter Training Réunion 2026-2027</div>
+  let h=`<div class="print-title">🧭 Inscription des TEAM saison 2026 - 2027 — Winter Training Réunion</div>
     <div class="print-sub">Édité le ${new Date().toLocaleDateString('fr-FR')}</div>`;
   if(!rows.length) h+='<p class="print-empty">Aucun groupe déclaré.</p>';
   else{
@@ -4086,8 +4132,10 @@ function roleDisplay(r){ return r==='Encadrant'?t('roleCoach'):t('roleAth'); }
 function render(){ renderCal(); renderDayPanel(); renderMuscuDayPanel(); renderAdmin(); applyI18n(); }
 
 function renderCal(){
+  if(S.view==='week') S.view='planning';   // la vue Semaine est la grille d'inscription par cases
+  { const vp=document.getElementById('vbPlanning'); if(vp) vp.style.display='none'; }
   document.getElementById('vbMonth').className='view-btn'+(S.view==='month'?' active':'');
-  document.getElementById('vbWeek').className='view-btn'+(S.view==='week'?' active':'');
+  document.getElementById('vbWeek').className='view-btn'+(S.view==='planning'?' active':'');
   document.getElementById('vbPlanning').className='view-btn'+(S.view==='planning'?' active':'');
   const dayPanelEl = document.getElementById('dayPanel');
   const muscuDayEl = document.getElementById('muscuDayPanel');
@@ -4100,12 +4148,11 @@ function renderCal(){
     document.getElementById('planningContainer')?.remove();
     document.getElementById('pgMultiBar')?.remove();
     document.getElementById('calContainer').innerHTML=S.view==='month'?renderMonth():renderWeek();
+    if(S.view==='month') pgInitMonthStrip();
   }
 }
 
-function renderMonth(){
-  const d=S.currentDate;
-  document.getElementById('calTitle').textContent=`${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+function monthHtml(d){
   const first=new Date(d.getFullYear(),d.getMonth(),1);
   const offset=(first.getDay()+6)%7;
   const daysCount=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
@@ -4115,11 +4162,9 @@ function renderMonth(){
   for(let n=1;n<=daysCount;n++){
     const dt=new Date(d.getFullYear(),d.getMonth(),n);
     const k=dk(dt), closed=isClosed(dt), oor=outOfRange(dt);
-    const sel=S.selectedDate&&dk(S.selectedDate)===k;
     const st=dayStatus(dt), label=closedLabel(dt);
     let cls='cal-cell';
     if(closed||oor) cls+=' cc-closed';
-    if(sel&&!closed&&!oor) cls+=' cc-selected';
     const click=(!closed&&!oor)?`onclick="selectDay('${k}')"`:'';
     h+=`<div class="${cls}" ${click}>
       <div class="cc-num">${n}</div>
@@ -4127,7 +4172,33 @@ function renderMonth(){
       ${!closed&&!oor&&st?`<div class="cc-dot d-${st}"></div>`:''}
     </div>`;
   }
-  h+='</div>'; return h;
+  return h+'</div>';
+}
+function renderMonth(){
+  const d=S.currentDate, months=t('months');
+  document.getElementById('calTitle').textContent=`${months[d.getMonth()]} ${d.getFullYear()}`;
+  let h='<div class="month-strip" id="monthStrip">';
+  for(let c=new Date(START.getFullYear(),START.getMonth(),1); c<=END; c=new Date(c.getFullYear(),c.getMonth()+1,1)){
+    h+=`<div class="month-page"><div class="month-name">${esc(months[c.getMonth()])} ${c.getFullYear()}</div>${monthHtml(c)}</div>`;
+  }
+  return h+'</div>';
+}
+function pgInitMonthStrip(){
+  const st=document.getElementById('monthStrip'); if(!st||!st.children.length) return;
+  const idx=Math.min(st.children.length-1, Math.max(0,(S.currentDate.getFullYear()-START.getFullYear())*12 + S.currentDate.getMonth()-START.getMonth()));
+  st.scrollLeft = st.children[idx].offsetLeft - st.children[0].offsetLeft;
+  let raf=0;
+  st.addEventListener('scroll',()=>{
+    if(raf) return;
+    raf=requestAnimationFrame(()=>{
+      raf=0;
+      const pw=st.children[0].offsetWidth + 12;
+      const i=Math.min(st.children.length-1, Math.max(0, Math.round(st.scrollLeft/pw)));
+      const c=new Date(START.getFullYear(),START.getMonth()+i,1);
+      S.currentDate = c<START ? new Date(START) : c;
+      document.getElementById('calTitle').textContent=`${t('months')[c.getMonth()]} ${c.getFullYear()}`;
+    });
+  },{passive:true});
 }
 
 function renderWeek(){
@@ -4164,6 +4235,8 @@ function renderWeek(){
 
 function renderDayPanel(){
   const el=document.getElementById('dayPanel');
+  if(el){ el.style.display='none'; el.innerHTML=''; }
+  return; // l'inscription se fait désormais dans la grille « Inscription séances »
   if(!S.selectedDate){ el.style.display='none'; return; }
   el.style.display='block';
   const d=S.selectedDate, k=dk(d), closed=isClosed(d);
@@ -4299,6 +4372,8 @@ function renderSlot(dateK,slot,act='kayak'){
 function renderMuscuDayPanel(){
   const el=document.getElementById('muscuDayPanel');
   if(!el) return;
+  el.style.display='none'; el.innerHTML='';
+  return; // l'inscription se fait désormais dans la grille « Inscription séances »
   if(!S.selectedDate){ el.style.display='none'; return; }
   el.style.display='block';
   const d=S.selectedDate, k=dk(d), closed=isClosed(d);
@@ -4914,8 +4989,8 @@ function renderAdmin(){
 function selectDay(k){
   const d=parseDate(k);
   if(isClosed(d)||outOfRange(d)) return;
-  S.selectedDate=d; S.currentDate=d; render();
-  setTimeout(()=>document.getElementById('dayPanel').scrollIntoView({behavior:'smooth',block:'start'}),60);
+  S.selectedDate=null; S.currentDate=d; S.view='planning'; window._pgGoto=dk(d); render();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // VUE PLANNING GRILLE
@@ -4932,19 +5007,10 @@ function renderPlanningGrid(){
     calEl.parentNode.insertBefore(wrap, calEl.nextSibling);
   }
 
-  // Calcul de la semaine courante
-  const ws = weekStart(S.currentDate);
+  // Toute la saison en colonnes (on fait glisser pour parcourir)
   const days = [];
-  for(let i=0;i<7;i++){
-    const d = new Date(ws); d.setDate(ws.getDate()+i);
-    days.push(d);
-  }
-
-  // Titre semaine dans la nav
+  for(let d=new Date(START); d<=END; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)) days.push(d);
   const months = t('months');
-  const we = new Date(ws); we.setDate(ws.getDate()+6);
-  document.getElementById('calTitle').textContent =
-    `${ws.getDate()} ${months[ws.getMonth()]} – ${we.getDate()} ${months[we.getMonth()]} ${we.getFullYear()}`;
 
   const isKayak = _pgActivity === 'kayak';
   const today = dk(new Date());
@@ -4952,20 +5018,31 @@ function renderPlanningGrid(){
   // Slots selon l'activité
   const getSlots = (dateK) => isKayak ? allSlots(dateK) : S.muscuSlots;
 
-  // Toutes les lignes (union de tous les créneaux de la semaine)
-  const allSlotLabels = new Set();
-  days.forEach(d=>{
-    const k=dk(d);
-    getSlots(k).forEach(s=>allSlotLabels.add(s));
-  });
-  // Trier les créneaux chronologiquement
-  const slotRows = [...allSlotLabels].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
+  // Blocs : chaque semaine = [Lun–Ven] + [Sam–Dim]. Chaque bloc réécrit ses propres horaires
+  // (union des créneaux de SES jours seulement) → planning plus compact et lisible.
+  const blocks = [];
+  { let cur = null;
+    days.forEach(d=>{
+      const dow = d.getDay();
+      const kind = (dow===0||dow===6) ? 'we' : 'wd';
+      const wk = dk(weekStart(d));
+      if(!cur || cur.kind!==kind || cur.wk!==wk){ cur = { kind, wk, days:[] }; blocks.push(cur); }
+      cur.days.push(d);
+    }); }
 
   // Toggle activité
   let html = `<div class="pg-act-toggle">
     <button class="pg-act-btn${_pgActivity==='kayak'?' active':''}" onclick="pgSetActivity('kayak')">🚣 Kayak</button>
     <button class="pg-act-btn muscu-act${_pgActivity==='muscu'?' active':''}" onclick="pgSetActivity('muscu')">🏋️ Fitness</button>
   </div>`;
+
+  // Raccourcis par mois
+  html += `<div class="pg-months" id="pgMonths">`;
+  html += `<button class="btn btn-sm" onclick="pgGoToday()">📍 Aujourd'hui</button>`;
+  for(let c=new Date(START.getFullYear(),START.getMonth(),1); c<=END; c=new Date(c.getFullYear(),c.getMonth()+1,1)){
+    html += `<button class="btn btn-sm pg-mchip" data-ym="${c.getFullYear()}-${c.getMonth()}" onclick="pgGoMonth(${c.getFullYear()},${c.getMonth()})">${esc(months[c.getMonth()])}</button>`;
+  }
+  html += `</div>`;
 
   // Bouton impression planning semaine
   html += `<div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
@@ -4986,18 +5063,25 @@ function renderPlanningGrid(){
 
   if(isKayak) html += `<p style="font-size:.74rem;color:var(--text2);margin:0 0 8px"><span class="pg-kx-badge">🏄 KAYAK CROSS</span> = séance de kayak cross (fond orange, toujours ouverte, hors priorité)</p>`;
 
+  html += `<p class="pg-swipe-hint">↔ Glisse pour parcourir toute la saison</p>`;
+
   // Tableau
-  html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><table class="planning-grid">`;
+  html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><div class="pg-blocks">`;
+  blocks.forEach(blk=>{
+  const bdays = blk.days;
+  const allSlotLabels = new Set();
+  bdays.forEach(d=>{ getSlots(dk(d)).forEach(s=>allSlotLabels.add(s)); });
+  const slotRows = [...allSlotLabels].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
+  html += `<table class="planning-grid pg-block${blk.kind==='we'?' pg-block-we':''}">`;
 
   // En-tête jours
-  html += '<thead><tr><th style="text-align:center;font-size:.65rem;color:#94a3b8">Slot</th>';
-  const dowLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  days.forEach((d,i)=>{
+  html += `<thead><tr><th style="text-align:center;font-size:.65rem;color:#94a3b8">${blk.kind==='we'?'Week-end':'Horaires'}</th>`;
+  bdays.forEach(d=>{
     const k=dk(d);
     const isToday=k===today;
     const closed=isClosed(d)||outOfRange(d);
-    html+=`<th class="${isToday?'pg-today-head':''}${closed?' pg-day-closed':''}" style="min-width:120px">
-      ${dowLabels[i]}<br>
+    html+=`<th data-date="${k}" class="${isToday?'pg-today-head':''}${closed?' pg-day-closed':''}" style="min-width:120px${d.getDate()===1?';border-left:3px solid #fff':''}">
+      ${t('dowNames')[d.getDay()]}<br>
       <span style="font-size:.65rem;font-weight:400;opacity:.9">${d.getDate()} ${months[d.getMonth()]}</span>
     </th>`;
   });
@@ -5009,7 +5093,7 @@ function renderPlanningGrid(){
     // Colonne heure
     html += `<td style="text-align:center">${slot}</td>`;
 
-    days.forEach(d=>{
+    bdays.forEach(d=>{
       const k = dk(d);
       const closed = isClosed(d)||outOfRange(d);
       const slotExists = getSlots(k).includes(slot);
@@ -5070,8 +5154,20 @@ function renderPlanningGrid(){
     html += '</tr>';
   });
 
-  html += '</tbody></table></div>';
+  html += '</tbody></table>';
+  });
+  html += '</div></div>';
+  // Défilement : on garde la position, sinon on se place sur la semaine voulue
+  const _prev = wrap.querySelector('.planning-wrap');
+  const _keep = (_prev && !window._pgGoto) ? _prev.scrollLeft : null;
   wrap.innerHTML = html;
+  { const nw = wrap.querySelector('.planning-wrap');
+    if(nw){
+      nw.addEventListener('scroll', pgOnScroll, {passive:true});
+      if(_keep!=null) nw.scrollLeft = _keep;
+      else { const target = window._pgGoto || dk(weekStart(S.currentDate)); window._pgGoto = null; pgScrollTo(target,false); }
+      pgOnScroll();
+    } }
   pgUpdateMultiBar();
 }
 
@@ -5588,6 +5684,43 @@ async function pgMultiRegister(){
   pgCloseSheet();   // referme la fiche et réaffiche la grille à jour
 }
 
+// ── Défilement de la saison ──
+function pgScrollTo(dateK, smooth){
+  const nw = document.querySelector('#planningContainer .planning-wrap'); if(!nw) return;
+  let th = nw.querySelector(`th[data-date="${dateK}"]`);
+  if(!th) th = nw.querySelector('th[data-date]');
+  if(!th) return;
+  const fc = nw.querySelector('th:first-child');
+  const left = nw.scrollLeft + (th.getBoundingClientRect().left - nw.getBoundingClientRect().left) - (fc?fc.offsetWidth:0);
+  nw.scrollTo({ left: Math.max(0,left), behavior: smooth?'smooth':'auto' });
+}
+function pgScrollBy(dir){
+  const nw = document.querySelector('#planningContainer .planning-wrap'); if(!nw) return;
+  const th = nw.querySelector('th[data-date]');
+  nw.scrollBy({ left: dir*(th?th.offsetWidth:130)*7, behavior:'smooth' });
+}
+function pgGoMonth(y,m){ const d=new Date(y,m,1); pgScrollTo(dk(d<START?START:d), true); }
+function pgGoToday(){ pgScrollTo(dk(todayClamped()), true); }
+var _pgRaf = 0;
+function pgOnScroll(){
+  if(_pgRaf) return;
+  _pgRaf = requestAnimationFrame(()=>{
+    _pgRaf = 0;
+    const nw = document.querySelector('#planningContainer .planning-wrap'); if(!nw) return;
+    const ths = nw.querySelectorAll('th[data-date]'); if(!ths.length) return;
+    const fc = nw.querySelector('th:first-child');
+    const edge = nw.getBoundingClientRect().left + (fc?fc.offsetWidth:0) + 2;
+    let cur = ths[ths.length-1];
+    for(const th of ths){ if(th.getBoundingClientRect().right > edge){ cur = th; break; } }
+    const d = parseDate(cur.dataset.date);
+    S.currentDate = d;
+    const ct = document.getElementById('calTitle');
+    if(ct) ct.textContent = `${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+    const ym = d.getFullYear()+'-'+d.getMonth();
+    document.querySelectorAll('#pgMonths .pg-mchip').forEach(b=>b.classList.toggle('btn-primary', b.dataset.ym===ym));
+  });
+}
+
 function pgSetActivity(act){
   if(act!==_pgActivity) _pgMulti.sel = {};
   _pgActivity = act;
@@ -5606,7 +5739,7 @@ function printPlanningGrid(){
   const allSlotLabels=new Set();
   days.forEach(d=>getSlots(dk(d)).forEach(s=>allSlotLabels.add(s)));
   const slotRows=[...allSlotLabels].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
-  const dowLabels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const dowLabels=[1,2,3,4,5,6,0].map(i=>t('dowNames')[i]);
 
   let html=`<html><head><title>Planning ${weekLabel}</title><style>
   body{font-family:Arial,sans-serif;font-size:10px;margin:20px}
@@ -5654,13 +5787,17 @@ function printPlanningGrid(){
   const w=window.open('','_blank');w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
 }
 
-function setView(v){ S.view=v; render(); }
+function setView(v){ S.view=(v==='week'?'planning':v); render(); }
 function navPrev(){
+  if(S.view==='planning'){ pgScrollBy(-1); return; }
+  { const st=document.getElementById('monthStrip'); if(S.view==='month' && st){ st.scrollBy({left:-st.clientWidth,behavior:'smooth'}); return; } }
   if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()-1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()-7); S.currentDate=d; }
   render();
 }
 function navNext(){
+  if(S.view==='planning'){ pgScrollBy(1); return; }
+  { const st=document.getElementById('monthStrip'); if(S.view==='month' && st){ st.scrollBy({left:st.clientWidth,behavior:'smooth'}); return; } }
   if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()+1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()+7); S.currentDate=d; }
   render();
