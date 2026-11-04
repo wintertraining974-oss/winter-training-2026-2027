@@ -353,51 +353,6 @@ select.field { min-width: 110px; cursor: pointer; }
 .pg-act-btn.active { background:var(--accent);color:white;border-color:var(--accent); }
 .pg-act-btn.muscu-act.active { background:#0d9488;border-color:#0d9488; }
 
-/* ══ Adaptation téléphone : grille qui glisse, onglets défilants, boutons tactiles ══ */
-.pg-swipe-hint { display:none; }
-.planning-grid th:first-child, .planning-grid td:first-child { position:sticky; left:0; z-index:3; }
-@media (max-width: 700px) {
-  header { padding: 0 10px; gap: 6px; }
-  header .brand-text p { display:none; }
-  .header-actions { gap: 5px; }
-  .user-pill { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .app-body { padding: 12px 8px 90px; }
-  .page-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 6px; margin-bottom: 12px; }
-  .page-tabs::-webkit-scrollbar { display:none; }
-  .page-tab { flex: 0 0 auto; min-width: 0; white-space: nowrap; padding: 10px 14px; font-size: .88rem; }
-  .cal-nav { gap: 6px; }
-  .cal-nav-center { width: 100%; order: -1; justify-content: space-between; }
-  .nav-btn { padding: 9px 12px; }
-  .btn, .view-btn, .nav-btn { min-height: 38px; }
-  /* Grille : on glisse horizontalement, la colonne des horaires reste collée à gauche */
-  .pg-swipe-hint { display:block; font-size:.72rem; color:var(--text3); margin:0 0 6px; }
-  .planning-wrap { margin: 0 -8px; border-radius: 0; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
-  .planning-grid { width: auto; min-width: 100%; }
-  .planning-grid th { min-width: 138px !important; scroll-snap-align: start; scroll-margin-left: 60px; }
-  .planning-grid td { min-width: 138px; scroll-snap-align: start; scroll-margin-left: 60px; }
-  .planning-grid th:first-child, .planning-grid td:first-child { min-width: 58px !important; width: 58px; padding: 6px 4px; font-size: .64rem; scroll-snap-align: none; box-shadow: 2px 0 4px rgba(0,0,0,.12); }
-  .pg-cell { min-height: 64px; padding: 5px 6px; font-size: .8rem; }
-  #pgSheet { padding: 8px !important; align-items: flex-end !important; }
-  #pgSheet > div { max-height: 92vh; overflow-y: auto; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-  #pgMultiBar { padding: 10px 10px calc(10px + env(safe-area-inset-bottom)) !important; }
-  #pgMultiBar .btn { flex: 1 1 auto; }
-  .planning-wrap table, .admin-grid { font-size: .85rem; }
-}
-
-/* ── Saison : mois et grille qui glissent ── */
-.month-strip { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
-.month-page { flex:0 0 100%; min-width:0; scroll-snap-align:start; }
-.month-name { font-weight:800; text-align:center; margin:0 0 6px; text-transform:capitalize; }
-.pg-months { display:flex; gap:6px; overflow-x:auto; margin:0 0 8px; padding-bottom:2px; scrollbar-width:none; }
-.pg-months::-webkit-scrollbar { display:none; }
-.pg-months .btn { flex:0 0 auto; text-transform:capitalize; }
-
-/* ── Blocs semaine : Lun–Ven puis Sam–Dim, chacun avec ses horaires ── */
-.pg-blocks { display:flex; align-items:flex-start; width:max-content; }
-.planning-grid.pg-block { width:auto; flex:0 0 auto; border-left:3px solid #0f172a; }
-.planning-grid.pg-block th:first-child, .planning-grid.pg-block td:first-child { min-width:70px; width:70px; }
-.pg-block-we th:not(:first-child) { background:#475569; }
-.pg-block-we th:first-child { background:#334155; }
 </style>
 
 <style id="sevi-theme">
@@ -467,6 +422,79 @@ header .user-pill { color: #fff; }
   .auth-wrap > .sevi-hero, .auth-wrap > .auth-box, .auth-wrap > .auth-preview, .auth-wrap > .wa-join-card { flex: 0 0 auto; width: 100%; max-width: 640px; }
 }
 @media (max-width: 640px) { .sevi-hero-bar { padding: 12px 18px 16px; } }
+
+/* ══ Adaptation téléphone : grille qui glisse, onglets défilants, boutons tactiles ══ */
+.pg-swipe-hint { display:none; }
+.planning-grid th:first-child, .planning-grid td:first-child { position:sticky; left:0; z-index:3; }
+@media (max-width: 700px) {
+  header { padding: 0 10px; gap: 6px; }
+  header .brand-text p { display:none; }
+  .header-actions { gap: 5px; }
+  .user-pill { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-body { padding: 12px 8px 90px; }
+  .page-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 6px; margin-bottom: 12px; }
+  .page-tabs::-webkit-scrollbar { display:none; }
+  .page-tab { flex: 0 0 auto; min-width: 0; white-space: nowrap; padding: 10px 14px; font-size: .88rem; }
+  .cal-nav { gap: 6px; }
+  .cal-nav-center { width: 100%; order: -1; justify-content: space-between; }
+  .nav-btn { padding: 9px 12px; }
+  .btn, .view-btn, .nav-btn { min-height: 38px; }
+  /* Grille : on glisse horizontalement, la colonne des horaires reste collée à gauche */
+  .pg-swipe-hint { display:block; font-size:.72rem; color:var(--text3); margin:0 0 6px; }
+  .planning-wrap { margin: 0 -8px; border-radius: 0; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .planning-grid { width: auto; min-width: 100%; }
+  .planning-grid th { min-width: 138px !important; scroll-snap-align: start; scroll-margin-left: 60px; }
+  .planning-grid td { min-width: 138px; scroll-snap-align: start; scroll-margin-left: 60px; }
+  .planning-grid th:first-child, .planning-grid td:first-child { min-width: 58px !important; width: 58px; padding: 6px 4px; font-size: .64rem; scroll-snap-align: none; box-shadow: 2px 0 4px rgba(0,0,0,.12); }
+  .pg-cell { min-height: 64px; padding: 5px 6px; font-size: .8rem; }
+  #pgSheet { padding: 8px !important; align-items: flex-end !important; }
+  #pgSheet > div { max-height: 92vh; overflow-y: auto; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  #pgMultiBar { padding: 10px 10px calc(10px + env(safe-area-inset-bottom)) !important; }
+  #pgMultiBar .btn { flex: 1 1 auto; }
+  .planning-wrap table, .admin-grid { font-size: .85rem; }
+}
+
+/* ── Saison : mois et grille qui glissent ── */
+.month-strip { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+.month-page { flex:0 0 100%; min-width:0; scroll-snap-align:start; }
+.month-name { font-weight:800; text-align:center; margin:0 0 6px; text-transform:capitalize; }
+.pg-months { display:flex; gap:6px; overflow-x:auto; margin:0 0 8px; padding-bottom:2px; scrollbar-width:none; }
+.pg-months::-webkit-scrollbar { display:none; }
+.pg-months .btn { flex:0 0 auto; text-transform:capitalize; }
+
+/* ── Blocs semaine : Lun–Ven puis Sam–Dim, chacun avec ses horaires ── */
+.pg-blocks { display:flex; align-items:flex-start; width:max-content; }
+.planning-grid.pg-block { width:auto; flex:0 0 auto; border-left:3px solid #0f172a; }
+.planning-grid.pg-block th:first-child, .planning-grid.pg-block td:first-child { min-width:70px; width:70px; }
+.pg-block-we th:not(:first-child) { background:#475569; }
+.pg-block-we th:first-child { background:#334155; }
+
+/* ══ Correctifs téléphone (grille + en-tête + haut de page allégé) ══ */
+.planning-grid.pg-block { min-width: 0 !important; }     /* évite des colonnes de plusieurs milliers de pixels */
+@media (max-width: 700px) {
+  html, body { overflow-x: hidden; max-width: 100vw; }
+  header { height: auto; min-height: 52px; padding: 6px 10px; flex-wrap: nowrap; }
+  header .brand-text { display: none; }
+  .brand-logos { padding: 3px 6px !important; gap: 4px !important; }
+  .brand-logos img { height: 26px !important; width: auto !important; }
+  .header-actions { flex-wrap: nowrap; gap: 4px; margin-left: auto; }
+  #userPill, #adminPill { display: none !important; }
+  .btn-lang, #profileBtn, #logoutBtn { padding: 6px 9px; font-size: .74rem; min-height: 32px; }
+  .page-tab { font-size: .8rem; padding: 8px 12px; }
+  /* le haut de page ne doit pas repousser la grille hors de l'écran */
+  .legend, #whoRegisteredBtn, .pg-print, .pg-legend, .pg-multi-row > span { display: none !important; }
+  .pg-multi-row { margin-bottom: 6px !important; }
+  .cal-nav { flex-wrap: nowrap !important; gap: 4px; }
+  .cal-nav-center { width: auto; order: 0; flex: 1; justify-content: center; }
+  .cal-nav .nav-btn { padding: 8px 10px; font-size: .8rem; }
+  .view-toggle .view-btn { padding: 8px 12px; }
+  .pg-act-toggle { margin-bottom: 6px; }
+  .pg-months { margin-bottom: 6px; }
+}
+
+.pg-cell{padding-left:9px;}
+@media (max-width:700px){ .page-tab{font-size:.74rem !important; padding:8px 11px !important; letter-spacing:0 !important;} }
+
 </style>
 
 </head>
@@ -2655,6 +2683,7 @@ async function setPage(page){
   if(pbP) pbP.classList.toggle('active', page==='planning');
   if(pbA) pbA.classList.toggle('active', page==='athletes');
   if(pbS) pbS.classList.toggle('active', page==='suivi');
+  if(page==='planning' && S.view==='planning'){ window._pgGoto = dk(weekStart(S.currentDate)); try{ renderPlanningGrid(); }catch(e){ console.warn(e); } }
   if(page==='suivi' && S.isAdmin && typeof refreshPendingBadge==='function'){ try{ refreshPendingBadge(); }catch(e){} try{ renderSlotRequests(); }catch(e){} }
   if(page==='freq' && S.session){ await loadAthletes(); await loadTeamsData(); await fqLoad(); }
   if(page==='team'){
@@ -5045,23 +5074,23 @@ function renderPlanningGrid(){
   html += `</div>`;
 
   // Bouton impression planning semaine
-  html += `<div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
+  html += `<div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">🖨️ Print week (aperçu compact)</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
   </div>`;
 
   if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits.</p>`;
 
-  if(!S.isAdmin && !S.isReadonly) html += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
+  if(!S.isAdmin && !S.isReadonly) html += `<div class="pg-multi-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
     <button class="btn btn-sm${_pgMulti.on?' btn-primary':''}" onclick="pgToggleMulti()">☑ Sélection multiple</button>
     <span style="font-size:.78rem;color:var(--text2)">${_pgMulti.on?'👆 Clique toutes les séances voulues (même sur plusieurs semaines), puis « Inscrire ma team ».':'👆 Clique sur une séance pour y inscrire ta team, ou active la sélection multiple.'}</span>
   </div>`;
 
-  if(isKayak && S.priorityOn) html += `<p style="font-size:.74rem;color:var(--text2);margin:0 0 8px;line-height:1.5">
+  if(isKayak && S.priorityOn) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px;line-height:1.5">
     <span class="pg-slot-lbl pg-pri">P1</span> <span class="pg-slot-lbl pg-pri">P2</span>… = <b>ordre de priorité</b> dans la demi-journée : un créneau s'ouvre quand les précédents sont complets ·
     <span style="display:inline-block;width:12px;height:12px;background:#fecaca;border-left:3px solid #dc2626;vertical-align:middle"></span> <b>rouge = pas ouvert</b> (bloqué ou en attente de priorité)</p>`;
 
-  if(isKayak) html += `<p style="font-size:.74rem;color:var(--text2);margin:0 0 8px"><span class="pg-kx-badge">🏄 KAYAK CROSS</span> = séance de kayak cross (fond orange, toujours ouverte, hors priorité)</p>`;
+  if(isKayak) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px"><span class="pg-kx-badge">🏄 KAYAK CROSS</span> = séance de kayak cross (fond orange, toujours ouverte, hors priorité)</p>`;
 
   html += `<p class="pg-swipe-hint">↔ Glisse pour parcourir toute la saison</p>`;
 
@@ -5706,7 +5735,7 @@ function pgOnScroll(){
   if(_pgRaf) return;
   _pgRaf = requestAnimationFrame(()=>{
     _pgRaf = 0;
-    const nw = document.querySelector('#planningContainer .planning-wrap'); if(!nw) return;
+    const nw = document.querySelector('#planningContainer .planning-wrap'); if(!nw || !nw.offsetWidth) return;
     const ths = nw.querySelectorAll('th[data-date]'); if(!ths.length) return;
     const fc = nw.querySelector('th:first-child');
     const edge = nw.getBoundingClientRect().left + (fc?fc.offsetWidth:0) + 2;
@@ -5755,7 +5784,8 @@ function printPlanningGrid(){
   .cnt-mid{background:#fef3c7;color:#92400e}
   .blocked{color:#dc2626;font-weight:700;font-size:8px}
   .kx-lbl{font-size:8px;background:#fff7ed;color:#f97316;font-weight:700}
-  </style></head><body>
+  
+</style></head><body>
   <h2>${isKayak?'🚣 Kayak':'🏋️ Fitness'} — Planning ${weekLabel}</h2>
   <p style="font-size:9px;color:#6b7280">Printed ${new Date().toLocaleString('en-GB')}</p>
   <table><thead><tr><th>Slot</th>`;
@@ -6207,7 +6237,7 @@ function mdregClearSel(){ MR.selectedMembers.clear(); renderMdregMembers(); upda
 function refreshOtherAthletesList(){
   const dl = document.getElementById('qrOtherList');
   if(!dl) return;
-  if(!(S.athletes||[]).length && S.session && !S._athLoading){ S._athLoading=true; loadAthletes().then(()=>{ S._athLoading=false; refreshOtherAthletesList(); }); return; }
+  if(!(S.athletes||[]).length && S.session && !S._athLoading && !S._athTried){ S._athLoading=true; S._athTried=true; loadAthletes().then(()=>{ S._athLoading=false; refreshOtherAthletesList(); }); return; }
   const have = new Set(MR.knownMembers.map(m=>m.name.trim().toLowerCase()));
   dl.innerHTML = (S.athletes||[])
     .filter(a=>a.full_name && !have.has(a.full_name.trim().toLowerCase()))
