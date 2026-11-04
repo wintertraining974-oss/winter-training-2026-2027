@@ -530,6 +530,8 @@ header .user-pill { color: #fff; }
 .cc-dot.d-orange{ background:var(--slot-mid); }
 .s-mid .slot-progress-fill{ background:var(--slot-mid); }
 .slot-card.s-open{ border-color:#a8d26b; background:#f1f8e4; }
+.pg-excl-badge{ background:#4f46e5; color:#fff; font-size:.62rem; font-weight:800; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:3px; letter-spacing:.3px; }
+.planning-grid td > .pg-cell.pg-cell-excl{ background:#e0e7ff !important; box-shadow:inset 5px 0 0 #4f46e5; }
 </style>
 
 </head>
@@ -1342,6 +1344,17 @@ header .user-pill { color: #fff; }
       <button class="btn" id="mMoveCancelBtn" onclick="closeModal('moveModal')">Annuler / Cancel</button>
       <button class="btn btn-primary" id="mMoveConfirmBtn" onclick="confirmMove()">Déplacer / Move</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal Historique des actions -->
+<div class="modal-bg" id="historyModal">
+  <div class="modal-box" style="max-width:820px;width:96%;max-height:88vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0">📜 Historique / History</h3>
+      <button class="btn btn-sm" onclick="closeModal('historyModal')">✕</button>
+    </div>
+    <div id="histBody"></div>
   </div>
 </div>
 
@@ -2779,7 +2792,8 @@ async function fqPeriodDelete(){
   const p=FQ.cur; if(!p||!fqCanEdit()) return;
   if(!confirm(`Supprimer le groupe « ${p.g} » ?${p.group_id?'\n\nSes inscriptions automatiques et ses demandes de créneau en attente seront aussi supprimées.':''}`)) return;
   try{
-    if(p.group_id){ const r=await sb.from('inscriptions').delete().eq('group_id',p.group_id); if(r.error) console.warn(r.error); }
+    if(p.group_id){ let snap=[]; try{ const q=await sb.from('inscriptions').select('*').eq('group_id',p.group_id); snap=q.data||[]; }catch(e){}
+      const r=await sb.from('inscriptions').delete().eq('group_id',p.group_id); if(r.error) console.warn(r.error); else { HIST.ctx='frise'; histSummarize('unregister', snap, true); HIST.ctx=''; } }
     if(p.group_id){ const rq=await sb.from('slot_requests').delete().eq('user_id',p.user_id).eq('status','pending').gte('date',p.start_date).lte('date',p.end_date);
       if(rq && rq.error) console.warn(rq.error); }
     const del=await sb.from('frise_periods').delete().eq('id',p.id);
@@ -2956,8 +2970,10 @@ async function refreshTeamsAdmin(){
 async function adminClearMyInscriptionsHistory(){
   if(!S.isAdmin || !S.session) return;
   if(!confirm(t('adminClearHistConfirm'))) return;
+  let snapAll=[]; try{ const q=await sb.from('inscriptions').select('*').eq('user_id', S.session.user.id); snapAll=q.data||[]; }catch(e){}
   const { error } = await sb.from('inscriptions').delete().eq('user_id', S.session.user.id);
   if(error){ toast(error.message,'error'); return; }
+  HIST.ctx='clear-own'; histSummarize('unregister', snapAll, true); HIST.ctx='';
   toast(t('adminClearHistDone'));
   await load();
   render();
@@ -4373,6 +4389,7 @@ let S = {
   dateCapacity:{},  // { "2026-07-15": { "7h-8h":15, "8h-9h":20 } } → capacité spécifique à une date
   closedDow:{},
   customClosed:{},
+  autoOpen:{on:true,threshold:30,am:2,pm:2},  // ouverture auto selon l'effectif présent (frise)
   closedReason:{},   // { "2026-12-25": {type:'holiday'|'competition'|'other', text:''} } → motif d'une journée bloquée par l'admin
   customSlots:{},   // { "2026-07-06": { morning:['8h-9h','9h-10h'], afternoon:['14h-15h'] } }
   kayakCross:{},    // { "2026-07-06": { "9h-10h": true } } → créneau kayak cross
@@ -4620,22 +4637,26 @@ async function onAuthed(session){
 async function sbInsertMany(rows){
   const { data, error } = await sb.from('inscriptions').insert(rows).select();
   if(error) throw error;
+  histSummarize('register', data, false);
   return data;
 }
 
 // Déplacement d'une inscription (confirmMove) : insère une ligne et renvoie son id.
-async function sbInsert(dateK, slot, name, role){
+async function sbInsert(dateK, slot, name, role, ownerId, referent){
   const { data, error } = await sb.from('inscriptions').insert([{
     date:dateK, creneau:slot, nom:name, role:role||'Athlète',
-    user_id:(S.session&&S.session.user)?S.session.user.id:null, activity:'kayak'
+    user_id:ownerId||((S.session&&S.session.user)?S.session.user.id:null), referent_name:referent||null, activity:'kayak'
   }]).select();
   if(error) throw error;
+  histSummarize('register', data, false);
   return data && data[0] ? data[0].id : null;
 }
 
 async function sbDelete(id) {
+  let snap=[]; try{ const r=await sb.from('inscriptions').select('*').eq('id',id); snap=r.data||[]; }catch(e){}
   const { error } = await sb.from('inscriptions').delete().eq('id', id);
   if(error) throw error;
+  histSummarize('unregister', snap, true);
 }
 
 function rowsToData(rows, act='kayak'){
@@ -4665,6 +4686,7 @@ async function saveConfig() {
     closedDow:      S.closedDow,
     customClosed:   S.customClosed,
     closedReason:   S.closedReason,
+    autoOpen:       S.autoOpen,
     capacity:       S.capacity,
     morningOrder:   S.morningOrder,
     afternoonOrder: S.afternoonOrder,
@@ -4692,6 +4714,7 @@ async function loadConfig() {
   if (cfg.closedDow      !== undefined) S.closedDow      = cfg.closedDow;
   if (cfg.customClosed   !== undefined) S.customClosed   = cfg.customClosed;
   if (cfg.closedReason   !== undefined) S.closedReason   = cfg.closedReason || {};
+  if (cfg.autoOpen       !== undefined) S.autoOpen       = { ...S.autoOpen, ...cfg.autoOpen };
   if (cfg.capacity       !== undefined) S.capacity       = cfg.capacity;
   if (cfg.morningOrder   !== undefined) S.morningOrder   = cfg.morningOrder;
   if (cfg.afternoonOrder !== undefined) S.afternoonOrder = cfg.afternoonOrder;
@@ -4815,7 +4838,7 @@ function renderWkSlotCell(k,slot){
   }
   const aths=getSlot(k,slot),c=cap(slot,k),pct=Math.min(1,aths.length/c);
   const locked=isLocked(k,slot)&&!S.isAdmin;
-  const color=pct>=1?'var(--red)':pct>=.6?'var(--orange)':'var(--green)';
+  const color=pct>=1?'var(--red)':pct>=.6?'var(--slot-mid)':'var(--green)';
   return `<div class="wk-slot${locked?' wk-locked':''}${kx?' kx-wk-slot':''}">
     <div class="wk-slot-time">${slot}${kx?'<span style="font-size:.55rem;display:block;color:#f97316;font-weight:700">KX</span>':(cfg.label?`<span style="font-size:.55rem;display:block;color:var(--text3);font-weight:700">${esc(cfg.label)}</span>`:'')}</div>
     <div class="wk-slot-count">${aths.length}/${c}</div>
@@ -4874,24 +4897,77 @@ function isOutOfPriorityChain(dateK,s){
   const c = S.kayakSlotConfig && S.kayakSlotConfig[dateK] && S.kayakSlotConfig[dateK][s];
   return !!(c && c.blocked);
 }
-// Calcul brut (sans passe-droit admin) : renvoie { rank, locked, waitFor } ou null si la priorité ne s'applique pas.
+// ── Effectif présent (frise) : nombre d'athlètes distincts dont une période couvre le jour ──
+var _hcMemo={rows:null,map:{}};
+function friseHeadcount(dateK){
+  if(FQ.ok!==true) return 0;
+  if(_hcMemo.rows!==FQ.rows) _hcMemo={rows:FQ.rows,map:{}};
+  if(_hcMemo.map[dateK]!==undefined) return _hcMemo.map[dateK];
+  const names=new Set(); let extra=0;
+  (FQ.rows||[]).forEach(p=>{
+    if(dateK<p.start_date||dateK>p.end_date) return;
+    const a=fqAths(p);
+    if(a.length) a.forEach(x=>names.add(fqNorm(x.name))); else extra+=fqN(p);
+  });
+  return _hcMemo.map[dateK]=names.size+extra;
+}
+// Nombre de créneaux ouverts d'office (matin / après-midi) quand l'effectif atteint le seuil
+function autoOpenCount(dateK,period){
+  const a=S.autoOpen; if(!a||!a.on) return 0;
+  if(friseHeadcount(dateK) < (+a.threshold||0)) return 0;
+  return Math.max(0, +(period==='am'?a.am:a.pm)||0);
+}
+// ── Créneau EXCLUSIF : dès qu'un groupe s'y inscrit, les autres groupes ne peuvent plus s'y inscrire ──
+function userGroupKey(uid){
+  if(!uid) return '';
+  const tm=(S.teams||[]).find(t=>t.owner_user_id===uid || (t.managers||[]).some(m=>m.status==='approved' && m.user_id===uid));
+  return tm ? 'team:'+tm.id : 'user:'+uid;
+}
+function isExclusiveSlot(dateK,slot){
+  const c=S.kayakSlotConfig && S.kayakSlotConfig[dateK] && S.kayakSlotConfig[dateK][slot];
+  return !!(c && c.exclusive);
+}
+function exclusiveInfo(dateK,slot){
+  if(!isExclusiveSlot(dateK,slot)) return null;
+  const store=getSlot(dateK,slot);
+  const keys=new Set(store.map(a=>userGroupKey(a.user_id)).filter(Boolean));
+  const owner=(store.find(a=>a.referent)||{}).referent||'';
+  return { taken:store.length>0, keys, owner };
+}
+// true si un AUTRE groupe occupe déjà ce créneau exclusif (uid = compte qui veut s'inscrire)
+function exclusiveBlocks(dateK,slot,uid){
+  const e=exclusiveInfo(dateK,slot); if(!e||!e.taken) return false;
+  const mine=userGroupKey(uid);
+  if(!e.keys.size) return true;
+  return [...e.keys].some(k=>k!==mine);
+}
+function exclusiveBlocksMe(dateK,slot){
+  if(S.isAdmin) return false;
+  return exclusiveBlocks(dateK,slot,S.session&&S.session.user?S.session.user.id:null);
+}
+// Calcul brut (sans passe-droit admin) : renvoie { rank, locked, waitFor, forced, auto } ou null si la priorité ne s'applique pas.
 function priorityState(dateK,slot){
   if(!isPriorityActive(dateK) || isOutOfPriorityChain(dateK,slot)) return null;
-  for(const group of [morningSlots(dateK), afternoonSlots(dateK)]){
+  const groups=[['am',morningSlots(dateK)],['pm',afternoonSlots(dateK)]];
+  for(const [period,group] of groups){
     if(!group.includes(slot)) continue;
     const chain = group.filter(s=>!isOutOfPriorityChain(dateK,s));
     const idx = chain.indexOf(slot);
     let waitFor = null;
     for(let i=0;i<idx;i++){ if(getSlot(dateK,chain[i]).length < cap(chain[i],dateK)){ waitFor = chain[i]; break; } }
-    return { rank: idx+1, locked: !!waitFor && !isForceOpen(dateK,slot), waitFor, forced: !!waitFor && isForceOpen(dateK,slot) };
+    const manual = isForceOpen(dateK,slot);
+    const auto = !!waitFor && !manual && (idx+1) <= autoOpenCount(dateK,period);
+    return { rank: idx+1, locked: !!waitFor && !manual && !auto, waitFor, forced: !!waitFor && (manual||auto), auto };
   }
   return null;
 }
 function isLocked(dateK,slot){
   if(S.isAdmin) return false;
+  if(exclusiveBlocksMe(dateK,slot)) return true;
   const st = priorityState(dateK,slot);
   return !!(st && st.locked);
 }
+function lockReason(dateK,slot){ return exclusiveBlocksMe(dateK,slot) ? 'excl' : 'prio'; }
 // Priorité d'un créneau kayak : rang dans sa demi-journée (KX et créneaux bloqués exclus) et état « pas encore ouvert ».
 function pgPriInfo(dateK, slot){
   return priorityState(dateK,slot);
@@ -4937,6 +5013,10 @@ var _dbm = { k:null, type:'competition' };
 function pgDayHeadExtra(d,k){
   if(outOfRange(d)) return '';
   let h='';
+  if(S.isAdmin && _pgActivity==='kayak'){
+    const n=friseHeadcount(k), a=S.autoOpen;
+    if(n) h+=`<br><span style="font-size:.58rem;font-weight:800" title="${esc(L('Effectif présent (frise)','Headcount present (schedule)'))}${a&&a.on&&n>=a.threshold?' — '+esc(L(`ouverture auto : ${a.am} matin + ${a.pm} après-midi`,`auto-open: ${a.am} morning + ${a.pm} afternoon`)):''}">👥 ${n}${a&&a.on&&n>=a.threshold?' ⚡':''}</span>`;
+  }
   const reason = S.customClosed[k]===true ? closedReasonLabel(k) : '';
   if(reason) h += `<br><span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.92);color:#b91c1c;font-size:.6rem;font-weight:800">${esc(reason)}</span>`;
   if(S.isAdmin){
@@ -4999,6 +5079,7 @@ async function pgDayBlock(){
   S.closedReason[k]={ type:_dbm.type, text };
   if(S.selectedDate && dk(S.selectedDate)===k) S.selectedDate=null;
   closeModal('dayBlockModal');
+  histLog('day-block',{date:k,details:{reason:closedReasonLabel(k)||'—'}});
   await saveConfig(); render();
   toast(L(`🚫 ${k} bloqué : ${closedReasonLabel(k)||'Fermé (admin)'}`,`🚫 ${k} blocked: ${closedReasonLabel(k)||'Closed (admin)'}`),'success');
 }
@@ -5009,6 +5090,7 @@ async function pgDayReopen(){
   if(S.closedReason) delete S.closedReason[k];
   if(isClosed(d)) S.customClosed[k]=false;     // jour fermé par la semaine : ouverture exceptionnelle
   closeModal('dayBlockModal');
+  histLog('day-reopen',{date:k});
   await saveConfig(); render();
   toast(L(`🔓 ${k} rouvert`,`🔓 ${k} reopened`),'success');
 }
@@ -5049,9 +5131,32 @@ async function pgPerApply(on){
   const lst=[..._pgPer.ranks].sort().map(r=>'P'+r).join(', ');
   toast(on?`🔓 ${lst} ouvert(s) malgré la priorité : ${n} créneau(x) sur ${days} jour(s)`:`🔒 Priorité rétablie sur ${lst} : ${n} créneau(x) sur ${days} jour(s)`,'success');
 }
+function pgAutoSummary(){
+  const a=S.autoOpen||{};
+  return a.on ? L(`⚡ Auto : ≥ ${a.threshold} pers. → ${a.am} matin + ${a.pm} après-midi`,`⚡ Auto: ≥ ${a.threshold} people → ${a.am} morning + ${a.pm} afternoon`) : L('⚡ Ouverture auto désactivée','⚡ Auto-open off');
+}
+function pgAutoHtml(){
+  const a=S.autoOpen||{on:false,threshold:30,am:2,pm:2};
+  const num=(k,w)=>`<input type="number" min="0" class="field" value="${a[k]}" onchange="pgAutoSet('${k}',this.value)" style="width:${w}px;padding:4px 6px;text-align:center">`;
+  return `<div style="margin-top:8px;padding:10px;border:1.5px solid #bbf7d0;border-radius:8px;background:#f0fdf4;font-size:.8rem">
+    <label style="display:flex;gap:6px;align-items:center;font-weight:800;cursor:pointer"><input type="checkbox" ${a.on?'checked':''} onchange="pgAutoSet('on',this.checked)"> ${L("⚡ Ouverture automatique selon l'effectif","⚡ Automatic opening based on headcount")}</label>
+    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${L('Si la frise compte','If the schedule shows')} ≥ ${num('threshold',64)} ${L('personnes sur la journée → ouvrir','people on the day → open')}
+      ${num('am',50)} ${L('créneau(x) le matin et','slot(s) in the morning and')} ${num('pm',50)} ${L("l'après-midi",'in the afternoon')}
+    </div>
+    <p style="font-size:.7rem;color:var(--text3);margin:6px 0 0">${L("Les premiers créneaux (P1, P2…) de chaque demi-journée sont ouverts en même temps, sans attendre que le précédent soit complet. L'effectif 👥 est affiché dans l'en-tête de chaque jour.","The first slots (P1, P2…) of each half-day open together, without waiting for the previous one to fill. The 👥 headcount is shown in each day header.")}</p>
+  </div>`;
+}
+async function pgAutoSet(key,val){
+  if(!S.isAdmin) return;
+  S.autoOpen=S.autoOpen||{on:true,threshold:30,am:2,pm:2};
+  if(key==='on') S.autoOpen.on=!!val; else S.autoOpen[key]=Math.max(0,parseInt(val,10)||0);
+  await saveConfig(); render();
+  toast(pgAutoSummary(),'success');
+}
 function pgPerPanelHtml(){
   if(!_pgPer.from){ const t0=dk(new Date()); _pgPer.from=t0; _pgPer.to=dk(new Date(Date.now()+6*86400000)); }
-  if(!_pgPer.open) return `<div style="margin:0 0 8px"><button class="btn btn-sm" style="background:#fef3c7;border-color:#d97706" onclick="pgPerToggle()">⚖️ Priorité sur une période (cocher P1–P4)</button></div>`;
+  if(!_pgPer.open) return `<div style="margin:0 0 8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-sm" style="background:#fef3c7;border-color:#d97706" onclick="pgPerToggle()">⚖️ Priorité sur une période (cocher P1–P4)</button><span style="font-size:.74rem;color:var(--text2);font-weight:600">${esc(pgAutoSummary())}</span></div>`;
   const rk=[1,2,3,4].map(r=>`<label style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);font-weight:800;font-size:.85rem;cursor:pointer">
       <input type="checkbox" ${_pgPer.ranks.has(r)?'checked':''} onchange="pgPerRank(${r},this.checked)"> P${r}</label>`).join('');
   const hf=(v,l)=>`<label style="font-size:.8rem;display:inline-flex;gap:4px;align-items:center"><input type="radio" name="pgPerHalf" ${_pgPer.half===v?'checked':''} onchange="_pgPer.half='${v}'"> ${l}</label>`;
@@ -5060,6 +5165,7 @@ function pgPerPanelHtml(){
       <b style="font-size:.88rem">⚖️ Priorité sur une période</b>
       <button class="btn btn-sm" onclick="pgPerToggle()">✕ Fermer</button>
     </div>
+    ${pgAutoHtml()}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:.8rem">
       Du <input type="date" class="field" value="${_pgPer.from}" min="${dk(START)}" max="${dk(END)}" onchange="_pgPer.from=this.value" style="padding:5px 8px">
       au <input type="date" class="field" value="${_pgPer.to}" min="${dk(START)}" max="${dk(END)}" onchange="_pgPer.to=this.value" style="padding:5px 8px">
@@ -5272,6 +5378,7 @@ function renderKayakSlotBlock(k,slot){
       <span style="font-size:.72rem;color:var(--text3)">Admin:</span>
       ${renderKayakLabelSelect(k,slot,label)}
       <button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.72rem" onclick="toggleKayakBlock('${k}','${slot}')">🚫 Bloquer</button>
+      <button class="btn btn-sm" style="background:${isExclusiveSlot(k,slot)?'#4f46e5':'#e0e7ff'};color:${isExclusiveSlot(k,slot)?'#fff':'#3730a3'};font-size:.72rem" title="${esc(L('Un seul groupe peut s\'inscrire','Only one group can register'))}" onclick="toggleKayakExclusive('${k}','${slot}')">🔐 ${isExclusiveSlot(k,slot)?L('Exclusif ✓','Exclusive ✓'):L('Exclusif','Exclusive')}</button>
       ${(()=>{ const ps=priorityState(k,slot); if(!ps||!ps.waitFor) return '';
         return ps.forced
           ? `<button class="btn btn-sm" style="background:#16a34a;color:white;font-size:.72rem" title="Remettre la priorité sur ce créneau" onclick="toggleKayakForceOpen('${k}','${slot}')">✅ Ouvert hors priorité — rétablir</button>`
@@ -5302,7 +5409,7 @@ function renderSlot(dateK,slot,act='kayak'){
       <span class="slot-chevron${exp?' open':''}">▼</span>
     </div>`;
   if(st==='locked'&&!S.isAdmin)
-    h+=`<div class="locked-msg">⏳ ${t('lockedMsg')} ${prevSlot}</div>`;
+    h+=`<div class="locked-msg">${lockReason(dateK,slot)==='excl' ? '🔐 '+L('Créneau exclusif : déjà réservé par un autre groupe.','Exclusive slot: already booked by another group.') : '⏳ '+t('lockedMsg')+' '+prevSlot}</div>`;
   if(exp){
     h+=`<div class="slot-body"><div class="athletes-list">`;
     if(aths.length===0){
@@ -5603,6 +5710,8 @@ function renderKayakSlotParams(){
       ${(()=>{ if(!isPriorityActive(days[0])&&!days.some(k=>isForceOpen(k,slot))) return '';
         const anyForce=days.some(k=>isForceOpen(k,slot));
         return `<button class="btn btn-sm" style="background:${anyForce?'#16a34a':'#d97706'};color:white;font-size:.72rem;white-space:nowrap" onclick="blToggleForceOpen('${esc(slot)}')">${anyForce?`✅ Hors priorité${multi?' (tous)':''} — rétablir`:`🔓 Ouvrir malgré priorité${multi?' (tous)':''}`}</button>`; })()}
+      <!-- Exclusif -->
+      ${(()=>{ const anyEx=days.some(k=>isExclusiveSlot(k,slot)); return `<button class="btn btn-sm" style="background:${anyEx?'#4f46e5':'#e0e7ff'};color:${anyEx?'#fff':'#3730a3'};font-size:.72rem;white-space:nowrap" onclick="blToggleExclusive('${esc(slot)}')">🔐 ${anyEx?L('Exclusif ✓','Exclusive ✓'):L('Exclusif','Exclusive')}${multi?L(' (tous)',' (all)'):''}</button>`; })()}
       <!-- Horaire -->
       <button class="btn btn-sm" style="background:#2563eb;color:white;font-size:.72rem;white-space:nowrap"
         onclick="blEditTime('${esc(slot)}')">
@@ -5633,6 +5742,21 @@ async function blToggleBlock(slot){
   toast(newState ? `🚫 "${slot}" bloqué sur ${days.length} jour(s)` : `✅ "${slot}" débloqué sur ${days.length} jour(s)`, 'success');
 }
 
+async function toggleKayakExclusive(k,slot){
+  if(!S.isAdmin) return;
+  const c=getKayakSlotCfg(k,slot);
+  if(c.exclusive) delete c.exclusive; else c.exclusive=true;
+  await saveConfig(); render();
+  histLog('slot-config',{date:k,slot,details:{exclusive:!!c.exclusive}});
+  toast(c.exclusive ? L(`🔐 ${slot} : exclusif`,`🔐 ${slot}: exclusive`) : L(`👥 ${slot} : partagé`,`👥 ${slot}: shared`),'success');
+}
+async function blToggleExclusive(slot){
+  const days = blActiveDays(); if(!days.length) return;
+  const any = days.some(k=>isExclusiveSlot(k,slot));
+  days.forEach(k=>{ const c=getKayakSlotCfg(k,slot); if(any) delete c.exclusive; else c.exclusive=true; });
+  await saveConfig(); render(); renderKayakSlotParams();
+  toast(any ? L(`👥 "${slot}" : partagé`,`👥 "${slot}": shared`) : L(`🔐 "${slot}" : exclusif sur ${days.length} jour(s)`,`🔐 "${slot}": exclusive on ${days.length} day(s)`),'success');
+}
 // Ouvre/rétablit la priorité d'un créneau sur tous les jours sélectionnés
 async function blToggleForceOpen(slot){
   const days = blActiveDays();
@@ -6040,6 +6164,7 @@ function renderPlanningGrid(){
   html += `<div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
+    ${S.isAdmin?`<button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>`:''}
   </div>`;
 
   if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits. Si la priorité est active : ▲▼ pour changer l'ordre (P1, P2…) et 🔒/🔓 pour ouvrir un créneau malgré la priorité.</p>`;
@@ -6062,7 +6187,7 @@ function renderPlanningGrid(){
     <span><span class="pg-sw" style="background:var(--slot-mid)"></span>${L('Bien rempli (≥ 60 %)','Filling up (≥ 60%)')}</span>
     <span><span class="pg-sw" style="background:var(--slot-full)"></span>${L('Complet','Full')}</span>
     <span><span class="pg-sw" style="background:var(--slot-blocked)"></span>${L('Bloqué / pas encore ouvert','Blocked / not open yet')}</span>
-    ${isKayak?`<span><span class="pg-sw" style="background:var(--slot-kx)"></span>Kayak Cross</span><span><span class="pg-sw" style="background:#7c3aed"></span>CRRCK</span><span><span class="pg-sw" style="background:#0d9488"></span>CLUB</span>`:''}
+    ${isKayak?`<span><span class="pg-sw" style="background:#4f46e5"></span>${L('Exclusif','Exclusive')}</span><span><span class="pg-sw" style="background:var(--slot-kx)"></span>Kayak Cross</span><span><span class="pg-sw" style="background:#7c3aed"></span>CRRCK</span><span><span class="pg-sw" style="background:#0d9488"></span>CLUB</span>`:''}
     ${S.isAdmin?`<span style="color:#b91c1c;font-weight:700">⚠️ ${L('inscrit hors période de la frise','registered outside schedule period')}</span>`:''}</p>
   <p class="pg-swipe-hint">↔ Glisse pour parcourir toute la saison</p>`;
 
@@ -6113,11 +6238,14 @@ function renderPlanningGrid(){
       const blocked = slotCfg?.blocked;
       const label = kx ? 'KX' : (slotCfg?.label||'');
       const pri = isKayak ? pgPriInfo(k,slot) : null;
+      const ex = isKayak ? exclusiveInfo(k,slot) : null;
+      const exBlocked = !!(ex && exclusiveBlocksMe(k,slot));
 
       // Classe de la cellule
       let cellClass = 'pg-cell';
       if(isToday) cellClass += ' pg-cell-today';
       if(blocked) cellClass += ' pg-cell-blocked';
+      else if(exBlocked) cellClass += ' pg-cell-excl';
       else if(pri && pri.locked) cellClass += ' pg-cell-locked';
       else if(kx) cellClass += ' pg-cell-kx';
       else if(label && label!=='KX') cellClass += ` pg-cell-${label}`;
@@ -6135,15 +6263,17 @@ function renderPlanningGrid(){
       if(pri && S.isAdmin && !blocked){
         const bs='border:1px solid var(--border);background:var(--white);border-radius:4px;font-size:.62rem;line-height:1;padding:2px 4px;cursor:pointer;margin-right:2px';
         cellHtml+=`<span style="white-space:nowrap">
-          <button type="button" style="${bs}" title="Monter dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${slot}',-1)">▲</button><button type="button" style="${bs}" title="Descendre dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${slot}',1)">▼</button>${(pri.locked||pri.forced)?`<button type="button" style="${bs};${pri.forced?'background:#dcfce7;border-color:#16a34a':'background:#fef3c7;border-color:#d97706'}" title="${pri.forced?'Ouvert malgré la priorité : cliquer pour rétablir':'Verrouillé : cliquer pour ouvrir malgré la priorité'}" onclick="event.stopPropagation();pgQuickForce('${k}','${slot}')">${pri.forced?'🔓':'🔒'}</button>`:''}</span><br>`;
+          <button type="button" style="${bs}" title="Monter dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${slot}',-1)">▲</button><button type="button" style="${bs}" title="Descendre dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${slot}',1)">▼</button>${(pri.locked||(pri.forced&&!pri.auto))?`<button type="button" style="${bs};${pri.forced?'background:#dcfce7;border-color:#16a34a':'background:#fef3c7;border-color:#d97706'}" title="${pri.forced?'Ouvert malgré la priorité : cliquer pour rétablir':'Verrouillé : cliquer pour ouvrir malgré la priorité'}" onclick="event.stopPropagation();pgQuickForce('${k}','${slot}')">${pri.forced?'🔓':'🔒'}</button>`:''}</span><br>`;
       }
       // Label (KX, CRRCK, CLUB)
       if(kx)  cellHtml+=`<span class="pg-kx-badge">🏄 KAYAK CROSS</span><br>`;
+      if(ex)  cellHtml+=`<span class="pg-excl-badge" title="${esc(L('Exclusif : le premier groupe inscrit réserve le créneau','Exclusive: the first group to register books the slot'))}">🔐 ${L('EXCLUSIF','EXCLUSIVE')}</span>${ex.taken&&ex.owner?`<span style="font-size:.58rem;font-weight:700;color:#4338ca"> ${esc(ex.owner)}</span>`:''}<br>`;
       if(label&&label!=='KX') cellHtml+=`<span class="pg-slot-lbl pg-lbl-${label}">${label}</span><br>`;
       if(blocked) cellHtml+=`<span class="pg-blocked-tag">${L('🚫 Bloqué','🚫 Blocked')}</span>`;
       else {
+        if(exBlocked) cellHtml+=`<span class="pg-blocked-tag" style="color:#4338ca">🔐 ${L('Réservé par un autre groupe','Booked by another group')}</span><br>`;
         if(pri && pri.locked) cellHtml+=`<span class="pg-blocked-tag" title="S'ouvre quand ${esc(pri.waitFor)} est complet">🔒 Pas encore ouvert</span><br>`;
-        if(pri && pri.forced) cellHtml+=`<span style="font-size:.6rem;font-weight:700;color:#15803d">🔓 Ouvert (admin)</span><br>`;
+        if(pri && pri.forced) cellHtml+=`<span style="font-size:.6rem;font-weight:700;color:#15803d">${pri.auto?'⚡ '+L('Ouvert (effectif)','Open (headcount)'):'🔓 '+L('Ouvert (admin)','Open (admin)')}</span><br>`;
         // Compteur
         cellHtml+=`<span class="pg-count ${countClass}">${countTxt}</span>`;
         // Athlètes (max 4 affichés)
@@ -6261,6 +6391,10 @@ function pgRenderSheet(){
     <label ${lbl}>Étiquette</label>
     ${pgBtns('pgLabel', cfg.label||'', [{v:'',t:'Aucune'},{v:'CRRCK',t:'CRRCK'},{v:'CLUB',t:'CLUB'}])}
 
+    ${isKayak ? `<label ${lbl}>${L('Exclusivité','Exclusivity')}</label>
+    ${pgBtns('pgExcl', cfg.exclusive?'1':'0', [{v:'0',t:L('👥 Partagé','👥 Shared')},{v:'1',t:L('🔐 Exclusif (1 seul groupe)','🔐 Exclusive (one group only)')}])}
+    <p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">${L("Dès qu'un groupe s'inscrit, les autres ne peuvent plus s'inscrire sur ce créneau (l'admin garde la main).","As soon as one group registers, other groups can no longer register on this slot (admin can still override).")}</p>` : ''}
+
     ${isKayak ? `
     <label ${lbl}>Type de séance</label>
     ${pgBtns('pgType', isKayakCross(dateK,slot)?'kx':'slalom', [{v:'slalom',t:'🚣 Slalom'},{v:'kx',t:'🏄 Kayak Cross'}])}
@@ -6274,13 +6408,13 @@ function pgRenderSheet(){
     `}
     ${(()=>{ if(!isKayak) return ''; const ps=priorityState(dateK,slot); if(!isPriorityActive(dateK)) return '';
       if(!ps) return `<p style="font-size:.75rem;color:var(--text3);margin:12px 0 0">Priorité : ce créneau est hors priorité (${cfg.blocked?'bloqué':'Kayak Cross'}).</p>`;
-      const state = ps.forced ? `🔓 ouvert malgré la priorité (attendait ${esc(ps.waitFor)})` : ps.locked ? `🔒 verrouillé pour les utilisateurs jusqu'à ce que ${esc(ps.waitFor)} soit complet` : '✅ ouvert';
+      const state = ps.auto ? `⚡ ouvert automatiquement (effectif ${friseHeadcount(dateK)} ≥ ${(S.autoOpen||{}).threshold})` : ps.forced ? `🔓 ouvert malgré la priorité (attendait ${esc(ps.waitFor)})` : ps.locked ? `🔒 verrouillé pour les utilisateurs jusqu'à ce que ${esc(ps.waitFor)} soit complet` : '✅ ouvert';
       return `<div style="margin-top:14px;padding:10px;border:1.5px solid #fde68a;border-radius:8px;background:#fffbeb">
         <div style="font-weight:800;font-size:.82rem">⚖️ Priorité — P${ps.rank} <span style="font-weight:600;font-size:.76rem">· ${state}</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
           <button class="btn btn-sm" onclick="pgMovePriority('${dateK}','${esc(slot)}',-1)">▲ Monter</button>
           <button class="btn btn-sm" onclick="pgMovePriority('${dateK}','${esc(slot)}',1)">▼ Descendre</button>
-          ${(ps.waitFor||ps.forced)?`<button class="btn btn-sm" style="background:${ps.forced?'#16a34a':'#d97706'};color:white" onclick="toggleKayakForceOpen('${dateK}','${esc(slot)}')">${ps.forced?'✅ Rétablir la priorité':'🔓 Ouvrir malgré la priorité'}</button>`:''}
+          ${(!ps.auto&&(ps.waitFor||ps.forced))?`<button class="btn btn-sm" style="background:${ps.forced?'#16a34a':'#d97706'};color:white" onclick="toggleKayakForceOpen('${dateK}','${esc(slot)}')">${ps.forced?'✅ Rétablir la priorité':'🔓 Ouvrir malgré la priorité'}</button>`:''}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
           <button class="btn btn-sm" onclick="pgOpenAllDay('${dateK}',true)">🔓 Ouvrir tout le jour</button>
@@ -6348,6 +6482,7 @@ async function pgSaveSlot(){
   const cfg = isKayak ? getKayakSlotCfg(dateK,slot) : getMuscuSlotCfg(dateK,slot);
   cfg.blocked = blocked;
   cfg.label = label;
+  if(isKayak){ const ex = (document.getElementById('pgExcl')||{}).value==='1'; if(ex) cfg.exclusive=true; else delete cfg.exclusive; }
 
   // 4) Type de séance : Slalom / Kayak Cross
   if(isKayak){
@@ -6373,6 +6508,7 @@ async function pgSaveSlot(){
     }
   }
 
+  histLog('slot-config',{ date:dateK, slot, activity:act, details:{ bloqué:!!cfg.blocked, étiquette:cfg.label||'—', exclusif:!!cfg.exclusive } });
   await saveConfig();
   toast('✅ Séance enregistrée','success');
   pgRefresh();
@@ -6399,13 +6535,199 @@ async function pgRenameKayakSlot(dateK, oldS, newS){
   mv(S.data); mv(S.kayakSlotConfig); mv(S.dateCapacity); mv(S.kayakCross);
 }
 
+// ══════════════════════════════════════════════════════════════
+// HISTORIQUE des actions (table activity_log) + correction en un clic
+// ══════════════════════════════════════════════════════════════
+var HIST = { ok:null, err:'', rows:[], q:'', f:'all', ctx:'' };
+var HIST_SQL = `create table if not exists public.activity_log (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  user_id uuid,
+  user_name text,
+  is_admin boolean not null default false,
+  action text not null,
+  activity text,
+  date date,
+  slot text,
+  names text[],
+  details jsonb,
+  undone boolean not null default false,
+  undone_by text,
+  undone_at timestamptz
+);
+create index if not exists activity_log_created_idx on public.activity_log (created_at desc);
+alter table public.activity_log enable row level security;
+drop policy if exists "log insert" on public.activity_log;
+create policy "log insert" on public.activity_log for insert to authenticated with check (true);
+drop policy if exists "log admin read" on public.activity_log;
+create policy "log admin read" on public.activity_log for select to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));
+drop policy if exists "log admin update" on public.activity_log;
+create policy "log admin update" on public.activity_log for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin))
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));`;
+
+function histWho(){
+  return { user_id:(S.session&&S.session.user)?S.session.user.id:null,
+           user_name:(S.profile&&S.profile.full_name)||(S.session&&S.session.user&&S.session.user.email)||'?',
+           is_admin:!!S.isAdmin };
+}
+// Enregistre une action (sans jamais bloquer ni faire échouer l'action de l'utilisateur)
+async function histLog(action,o){
+  try{
+    if(!S.session) return;
+    o=o||{};
+    const row={ ...histWho(), action, activity:o.activity||'kayak', date:o.date||null, slot:o.slot||null, names:o.names||null, details:o.details||null };
+    const { error } = await sb.from('activity_log').insert(row);
+    if(error){ HIST.ok=false; HIST.err=error.message||''; console.warn('activity_log',error.message); }
+  }catch(e){ console.warn('histLog',e); }
+}
+function histSummarize(action,rows,full){
+  if(!rows||!rows.length) return;
+  const uniq=a=>[...new Set(a)];
+  const dates=uniq(rows.map(r=>r.date)), slots=uniq(rows.map(r=>r.creneau)), acts=uniq(rows.map(r=>r.activity||'kayak'));
+  histLog(action,{
+    activity:acts.length===1?acts[0]:'kayak', date:dates.length===1?dates[0]:null, slot:slots.length===1?slots[0]:null,
+    names:uniq(rows.map(r=>r.nom)).slice(0,60),
+    details:{ rows: full ? rows : rows.map(r=>({id:r.id,nom:r.nom,date:r.date,creneau:r.creneau,activity:r.activity||'kayak'})),
+              n:rows.length, ctx:HIST.ctx||undefined, referent:rows[0].referent_name||null }
+  });
+}
+async function histLoad(){
+  const { data, error } = await sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(400);
+  if(error){ HIST.ok=false; HIST.err=error.message||''; HIST.rows=[]; }
+  else { HIST.ok=true; HIST.err=''; HIST.rows=data||[]; }
+}
+async function histOpen(){
+  if(!S.isAdmin) return;
+  document.getElementById('historyModal').classList.add('show');
+  document.getElementById('histBody').innerHTML=`<p style="color:var(--text3)">${esc(L('Chargement…','Loading…'))}</p>`;
+  await histLoad(); histRender();
+}
+function histSet(k,v){ HIST[k]=v; histRender(); }
+function histCopySql(){
+  try{ navigator.clipboard.writeText(HIST_SQL); toast(L('SQL copié','SQL copied'),'success'); }
+  catch(e){ const ta=document.getElementById('histSql'); if(ta){ ta.select(); document.execCommand('copy'); toast(L('SQL copié','SQL copied'),'success'); } }
+}
+function histActionInfo(h){
+  const m={
+    'register':        {t:L('➕ Inscription','➕ Registration'),                 c:'#15803d', bg:'#dcfce7', undo:true},
+    'unregister':      {t:L('➖ Désinscription','➖ Cancellation'),               c:'#b91c1c', bg:'#fee2e2', undo:true},
+    'undo-register':   {t:L('↩ Correction (inscription annulée)','↩ Correction (registration undone)'), c:'#475569', bg:'#e2e8f0'},
+    'undo-unregister': {t:L('↩ Correction (inscription rétablie)','↩ Correction (registration restored)'), c:'#475569', bg:'#e2e8f0'},
+    'day-block':       {t:L('🚫 Journée bloquée','🚫 Day blocked'),               c:'#92400e', bg:'#fef3c7'},
+    'day-reopen':      {t:L('🔓 Journée rouverte','🔓 Day reopened'),             c:'#92400e', bg:'#fef3c7'},
+    'slot-config':     {t:L('🛠 Séance modifiée','🛠 Session edited'),            c:'#3730a3', bg:'#e0e7ff'}
+  };
+  return m[h.action]||{t:h.action,c:'#475569',bg:'#e2e8f0'};
+}
+function histFilterOk(h){
+  const f=HIST.f;
+  if(f==='reg' && !['register','unregister'].includes(h.action)) return false;
+  if(f==='undo' && !h.action.startsWith('undo')) return false;
+  if(f==='admin' && !['day-block','day-reopen','slot-config'].includes(h.action)) return false;
+  const q=(HIST.q||'').trim().toLowerCase();
+  if(q){
+    const hay=[h.user_name,(h.names||[]).join(' '),h.date,h.slot,histActionInfo(h).t,(h.details&&h.details.referent)||''].join(' ').toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+function histRender(){
+  const el=document.getElementById('histBody'); if(!el) return;
+  if(HIST.ok===false){
+    el.innerHTML=`<div style="border:1.5px solid #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;font-size:.84rem">
+      <b>${esc(L("⚠️ L'historique n'est pas encore activé.","⚠️ History is not enabled yet."))}</b>
+      <p style="margin:6px 0">${esc(L("Dans Supabase → SQL Editor, lance ce script une seule fois, puis rouvre l'historique.","In Supabase → SQL Editor, run this script once, then reopen the history."))}</p>
+      <textarea id="histSql" readonly style="width:100%;height:170px;font-family:monospace;font-size:.7rem">${esc(HIST_SQL)}</textarea>
+      <button class="btn btn-sm btn-primary" style="margin-top:6px" onclick="histCopySql()">📋 ${esc(L('Copier le SQL','Copy SQL'))}</button>
+      ${HIST.err?`<p style="font-size:.72rem;color:var(--text3);margin:6px 0 0">${esc(HIST.err)}</p>`:''}
+    </div>`;
+    return;
+  }
+  const fmtT=iso=>new Date(iso).toLocaleString(LOCALE(),{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const rows=HIST.rows.filter(histFilterOk);
+  const opt=(v,t)=>`<option value="${v}" ${HIST.f===v?'selected':''}>${esc(t)}</option>`;
+  let h=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input class="field" id="histQ" placeholder="${esc(L('🔍 Rechercher (nom, utilisateur, date…)','🔍 Search (name, user, date…)'))}" value="${esc(HIST.q)}" oninput="HIST.q=this.value;histRenderList()" style="flex:1;min-width:200px">
+      <select class="field" onchange="histSet('f',this.value)">${opt('all',L('Tout','All'))}${opt('reg',L('Inscriptions / annulations','Registrations / cancellations'))}${opt('undo',L('Corrections','Corrections'))}${opt('admin',L('Actions admin','Admin actions'))}</select>
+      <button class="btn btn-sm" onclick="histOpen()">↻ ${esc(L('Actualiser','Refresh'))}</button>
+    </div><div id="histList"></div>`;
+  el.innerHTML=h; histRenderList();
+}
+function histRenderList(){
+  const box=document.getElementById('histList'); if(!box) return;
+  const fmtT=iso=>new Date(iso).toLocaleString(LOCALE(),{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const fmtD=k=>k?fqParse(k).toLocaleDateString(LOCALE(),{weekday:'short',day:'numeric',month:'short'}):'';
+  const rows=HIST.rows.filter(histFilterOk);
+  if(!rows.length){ box.innerHTML=`<p style="color:var(--text3);font-size:.85rem">${esc(L('Aucune entrée.','No entries.'))}</p>`; return; }
+  box.innerHTML=`<div style="font-size:.72rem;color:var(--text3);margin-bottom:6px">${rows.length} ${esc(L('entrée(s)','entries'))}</div>`+rows.map(h=>{
+    const ai=histActionInfo(h), d=h.details||{};
+    const names=(h.names||[]); const shown=names.slice(0,6).join(', ')+(names.length>6?` +${names.length-6}`:'');
+    const where=[h.activity==='muscu'?'🏋️':'🚣', fmtD(h.date), h.slot||''].filter(Boolean).join(' ');
+    const ctx=d.ctx?` <small style="color:var(--text3)">(${esc({move:L('déplacement','move'),frise:L('suppression groupe frise','schedule group deleted'),'clear-own':L('historique effacé','history cleared')}[d.ctx]||d.ctx)})</small>`:'';
+    const extra=h.action==='day-block'?` — ${esc(d.reason||'')}`:(h.action==='slot-config'?` — ${esc(Object.entries(d).map(([k,v])=>k+': '+v).join(', '))}`:'');
+    let btns=`${h.date?`<button class="btn btn-sm" onclick="histGo('${h.date}','${h.activity||'kayak'}')">📍 ${esc(L('Voir','View'))}</button>`:''}`;
+    if(ai.undo && !h.undone && d.rows && d.rows.length)
+      btns+=` <button class="btn btn-sm" style="background:${h.action==='register'?'#fee2e2':'#dcfce7'};border-color:${h.action==='register'?'#fca5a5':'#86efac'}" onclick="histUndo('${h.id}')">↩ ${esc(h.action==='register'?L('Retirer ces inscriptions','Remove these registrations'):L('Rétablir','Restore'))}</button>`;
+    return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);${h.undone?'opacity:.55':''}">
+      <div style="min-width:86px;font-size:.72rem;color:var(--text3)">${esc(fmtT(h.created_at))}</div>
+      <div style="flex:1;font-size:.82rem;line-height:1.5">
+        <b>${esc(h.user_name||'?')}</b>${h.is_admin?` <small style="color:#7c3aed">(admin)</small>`:''}
+        <span style="background:${ai.bg};color:${ai.c};font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:10px">${ai.t}</span>${ctx}<br>
+        ${esc(where)}${shown?` — ${esc(shown)}`:''}${extra}
+        ${h.undone?`<br><small style="color:#15803d">✓ ${esc(L('corrigé par','fixed by'))} ${esc(h.undone_by||'')}</small>`:''}
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${btns}</div>
+    </div>`;
+  }).join('');
+}
+function histGo(dateK,act){
+  closeModal('historyModal');
+  try{ _pgActivity = act==='muscu' ? 'muscu' : 'kayak'; }catch(e){}
+  S.selectedDate=null; S.currentDate=parseDate(dateK); S.view='planning'; window._pgGoto=dateK;
+  render(); window.scrollTo({top:0,behavior:'smooth'});
+}
+// Annule une inscription (la supprime) ou rétablit une désinscription (la ré-insère)
+async function histUndo(id){
+  if(!S.isAdmin) return;
+  const h=HIST.rows.find(r=>r.id===id); if(!h||h.undone) return;
+  const rows=(h.details&&h.details.rows)||[]; if(!rows.length) return;
+  const who=(S.profile&&S.profile.full_name)||'Admin';
+  let n=0;
+  if(h.action==='register'){
+    if(!confirm(L(`Retirer ${rows.length} inscription(s) faite(s) par ${h.user_name} ?`,`Remove ${rows.length} registration(s) made by ${h.user_name}?`))) return;
+    const { data, error } = await sb.from('inscriptions').delete().in('id',rows.map(r=>r.id)).select('id');
+    if(error){ toast(error.message,'error'); return; }
+    n=(data||[]).length;
+  } else if(h.action==='unregister'){
+    const present=r=>(getSlot(r.date,r.creneau,r.activity||'kayak')||[]).some(a=>(a.name||'').trim().toLowerCase()===(r.nom||'').trim().toLowerCase());
+    const todo=rows.filter(r=>!present(r));
+    if(!todo.length){ toast(L('Déjà rétabli(es).','Already restored.'),'info'); }
+    else{
+      if(!confirm(L(`Rétablir ${todo.length} inscription(s) supprimée(s) ?`,`Restore ${todo.length} deleted registration(s)?`))) return;
+      const payload=todo.map(r=>{ const c={...r}; delete c.id; delete c.created_at; return c; });
+      const { data, error } = await sb.from('inscriptions').insert(payload).select('id');
+      if(error){ toast(error.message,'error'); return; }
+      n=(data||[]).length;
+    }
+  } else return;
+  try{ await sb.from('activity_log').update({undone:true,undone_by:who,undone_at:new Date().toISOString()}).eq('id',id); }catch(e){}
+  histLog(h.action==='register'?'undo-register':'undo-unregister',{ activity:h.activity, date:h.date, slot:h.slot, names:h.names, details:{ of:h.id, n } });
+  await load(); render();
+  await histLoad(); histRender();
+  toast(L(`↩ Correction faite (${n})`,`↩ Fixed (${n})`),'success');
+}
+
 // ── Inscrits ──
 async function pgDeleteRows(ids){
   ids = ids.filter(Boolean);
   if(!ids.length) return true;
+  let snap=[]; try{ const r=await sb.from('inscriptions').select('*').in('id',ids); snap=r.data||[]; }catch(e){}
   const { data, error } = await sb.from('inscriptions').delete().in('id', ids).select('id');
   if(error){ toast(error.message,'error'); return false; }
   if((data||[]).length < ids.length){ toast("⚠️ Suppression refusée par Supabase (policy DELETE admin sur inscriptions).",'error'); return false; }
+  histSummarize('unregister', snap, true);
   return true;
 }
 async function pgRemoveAthlete(id){
@@ -6438,6 +6760,7 @@ async function pgInsertEntries(entries, ownerId, referent){
   if(store.length+todo.length > c && !confirm(`Capacité dépassée : ${store.length+todo.length}/${c}.\nAjouter quand même ?`)) return;
   { const out=todo.filter(e=>friseOutAdmin(e.name.trim(),dateK)).map(e=>e.name.trim());
     if(out.length && !confirm(friseOutMsg(out,dateK))) return; }
+  if(act==='kayak' && exclusiveBlocks(dateK,slot,ownerId) && !confirm(L('🔐 Ce créneau est EXCLUSIF et déjà réservé par un autre groupe.\nInscrire quand même ?','🔐 This slot is EXCLUSIVE and already booked by another group.\nRegister anyway?'))) return;
   const groupId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
   const payload = todo.map(e=>({
     date:dateK, creneau:slot, nom:e.name.trim(), role:e.role||'Athlète',
@@ -6605,7 +6928,7 @@ function pgCellClick(td, k, slot){
   const act = _pgActivity;
   const cfg = act==='kayak' ? getKayakSlotCfg(k,slot) : getMuscuSlotCfg(k,slot);
   if(cfg.blocked){ toast('🚫 Séance bloquée.','error'); return; }
-  if(act==='kayak' && isLocked(k,slot)){ toast("⏳ Séance pas encore ouverte (priorité).",'error'); return; }
+  if(act==='kayak' && isLocked(k,slot)){ toast(lockReason(k,slot)==='excl' ? L('🔐 Créneau exclusif déjà réservé par un autre groupe.','🔐 Exclusive slot already booked by another group.') : L('⏳ Séance pas encore ouverte (priorité).','⏳ Session not open yet (priority).'),'error'); return; }
   if(!_pgMulti.sel[k]) _pgMulti.sel[k] = new Set();
   if(_pgMulti.sel[k].has(slot)){ _pgMulti.sel[k].delete(slot); if(!_pgMulti.sel[k].size) delete _pgMulti.sel[k]; pgStyleCell(td,false); }
   else { _pgMulti.sel[k].add(slot); pgStyleCell(td,true); }
@@ -7485,6 +7808,7 @@ async function submitRegistration(){
   { const unk = unknownAthleteNames(participants.map(p=>p.name));
     if(unk.length){ toast('⛔ Nom absent de la base athlètes : '+unk.join(', ')+'. Seuls les athlètes de la base peuvent être inscrits.','error'); return; } }
   { const bad=participants.filter(p=>!friseAllows(p.name, dateK)); if(bad.length){ toast('⛔ Hors période de la frise : '+bad.map(b=>b.name).join(', '),'error'); return; } }
+  if((act||'kayak')==='kayak' && exclusiveBlocksMe(dateK,slot)){ toast(L('🔐 Créneau exclusif déjà réservé par un autre groupe.','🔐 Exclusive slot already booked by another group.'),'error'); return; }
   { const out=participants.filter(p=>friseOutAdmin(p.name,dateK)).map(p=>p.name);
     if(out.length && !confirm(friseOutMsg(out,dateK))) return; }
   const free = cap(slot,dateK) - getSlot(dateK,slot).length;
@@ -7787,14 +8111,16 @@ async function confirmMove(){
   if(!nd){ toast(t('toastNoTarget'),'error'); return; }
   if(getSlot(nd,ns).length>=cap(ns,nd)){ toast(t('toastTargetFull'),'error'); return; }
   const a=getSlot(dateK,slot)[idx];
+  HIST.ctx='move';
   try {
     if(a._id) await sbDelete(a._id);
-    const newId=await sbInsert(nd,ns,name,role);
+    const newId=await sbInsert(nd,ns,name,role,a.user_id,a.referent);
     getSlot(dateK,slot).splice(idx,1);
-    getSlot(nd,ns).push({name,role,_id:newId});
+    getSlot(nd,ns).push({name,role,_id:newId,user_id:a.user_id,referent:a.referent});
     toast(`${name} ${t('toastMoved')} ${ns} (${nd}).`,'success');
     closeModal('moveModal'); S.movePending=null; render();
   } catch(e){ toast('Erreur réseau — réessayez.','error'); }
+  finally { HIST.ctx=''; }
 }
 
 function buildText(){
@@ -7948,6 +8274,7 @@ async function acceptSlotRequest(id){
   const act = r.activity||'kayak';
   const dups = r.names.filter(n=>alreadyRegisteredInCategory(r.date, r.to_creneau, act, n));
   if(dups.length){ toast('❌ Déjà inscrit(e) sur ce type de séance ce jour-là : '+dups.join(', ')+'. Refuse ou corrige la demande.','error'); return; }
+  if(act==='kayak' && exclusiveBlocks(r.date, r.to_creneau, r.user_id) && !confirm(L('🔐 Créneau EXCLUSIF déjà réservé par un autre groupe. Accepter quand même ?','🔐 EXCLUSIVE slot already booked by another group. Accept anyway?'))) return;
   const free = cap(r.to_creneau, r.date, act) - getSlot(r.date, r.to_creneau, act).length;
   if(r.names.length > free && !confirm(`Il reste ${Math.max(free,0)} place(s) sur ${r.to_creneau}, ${r.names.length} demandée(s). Ouvrir le créneau et inscrire tout le monde ?`)) return;
   const groupId = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
