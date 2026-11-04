@@ -1166,6 +1166,10 @@ header .user-pill { color: #fff; }
         <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px">Groupe / Team</label>
         <select class="field" id="suiviTeamSelect" onchange="suiviOnTeamChange(this.value)" style="max-width:320px"></select>
       </div>
+      <div id="suiviPeriodWrap" style="display:none;margin-bottom:12px">
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px">📅 Période d'entraînement du groupe</label>
+        <select class="field" id="suiviPeriodSelect" onchange="suiviOnPeriodChange(this.value)" style="max-width:320px"></select>
+      </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
         <label style="font-size:.8rem;font-weight:600">Jour à cocher :</label>
         <input type="date" class="field" id="suiviDateInput" onchange="suiviOnDateChange(this.value)" style="max-width:180px">
@@ -2055,14 +2059,21 @@ function fqNorm(n){ return String(n||'').toLowerCase().normalize('NFD').replace(
 // ── Lien team ↔ frise : une team = une période de stage dans la frise (colonne team_id) ──
 // Les athlètes de la période suivent automatiquement la composition de la team (nom + effectif).
 let _fqSyncing=false;
+// Une team peut avoir PLUSIEURS périodes (mêmes athlètes, même nom de groupe, dates différentes).
+function fqTeamRows(teamId){ return (FQ.rows||[]).filter(r=>r.team_id===teamId).sort((x,y)=>x.start_date.localeCompare(y.start_date)); }
+function fqTeamSuffix(p){ if(!p||!p.team_id) return ''; const r=fqTeamRows(p.team_id); return r.length>1 ? ` <span style="font-weight:600;opacity:.7">(${r.findIndex(x=>x.id===p.id)+1}/${r.length})</span>` : ''; }
+function fqPeriodShort(p){ const f=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'}); return `${f(p.start_date)} → ${f(p.end_date)}`; }
 async function fqSyncTeams(){
   if(!S.isAdmin||_fqSyncing||!FQ.ok) return;
   _fqSyncing=true;
   try{
     for(const row of FQ.rows.filter(r=>r.team_id)){
       const tm=(S.teams||[]).find(x=>x.id===row.team_id); if(!tm) continue;
-      const names=(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean);
+      const teamNames=(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean);
       const cur=fqAths(row), curNames=cur.map(a=>a.name);
+      // Période "personnalisée" (sous-ensemble choisi par l'admin) : on retire seulement ceux qui ont quitté la team
+      const custom=!!(row.summary&&row.summary.custom);
+      const names=custom ? curNames.filter(n=>teamNames.includes(n)) : teamNames;
       const same=row.g===tm.name && names.length===curNames.length && names.every(n=>curNames.includes(n));
       if(same) continue;
       const athletes=names.map(n=>cur.find(a=>a.name===n)||{name:n,am:true,pm:true,mu:true});
@@ -2071,50 +2082,103 @@ async function fqSyncTeams(){
     }
   } finally { _fqSyncing=false; }
 }
-// crée ou met à jour la période liée à une team ; renvoie un message d'erreur ou null
-async function fqUpsertTeamPeriod(tm,start,end,resa){
-  const names=(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean);
-  const athletes=names.map(n=>({name:n,am:true,pm:true,mu:true}));
-  const old=(FQ.rows||[]).find(r=>r.team_id===tm.id);
+// crée (rowId vide) ou met à jour (rowId) UNE période liée à une team ; renvoie un message d'erreur ou null
+async function fqUpsertTeamPeriod(tm,start,end,resa,rowId){
+  const teamNames=(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean);
+  const old=rowId?(FQ.rows||[]).find(r=>r.id===rowId):null;
+  const cur=old?fqAths(old):[];
+  const custom=!!(old&&old.summary&&old.summary.custom);
+  const names=custom ? cur.map(a=>a.name).filter(n=>teamNames.includes(n)) : teamNames;
+  const athletes=names.map(n=>cur.find(a=>a.name===n)||{name:n,am:true,pm:true,mu:true});
   let res;
   const keep=FQ_RESA[resa]?resa:(old?fqResaKey(old):'unconfirmed');
   if(old) res=await sb.from('frise_periods').update({ g:tm.name, start_date:start, end_date:end, athletes, summary:{...(old.summary||{}),resa:keep} }).eq('id',old.id);
   else res=await sb.from('frise_periods').insert({ team_id:tm.id, g:tm.name, start_date:start, end_date:end, athletes, am:true, pm:true,
     user_id:S.session.user.id, owner_name:S.profile?.full_name||'Admin', summary:{noteOnly:true,sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0,resa:keep} });
-  if(res.error) return /team_id/i.test(res.error.message||'') ? "colonne « team_id » manquante dans Supabase (voir le SQL fourni)" : (res.error.message||'erreur');
+  if(res.error){
+    const m=res.error.message||'erreur';
+    if(/team_id/i.test(m) && /column|colonne/i.test(m)) return "colonne « team_id » manquante dans Supabase (voir le SQL fourni)";
+    if(/duplicate|unique/i.test(m)) return "Supabase refuse une 2ᵉ période pour cette team (contrainte d'unicité sur team_id dans frise_periods). Supprime cette contrainte pour autoriser plusieurs périodes par groupe.";
+    return m;
+  }
   return null;
 }
-function teamPeriodHtml(tm){
-  const row=(FQ.rows||[]).find(r=>r.team_id===tm.id);
-  const n=(tm.members||[]).length;
-  const warn=!row?`<span style="color:#b45309">❌ ⚠️ Pas de période : ses athlètes ne pourront pas s'inscrire tant que la période n'est pas renseignée.</span>`:`<span style="color:var(--text3)">${fqResaEmoji(row)} ${FQ_RESA[fqResaKey(row)].l} · 🔗 Lié à la frise · 👥 ${n} athlète(s)</span>`;
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:.8rem">
-    <b>📅 Stage du</b>
-    <input type="date" class="field" id="tpStart_${tm.id}" value="${row?row.start_date:''}" min="2026-07-06" max="2027-03-31" style="width:150px">
+function teamPeriodRowHtml(tm,row,idx,total){
+  const id=row?row.id:'new_'+tm.id;
+  const members=(tm.members||[]).filter(m=>m.athlete);
+  const inRow=row?new Set(fqAths(row).map(a=>a.name)):new Set();
+  const n=row?members.filter(m=>inRow.has(m.athlete.full_name)).length:members.length;
+  const status=row?`<span style="color:var(--text3)">${fqResaEmoji(row)} ${FQ_RESA[fqResaKey(row)].l} · 🔗 Lié à la frise</span>`:'';
+  const ath=row?`<details style="flex-basis:100%;margin-top:4px"><summary style="cursor:pointer;font-weight:600">👥 Athlètes sur cette période : <span id="tpCnt_${row.id}">${n}</span>/${members.length}${row.summary&&row.summary.custom?' (sélection personnalisée)':''}</summary>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px">
+        ${members.map((m,i)=>`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" ${inRow.has(m.athlete.full_name)?'checked':''} onchange="adminTogglePeriodAthlete('${row.id}',${i},this.checked)"> ${esc(m.athlete.full_name)}</label>`).join('')}
+      </div>
+      <button class="btn btn-sm" style="margin-top:6px" onclick="adminPeriodAllAthletes('${row.id}')">↺ Tous les athlètes de la team</button></details>`:'';
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding:8px;background:${row?'#eff6ff':'#f0fdf4'};border:1px solid ${row?'#bfdbfe':'#bbf7d0'};border-radius:8px;font-size:.8rem">
+    <b>${row?`📅 Période ${idx+1}${total>1?'/'+total:''} — du`:'➕ Nouvelle période — du'}</b>
+    <input type="date" class="field" id="tpStart_${id}" value="${row?row.start_date:''}" min="2026-07-06" max="2027-03-31" style="width:150px">
     <b>au</b>
-    <input type="date" class="field" id="tpEnd_${tm.id}" value="${row?row.end_date:''}" min="2026-07-06" max="2027-03-31" style="width:150px">
-    ${fqResaSelect('tpResa_'+tm.id,row?fqResaKey(row):'unconfirmed')}
-    <button class="btn btn-sm btn-primary" onclick="adminSaveTeamPeriod('${tm.id}')">💾 Enregistrer la période</button>
-    ${row?`<button class="btn btn-sm" style="color:var(--red)" onclick="adminClearTeamPeriod('${tm.id}')" title="Retirer de la frise">✕</button>`:''}
-    <span style="flex-basis:100%">${warn}</span>
+    <input type="date" class="field" id="tpEnd_${id}" value="${row?row.end_date:''}" min="2026-07-06" max="2027-03-31" style="width:150px">
+    ${fqResaSelect('tpResa_'+id,row?fqResaKey(row):'unconfirmed')}
+    <button class="btn btn-sm btn-primary" onclick="adminSaveTeamPeriod('${tm.id}',${row?`'${row.id}'`:'null'})">${row?'💾 Enregistrer':'➕ Ajouter cette période'}</button>
+    ${row?`<button class="btn btn-sm" style="color:var(--red)" onclick="adminClearTeamPeriod('${tm.id}','${row.id}')" title="Retirer cette période de la frise">✕</button>`:''}
+    ${status?`<span style="flex-basis:100%">${status}</span>`:''}
+    ${ath}
   </div>`;
 }
-async function adminSaveTeamPeriod(teamId){
+function teamPeriodHtml(tm){
+  const rows=fqTeamRows(tm.id);
+  const n=(tm.members||[]).length;
+  const warn=!rows.length?`<div style="color:#b45309;font-size:.8rem;margin-bottom:6px">❌ ⚠️ Pas de période : ses athlètes ne pourront pas s'inscrire tant qu'une période n'est pas renseignée.</div>`:`<div style="color:var(--text3);font-size:.78rem;margin-bottom:6px">👥 ${n} athlète(s) · ${rows.length} période(s) — même nom de groupe, suivi par période.</div>`;
+  return warn+rows.map((r,i)=>teamPeriodRowHtml(tm,r,i,rows.length)).join('')+teamPeriodRowHtml(tm,null,0,rows.length);
+}
+async function adminSaveTeamPeriod(teamId,rowId){
   if(!S.isAdmin) return;
   const tm=(S.teams||[]).find(x=>x.id===teamId); if(!tm) return;
-  const start=document.getElementById('tpStart_'+teamId).value, end=document.getElementById('tpEnd_'+teamId).value;
+  const id=rowId||('new_'+teamId);
+  const start=document.getElementById('tpStart_'+id).value, end=document.getElementById('tpEnd_'+id).value;
   if(!start||!end||end<start){ toast('Renseigne un début et une fin de stage valides.','error'); return; }
-  const err=await fqUpsertTeamPeriod(tm,start,end,document.getElementById('tpResa_'+teamId)?.value);
+  const clash=fqTeamRows(teamId).find(r=>r.id!==rowId && start<=r.end_date && end>=r.start_date);
+  if(clash){ toast(`⚠️ Cette période chevauche une autre période du groupe (${fqPeriodShort(clash)}).`,'error'); return; }
+  const err=await fqUpsertTeamPeriod(tm,start,end,document.getElementById('tpResa_'+id)?.value,rowId||null);
   if(err){ toast('⚠️ '+err,'error'); return; }
   await fqLoadRows(); renderAdminTeams();
-  toast(`📅 Période du groupe « ${tm.name} » enregistrée dans la frise (${(tm.members||[]).length} athlète(s)).`,'success');
+  toast(`📅 ${rowId?'Période mise à jour':'Période ajoutée'} pour le groupe « ${tm.name} » (${fqTeamRows(teamId).length} période(s)).`,'success');
 }
-async function adminClearTeamPeriod(teamId){
+async function adminClearTeamPeriod(teamId,rowId){
   if(!S.isAdmin) return;
-  if(!confirm('Retirer cette team de la frise ? Ses athlètes ne pourront plus s\'inscrire tant qu\'une période n\'est pas renseignée.')) return;
-  const { error } = await sb.from('frise_periods').delete().eq('team_id',teamId);
+  if(!confirm('Retirer cette période de la frise ? Les athlètes ne pourront plus s\'inscrire sur ces dates. Le suivi déjà coché est conservé.')) return;
+  const q=sb.from('frise_periods').delete();
+  const { error } = rowId ? await q.eq('id',rowId) : await q.eq('team_id',teamId);
   if(error){ toast(error.message,'error'); return; }
   await fqLoadRows(); renderAdminTeams();
+}
+// Athlètes présents sur UNE période (sélection personnalisée ; les autres périodes restent inchangées)
+async function adminTogglePeriodAthlete(rowId,i,on){
+  if(!S.isAdmin) return;
+  const row=(FQ.rows||[]).find(r=>r.id===rowId); if(!row) return;
+  const tm=(S.teams||[]).find(x=>x.id===row.team_id); if(!tm) return;
+  const m=(tm.members||[]).filter(x=>x.athlete)[i]; if(!m) return;
+  const name=m.athlete.full_name;
+  let ath=fqAths(row).slice();
+  if(on){ if(!ath.some(a=>a.name===name)) ath.push({name,am:true,pm:true,mu:true}); } else ath=ath.filter(a=>a.name!==name);
+  const summary={...(row.summary||{}),custom:true};
+  const { error } = await sb.from('frise_periods').update({ athletes:ath, summary }).eq('id',rowId);
+  if(error){ toast(error.message,'error'); return; }
+  Object.assign(row,{ athletes:ath, summary });
+  const c=document.getElementById('tpCnt_'+rowId); if(c) c.textContent=ath.length;
+}
+async function adminPeriodAllAthletes(rowId){
+  if(!S.isAdmin) return;
+  const row=(FQ.rows||[]).find(r=>r.id===rowId); if(!row) return;
+  const tm=(S.teams||[]).find(x=>x.id===row.team_id); if(!tm) return;
+  const cur=fqAths(row);
+  const ath=(tm.members||[]).map(m=>m.athlete&&m.athlete.full_name).filter(Boolean).map(n=>cur.find(a=>a.name===n)||{name:n,am:true,pm:true,mu:true});
+  const summary={...(row.summary||{})}; delete summary.custom;
+  const { error } = await sb.from('frise_periods').update({ athletes:ath, summary }).eq('id',rowId);
+  if(error){ toast(error.message,'error'); return; }
+  Object.assign(row,{ athletes:ath, summary });
+  renderAdminTeams();
 }
 
 async function fqLoadRows(){
@@ -2262,7 +2326,7 @@ function fqRenderTimeline(){
     const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${FQ_RESA[fqResaKey(p)].l}\n${nOf(p)} athlète(s) ${halves}\n${st.txt}`;
     const wBar=(i1-i0+1)*FQ_DAYW, long=wBar>=230;
     rows+=`<div style="display:flex;height:34px;border-top:1px solid #eef0f3">
-      <div style="${lblCss}" title="${esc(tip)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${fqResaEmoji(p)} ${esc(p.g||'(sans nom)')}</b>${mine?' <span style="color:var(--accent)">· moi</span>':''}<br><span style="color:var(--text3);font-size:.68rem">${fmt(p.start_date)} → ${fmt(p.end_date)}</span></span></div>
+      <div style="${lblCss}" title="${esc(tip)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${fqResaEmoji(p)} ${esc(p.g||'(sans nom)')}${fqTeamSuffix(p)}</b>${mine?' <span style="color:var(--accent)">· moi</span>':''}<br><span style="color:var(--text3);font-size:.68rem">${fmt(p.start_date)} → ${fmt(p.end_date)}</span></span></div>
       <div style="position:relative;width:${W}px;${grid}">
         ${i1>=i0?`<button onclick="fqDetail('${p.id}')" title="${esc(tip)}" style="position:absolute;top:4px;height:26px;left:${i0*FQ_DAYW}px;width:${wBar}px;background:${col};color:#fff;border:${mine?'2px solid #111':'none'};box-sizing:border-box;border-radius:6px;font-size:.72rem;text-align:left;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer">${long?txt:''}</button>${long?'':`<span onclick="fqDetail('${p.id}')" style="position:absolute;top:9px;left:${(i1+1)*FQ_DAYW+6}px;font-size:.72rem;white-space:nowrap;color:#1f2937;cursor:pointer">${txt}</span>`}`:''}
       </div></div>`;
@@ -2544,7 +2608,9 @@ function fqFcNames(row){
   return names;
 }
 function fqFcOpenMine(){
-  const row=S.myTeam?FQ.rows.find(r=>r.team_id===S.myTeam.id):null;
+  const trs=S.myTeam?fqTeamRows(S.myTeam.id):[];
+  const today=dk(new Date());
+  const row=trs.find(r=>today>=r.start_date&&today<=r.end_date)||trs.find(r=>r.start_date>today)||trs[trs.length-1]||null;
   if(!row){ toast("Ta team n'a pas encore de période dans la frise : contacte l'administrateur.",'error'); return; }
   fqFcOpen(row.id);
 }
@@ -2855,7 +2921,7 @@ const SUIVI_TYPES = [
   { key:'kayak_cross_rental', label:'Location kayak Cross' },
   { key:'muscu', label:'Musculation' },
 ];
-const SUIVI = { teamId:null, date:null, rows:[] }; // rows = toutes les lignes "attendance" chargées pour la team
+const SUIVI = { teamId:null, date:null, rows:[], period:'' }; // rows = toutes les lignes "attendance" chargées pour la team
 
 function suiviTeamsAvailable(){
   if(S.isAdmin) return S.teams||[];
@@ -2885,15 +2951,60 @@ async function initSuiviPage(){
     dateInput.min = dk(START); dateInput.max = dk(END);
     dateInput.value = SUIVI.date;
   }
+  try{ if(FQ.ok!==true) await fqLoadRows(); }catch(e){}
+  suiviFillPeriodSelect();
   await loadSuiviAttendance();
   renderSuiviDayGrid();
   renderSuiviRecap();
 }
 
 function suiviOnTeamChange(teamId){
-  SUIVI.teamId = teamId;
+  SUIVI.teamId = teamId; SUIVI.period = '';
+  suiviFillPeriodSelect();
   loadSuiviAttendance().then(()=>{ renderSuiviDayGrid(); renderSuiviRecap(); });
 }
+
+// ── Suivi par période : un même groupe peut venir sur plusieurs périodes ──
+function suiviTeamPeriods(){ return SUIVI.teamId ? fqTeamRows(SUIVI.teamId) : []; }
+function suiviPeriodRow(){ return SUIVI.period ? suiviTeamPeriods().find(r=>r.id===SUIVI.period)||null : null; }
+function suiviFillPeriodSelect(){
+  const wrap=document.getElementById('suiviPeriodWrap'), sel=document.getElementById('suiviPeriodSelect');
+  if(!wrap||!sel) return;
+  const rows=suiviTeamPeriods();
+  if(SUIVI.period && !rows.some(r=>r.id===SUIVI.period)) SUIVI.period='';
+  wrap.style.display = rows.length>1 ? 'block' : 'none';
+  sel.innerHTML = `<option value="">Toutes les périodes</option>` + rows.map((r,i)=>`<option value="${r.id}">Période ${i+1} : ${esc(fqPeriodShort(r))}</option>`).join('');
+  sel.value = SUIVI.period;
+  suiviApplyPeriodToDate();
+}
+function suiviApplyPeriodToDate(){
+  const di=document.getElementById('suiviDateInput'); if(!di) return;
+  const r=suiviPeriodRow();
+  di.min = r ? r.start_date : dk(START);
+  di.max = r ? r.end_date : dk(END);
+  if(r && (SUIVI.date<r.start_date || SUIVI.date>r.end_date)){
+    const t=dk(todayClamped());
+    SUIVI.date = (t>=r.start_date && t<=r.end_date) ? t : r.start_date;
+  }
+  di.value = SUIVI.date;
+}
+function suiviOnPeriodChange(id){
+  SUIVI.period = id||'';
+  suiviApplyPeriodToDate();
+  renderSuiviDayGrid(); renderSuiviRecap();
+}
+// lignes d'attendance et athlètes restreints à la période choisie
+function suiviScopedRows(){
+  const r=suiviPeriodRow();
+  return r ? SUIVI.rows.filter(x=>x.date>=r.start_date && x.date<=r.end_date) : SUIVI.rows;
+}
+function suiviScopedMembers(team){
+  const all=(team.members||[]).filter(m=>m.athlete);
+  const r=suiviPeriodRow(); if(!r) return all;
+  const names=new Set(fqAths(r).map(a=>a.name));
+  return all.filter(m=>names.has(m.athlete.full_name));
+}
+function suiviPeriodLabel(){ const r=suiviPeriodRow(); if(!r) return ''; const i=suiviTeamPeriods().findIndex(x=>x.id===r.id); return `Période ${i+1} (${fqPeriodShort(r)})`; }
 
 function suiviOnDateChange(dateVal){
   SUIVI.date = dateVal;
@@ -2962,8 +3073,8 @@ function renderSuiviDayGrid(){
   if(!el) return;
   const team = suiviCurrentTeam();
   if(!team){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Aucun groupe sélectionné.</p>`; return; }
-  const members = (team.members||[]).filter(m=>m.athlete);
-  if(!members.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Ce groupe n'a pas encore d'athlètes.</p>`; return; }
+  const members = suiviScopedMembers(team);
+  if(!members.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${suiviPeriodRow()?'Aucun athlète sur cette période.':'Ce groupe n\'a pas encore d\'athlètes.'}</p>`; return; }
   const date = SUIVI.date;
   let h = `<div style="overflow-x:auto"><table class="print-sheet" style="font-size:.78rem">
     <thead><tr><th style="text-align:left">Athlète</th>${SUIVI_TYPES.map(ty=>`<th>${esc(ty.label)}${ty.key==='kayak_cross'?`<br><button class="btn btn-sm" style="margin-top:4px;font-size:.62rem;padding:2px 6px;white-space:nowrap" onclick="suiviCheckAllKayakCross()">☑️ Tout cocher</button>`:''}</th>`).join('')}</tr></thead><tbody>`;
@@ -2984,11 +3095,11 @@ function renderSuiviDayGrid(){
 // le montant correspondant (12€ kayak/kayak cross, 10€ location KX, 7€ muscu).
 function computeSuiviTotals(){
   const team = suiviCurrentTeam();
-  const members = team ? (team.members||[]).filter(m=>m.athlete) : [];
+  const members = team ? suiviScopedMembers(team) : [];
   const names = members.map(m=>m.athlete.full_name);
   const perPerson = names.map(name=>{
     const counts = { kayak:0, kayak_cross:0, kayak_cross_rental:0, muscu:0 };
-    SUIVI.rows.forEach(r=>{ if(r.athlete_name===name && counts[r.type]!==undefined) counts[r.type]++; });
+    suiviScopedRows().forEach(r=>{ if(r.athlete_name===name && counts[r.type]!==undefined) counts[r.type]++; });
     const kayakSessions = counts.kayak + counts.kayak_cross; // même tarif, comptés ensemble
     const amount = kayakSessions*SUIVI_PRICES.kayak + counts.kayak_cross_rental*SUIVI_PRICES.kayak_cross_rental + counts.muscu*SUIVI_PRICES.muscu;
     return { name, counts, kayakSessions, amount };
@@ -3000,7 +3111,7 @@ function computeSuiviTotals(){
     acc.amount += p.amount;
     return acc;
   }, { kayakSessions:0, rental:0, muscu:0, amount:0 });
-  return { perPerson, grand, teamName: team?team.name:'', contact: team?(team.contact_info||{}):{} };
+  return { perPerson, grand, teamName: team?team.name:'', contact: team?(team.contact_info||{}):{}, periodLabel: suiviPeriodLabel() };
 }
 
 // Formatte le bloc coordonnées (référent/club/groupe/adresse/tel/email) pour
@@ -3022,7 +3133,7 @@ function suiviContactBlockHtml(contact){
 function renderSuiviRecap(){
   const el = document.getElementById('suiviRecap');
   if(!el) return;
-  const { perPerson, grand, teamName, contact } = computeSuiviTotals();
+  const { perPerson, grand, teamName, contact, periodLabel } = computeSuiviTotals();
   if(!perPerson.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">Aucun athlète dans ce groupe.</p>`; return; }
   let h = suiviContactBlockHtml(contact);
   h += `<div style="overflow-x:auto"><table class="print-sheet" style="font-size:.8rem">
@@ -3043,7 +3154,7 @@ function renderSuiviRecap(){
     </tr>`;
   });
   h += `<tr style="font-weight:800;border-top:2px solid #111">
-      <td style="text-align:left">TOTAL GROUPE${teamName?' — '+esc(teamName):''}</td>
+      <td style="text-align:left">TOTAL GROUPE${teamName?' — '+esc(teamName):''}${periodLabel?' — '+esc(periodLabel):''}</td>
       <td style="text-align:center">${grand.kayakSessions}</td>
       <td style="text-align:center">${grand.rental}</td>
       <td style="text-align:center">${grand.muscu}</td>
@@ -3055,8 +3166,8 @@ function renderSuiviRecap(){
 
 // Imprime le récapitulatif comme facture pour le groupe sélectionné.
 function printSuiviInvoice(){
-  const { perPerson, grand, teamName, contact } = computeSuiviTotals();
-  let h = `<div class="print-section-title" style="font-size:1.1rem">💶 Facture — ${esc(teamName)}</div>`;
+  const { perPerson, grand, teamName, contact, periodLabel } = computeSuiviTotals();
+  let h = `<div class="print-section-title" style="font-size:1.1rem">💶 Facture — ${esc(teamName)}${periodLabel?' — '+esc(periodLabel):''}</div>`;
   h += suiviContactBlockHtml(contact);
   h += `<p style="font-size:.78rem;color:#555;margin:4px 0 12px">Tarifs : kayak/kayak cross 12€, location kayak cross 10€, musculation 7€ par séance.</p>`;
   h += `<table class="print-sheet"><thead><tr>
@@ -4637,6 +4748,67 @@ async function pgOpenAllDay(dateK, on){
   toast(on?'🔓 Tous les créneaux du jour sont ouverts':'🔒 Priorité rétablie sur ce jour','success');
 }
 // Raccourci dans une case du tableau (sans ouvrir la fiche)
+// ── Priorité sur une période : cocher P1…P4, choisir les dates, ouvrir / rétablir d'un coup (admin) ──
+var _pgPer = { from:'', to:'', ranks:new Set([2,3,4]), half:'both', open:false };
+function pgPerToggle(){ _pgPer.open=!_pgPer.open; renderPlanningGrid(); }
+function pgPerRank(r,on){ if(on) _pgPer.ranks.add(r); else _pgPer.ranks.delete(r); }
+async function pgPerApply(on){
+  if(!S.isAdmin) return;
+  const from=_pgPer.from, to=_pgPer.to;
+  if(!from||!to){ toast('Choisis une date de début et de fin.','error'); return; }
+  if(from>to){ toast('La date de fin est avant la date de début.','error'); return; }
+  if(!_pgPer.ranks.size){ toast('Coche au moins une priorité (P1…P4).','error'); return; }
+  let n=0, days=0;
+  for(let d=parseDate(from); dk(d)<=to; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)){
+    if(isClosed(d)||outOfRange(d)) continue;
+    const k=dk(d);
+    if(!isPriorityActive(k)) continue;
+    const groups=[];
+    if(_pgPer.half!=='pm') groups.push(morningSlots(k));
+    if(_pgPer.half!=='am') groups.push(afternoonSlots(k));
+    let touched=false;
+    groups.forEach(g=>{
+      const chain=g.filter(x=>!isOutOfPriorityChain(k,x));
+      chain.forEach((sl,idx)=>{
+        if(!_pgPer.ranks.has(idx+1)) return;
+        const c=getKayakSlotCfg(k,sl);
+        if(on){ if(!c.forceOpen){ c.forceOpen=true; n++; touched=true; } }
+        else { if(c.forceOpen){ delete c.forceOpen; n++; touched=true; } }
+      });
+    });
+    if(touched) days++;
+  }
+  if(!n){ toast(on?'Rien à ouvrir : ces créneaux sont déjà ouverts ou hors priorité.':'Aucune ouverture forcée à rétablir sur cette période.','info'); return; }
+  await saveConfig();
+  render();
+  const lst=[..._pgPer.ranks].sort().map(r=>'P'+r).join(', ');
+  toast(on?`🔓 ${lst} ouvert(s) malgré la priorité : ${n} créneau(x) sur ${days} jour(s)`:`🔒 Priorité rétablie sur ${lst} : ${n} créneau(x) sur ${days} jour(s)`,'success');
+}
+function pgPerPanelHtml(){
+  if(!_pgPer.from){ const t0=dk(new Date()); _pgPer.from=t0; _pgPer.to=dk(new Date(Date.now()+6*86400000)); }
+  if(!_pgPer.open) return `<div style="margin:0 0 8px"><button class="btn btn-sm" style="background:#fef3c7;border-color:#d97706" onclick="pgPerToggle()">⚖️ Priorité sur une période (cocher P1–P4)</button></div>`;
+  const rk=[1,2,3,4].map(r=>`<label style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);font-weight:800;font-size:.85rem;cursor:pointer">
+      <input type="checkbox" ${_pgPer.ranks.has(r)?'checked':''} onchange="pgPerRank(${r},this.checked)"> P${r}</label>`).join('');
+  const hf=(v,l)=>`<label style="font-size:.8rem;display:inline-flex;gap:4px;align-items:center"><input type="radio" name="pgPerHalf" ${_pgPer.half===v?'checked':''} onchange="_pgPer.half='${v}'"> ${l}</label>`;
+  return `<div style="margin:0 0 10px;padding:12px;border:1.5px solid #fde68a;border-radius:10px;background:#fffbeb">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <b style="font-size:.88rem">⚖️ Priorité sur une période</b>
+      <button class="btn btn-sm" onclick="pgPerToggle()">✕ Fermer</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:.8rem">
+      Du <input type="date" class="field" value="${_pgPer.from}" min="${dk(START)}" max="${dk(END)}" onchange="_pgPer.from=this.value" style="padding:5px 8px">
+      au <input type="date" class="field" value="${_pgPer.to}" min="${dk(START)}" max="${dk(END)}" onchange="_pgPer.to=this.value" style="padding:5px 8px">
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">${hf('both','🌅🌇 Matin + après-midi')}${hf('am','🌅 Matin')}${hf('pm','🌇 Après-midi')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${rk}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-sm" style="background:#d97706;color:white" onclick="pgPerApply(true)">🔓 Ouvrir les P cochés (malgré la priorité)</button>
+      <button class="btn btn-sm" onclick="pgPerApply(false)">↺ Rétablir la priorité sur les P cochés</button>
+    </div>
+    <p style="font-size:.7rem;color:var(--text3);margin:6px 0 0">P1, P2… = rang du créneau dans sa demi-journée (créneaux bloqués et Kayak Cross exclus). Les P cochés sont ouverts à tous les jours de la période. P1 est déjà toujours ouvert.</p>
+  </div>`;
+}
+
 async function pgQuickForce(dateK, slot){
   await toggleKayakForceOpen(dateK, slot);
 }
@@ -5611,6 +5783,8 @@ function renderPlanningGrid(){
     <button class="btn btn-sm${_pgMulti.on?' btn-primary':''}" onclick="pgToggleMulti()">☑ Sélection multiple</button>
     <span style="font-size:.78rem;color:var(--text2)">${_pgMulti.on?'👆 Clique toutes les séances voulues (même sur plusieurs semaines), puis « Inscrire ma team ».':'👆 Clique sur une séance pour y inscrire ta team, ou active la sélection multiple.'}</span>
   </div>`;
+
+  if(S.isAdmin && isKayak && S.priorityOn) html += pgPerPanelHtml();
 
   if(isKayak && S.priorityOn) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px;line-height:1.5">
     <span class="pg-slot-lbl pg-pri">P1</span> <span class="pg-slot-lbl pg-pri">P2</span>… = <b>ordre de priorité</b> dans la demi-journée : un créneau s'ouvre quand les précédents sont complets ·
