@@ -4567,37 +4567,49 @@ function isPriorityActive(dateK){
   return !!S.priorityDays[dateK];
 }
 
-function isLocked(dateK,slot){
-  if(S.isAdmin) return false;
-  if(!isPriorityActive(dateK)) return false;
-  if(isKayakCross(dateK,slot)) return false; // KX toujours libre
-  // Chercher le groupe (matin ou après-midi) du créneau et calculer la priorité dans ce groupe uniquement
-  for(const group of [morningSlots(dateK), afternoonSlots(dateK)]){
-    if(!group.includes(slot)) continue;
-    // Chaîne de priorité = créneaux SLALOM de ce groupe uniquement (KX exclus)
-    const chain = group.filter(s => !isKayakCross(dateK, s));
-    const idx = chain.indexOf(slot);
-    if(idx <= 0) return false; // premier créneau slalom du groupe → jamais bloqué
-    for(let i=0; i<idx; i++){
-      if(getSlot(dateK, chain[i]).length < cap(chain[i],dateK)) return true;
-    }
-    return false;
-  }
-  return false;
+// Ouverture forcée par l'admin : le créneau est ouvert aux inscriptions même si la priorité le verrouillerait.
+function isForceOpen(dateK,slot){
+  const c = S.kayakSlotConfig && S.kayakSlotConfig[dateK] && S.kayakSlotConfig[dateK][slot];
+  return !!(c && c.forceOpen);
 }
-// Priorité d'un créneau kayak : rang dans sa demi-journée (créneaux slalom, KX exclus) et état « pas encore ouvert ».
-// Un créneau s'ouvre quand TOUS ceux qui le précèdent dans l'ordre de priorité sont complets.
-function pgPriInfo(dateK, slot){
-  if(!isPriorityActive(dateK) || isKayakCross(dateK,slot)) return null;
+// Un créneau BLOQUÉ par l'admin (ex. CRRCK 9h-10h) ne peut jamais se remplir : il sort de la chaîne de
+// priorité, comme le Kayak Cross, sinon il verrouillerait indéfiniment tous les créneaux suivants.
+function isOutOfPriorityChain(dateK,s){
+  if(isKayakCross(dateK,s)) return true;
+  const c = S.kayakSlotConfig && S.kayakSlotConfig[dateK] && S.kayakSlotConfig[dateK][s];
+  return !!(c && c.blocked);
+}
+// Calcul brut (sans passe-droit admin) : renvoie { rank, locked, waitFor } ou null si la priorité ne s'applique pas.
+function priorityState(dateK,slot){
+  if(!isPriorityActive(dateK) || isOutOfPriorityChain(dateK,slot)) return null;
   for(const group of [morningSlots(dateK), afternoonSlots(dateK)]){
     if(!group.includes(slot)) continue;
-    const chain = group.filter(s=>!isKayakCross(dateK,s));
+    const chain = group.filter(s=>!isOutOfPriorityChain(dateK,s));
     const idx = chain.indexOf(slot);
     let waitFor = null;
     for(let i=0;i<idx;i++){ if(getSlot(dateK,chain[i]).length < cap(chain[i],dateK)){ waitFor = chain[i]; break; } }
-    return { rank: idx+1, locked: !!waitFor, waitFor };
+    return { rank: idx+1, locked: !!waitFor && !isForceOpen(dateK,slot), waitFor, forced: !!waitFor && isForceOpen(dateK,slot) };
   }
   return null;
+}
+function isLocked(dateK,slot){
+  if(S.isAdmin) return false;
+  const st = priorityState(dateK,slot);
+  return !!(st && st.locked);
+}
+// Priorité d'un créneau kayak : rang dans sa demi-journée (KX et créneaux bloqués exclus) et état « pas encore ouvert ».
+function pgPriInfo(dateK, slot){
+  return priorityState(dateK,slot);
+}
+// Bascule l'ouverture forcée (admin) d'un créneau malgré la priorité
+async function toggleKayakForceOpen(dateK, slot){
+  if(!S.isAdmin) return;
+  const cfg = getKayakSlotCfg(dateK, slot);
+  cfg.forceOpen = !cfg.forceOpen;
+  if(!cfg.forceOpen) delete cfg.forceOpen;
+  await saveConfig();
+  render();
+  toast(cfg.forceOpen ? `🔓 ${slot} ouvert malgré la priorité` : `🔒 ${slot} : priorité rétablie`, 'success');
 }
 function slotStatus(dateK,slot,act='kayak'){
   if(act==='kayak' && isLocked(dateK,slot)) return 'locked';
@@ -4790,6 +4802,10 @@ function renderKayakSlotBlock(k,slot){
       <span style="font-size:.72rem;color:var(--text3)">Admin:</span>
       ${renderKayakLabelSelect(k,slot,label)}
       <button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.72rem" onclick="toggleKayakBlock('${k}','${slot}')">🚫 Bloquer</button>
+      ${(()=>{ const ps=priorityState(k,slot); if(!ps||!ps.waitFor) return '';
+        return ps.forced
+          ? `<button class="btn btn-sm" style="background:#16a34a;color:white;font-size:.72rem" title="Remettre la priorité sur ce créneau" onclick="toggleKayakForceOpen('${k}','${slot}')">✅ Ouvert hors priorité — rétablir</button>`
+          : `<button class="btn btn-sm" style="background:#d97706;color:white;font-size:.72rem" title="Verrouillé pour les utilisateurs jusqu'à ce que ${esc(ps.waitFor)} soit complet" onclick="toggleKayakForceOpen('${k}','${slot}')">🔒→🔓 Ouvrir malgré la priorité</button>`; })()}
     </div>`;
   }
   h+=`</div>`;
@@ -4804,8 +4820,7 @@ function renderSlot(dateK,slot,act='kayak'){
   const bCls={open:'sb-open',mid:'sb-mid',full:'sb-full',locked:'sb-locked'};
   let prevSlot='';
   if(st==='locked'){
-    const g=morningSlots(dateK).includes(slot)?morningSlots(dateK):afternoonSlots(dateK);
-    const idx=g.indexOf(slot); if(idx>0) prevSlot=g[idx-1];
+    const ps=priorityState(dateK,slot); if(ps && ps.waitFor) prevSlot=ps.waitFor;
   }
   let h=`<div class="slot-card s-${st}${kx?' kx-slot':''}">
     <div class="slot-header" onclick="toggleSlot('${dateK}','${slot}','${act}')">
@@ -5114,6 +5129,10 @@ function renderKayakSlotParams(){
         onclick="blToggleBlock('${esc(slot)}')">
         ${anyBlocked?`🔓 Débloquer${multi?' (tous)':''}`:`🚫 Bloquer${multi?' (tous)':''}`}
       </button>
+      <!-- Priorité : ouvrir malgré la priorité -->
+      ${(()=>{ if(!isPriorityActive(days[0])&&!days.some(k=>isForceOpen(k,slot))) return '';
+        const anyForce=days.some(k=>isForceOpen(k,slot));
+        return `<button class="btn btn-sm" style="background:${anyForce?'#16a34a':'#d97706'};color:white;font-size:.72rem;white-space:nowrap" onclick="blToggleForceOpen('${esc(slot)}')">${anyForce?`✅ Hors priorité${multi?' (tous)':''} — rétablir`:`🔓 Ouvrir malgré priorité${multi?' (tous)':''}`}</button>`; })()}
       <!-- Horaire -->
       <button class="btn btn-sm" style="background:#2563eb;color:white;font-size:.72rem;white-space:nowrap"
         onclick="blEditTime('${esc(slot)}')">
@@ -5142,6 +5161,17 @@ async function blToggleBlock(slot){
   renderDayPanel();
   renderKayakSlotParams();
   toast(newState ? `🚫 "${slot}" bloqué sur ${days.length} jour(s)` : `✅ "${slot}" débloqué sur ${days.length} jour(s)`, 'success');
+}
+
+// Ouvre/rétablit la priorité d'un créneau sur tous les jours sélectionnés
+async function blToggleForceOpen(slot){
+  const days = blActiveDays();
+  if(!days.length) return;
+  const anyForce = days.some(k=>isForceOpen(k,slot));
+  days.forEach(k=>{ const c=getKayakSlotCfg(k,slot); if(anyForce) delete c.forceOpen; else c.forceOpen=true; });
+  await saveConfig();
+  render(); renderKayakSlotParams();
+  toast(anyForce ? `🔒 "${slot}" : priorité rétablie` : `🔓 "${slot}" ouvert malgré la priorité sur ${days.length} jour(s)`, 'success');
 }
 
 // Gère le choix "Autre" dans le select de label, appliqué à tous les jours sélectionnés
