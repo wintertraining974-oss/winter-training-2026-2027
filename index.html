@@ -1510,7 +1510,7 @@ const TR = {
     prevBtn:'← Précédent', nextBtn:'Suivant →',
     viewMonth:'Mois', viewWeek:'Semaine', viewPlanning:'📋 Planning',
     legAvail:'Places disponibles', legAlmost:'Presque plein', legFull:'Complet',
-    aTitle:'Panneau Administrateur', aPrioLabel:'Activer la priorité des créneaux',
+    aTitle:'Panneau Administrateur', aPrioLabel:'Priorité d\'inscription (désactivée = tous les créneaux ouverts ; tu bloques/ouvres à la main)',
     aMorTitle:'Ordre créneaux — Matin', aAftTitle:'Ordre créneaux — Après-midi',
     aCapTitle:'Capacité par créneau', aDowTitle:'Jours de la semaine — Ouvert / Fermé',
     aDateTitle:'Fermer / Ouvrir une date précise', aToggleBtn:'Fermer / Ouvrir',
@@ -1679,7 +1679,7 @@ const TR = {
     prevBtn:'← Previous', nextBtn:'Next →',
     viewMonth:'Month', viewWeek:'Week', viewPlanning:'📋 Planning',
     legAvail:'Available spots', legAlmost:'Almost full', legFull:'Full',
-    aTitle:'Admin Panel', aPrioLabel:'Enable slot priority rule',
+    aTitle:'Admin Panel', aPrioLabel:'Registration priority (off = all slots open; you block/open manually)',
     aMorTitle:'Slot order — Morning', aAftTitle:'Slot order — Afternoon',
     aCapTitle:'Capacity per slot', aDowTitle:'Weekdays — Open / Closed',
     aDateTitle:'Close / Open a specific date', aToggleBtn:'Close / Open',
@@ -4090,7 +4090,7 @@ let S = {
   page:'quickreg',
   athletes:[], teams:[], myTeam:null, teamManagers:[],
   view:'week', currentDate:todayClamped(), selectedDate:null,
-  isAdmin:false, isReadonly:false, priorityOn:true,
+  isAdmin:false, isReadonly:false, priorityOn:false,   // par défaut : tous les créneaux ouverts, l'admin bloque/ouvre à la main (priorité en option)
   priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
   morningOrder:['7h-8h','8h-9h','9h-10h','10h-11h','11h-12h'],
   afternoonOrder:['12h-13h','13h-14h','14h-15h','15h-16h','16h-17h'],
@@ -4382,6 +4382,7 @@ async function saveConfig() {
     morningOrder:   S.morningOrder,
     afternoonOrder: S.afternoonOrder,
     priorityOn:     S.priorityOn,
+    priorityV2:     true,
     priorityDays:   S.priorityDays,
     customSlots:    S.customSlots,
     kayakCross:     S.kayakCross,
@@ -4406,7 +4407,8 @@ async function loadConfig() {
   if (cfg.capacity       !== undefined) S.capacity       = cfg.capacity;
   if (cfg.morningOrder   !== undefined) S.morningOrder   = cfg.morningOrder;
   if (cfg.afternoonOrder !== undefined) S.afternoonOrder = cfg.afternoonOrder;
-  if (cfg.priorityOn     !== undefined) S.priorityOn     = cfg.priorityOn;
+  // Ancienne config (avant le choix « tout ouvert ») : priorité désactivée une fois ; l'admin peut la réactiver.
+  if (cfg.priorityOn     !== undefined) S.priorityOn     = (cfg.priorityV2 ? cfg.priorityOn : false);
   if (cfg.priorityDays   !== undefined) S.priorityDays   = cfg.priorityDays;
   if (cfg.customSlots    !== undefined) S.customSlots    = cfg.customSlots;
   if (cfg.kayakCross     !== undefined) S.kayakCross     = cfg.kayakCross;
@@ -8469,5 +8471,3 @@ function renderRecap(start, days){
 </script>
 </body>
 </html>
-
-  
