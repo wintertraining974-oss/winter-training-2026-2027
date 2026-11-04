@@ -4608,9 +4608,42 @@ async function toggleKayakForceOpen(dateK, slot){
   cfg.forceOpen = !cfg.forceOpen;
   if(!cfg.forceOpen) delete cfg.forceOpen;
   await saveConfig();
-  render();
+  render(); if(_pgSheet && !_pgSheet.user && !_pgSheet.multi) pgRenderSheet();
   toast(cfg.forceOpen ? `🔓 ${slot} ouvert malgré la priorité` : `🔒 ${slot} : priorité rétablie`, 'success');
 }
+// ── Réglage de la priorité depuis le planning (admin) ──
+// Monte/descend un créneau dans l'ordre de priorité de sa demi-journée, pour CE jour uniquement.
+async function pgMovePriority(dateK, slot, dir){
+  if(!S.isAdmin) return;
+  const cs = ensureKayakCustomSlots(dateK);
+  const period = cs.morning.includes(slot) ? 'morning' : (cs.afternoon.includes(slot) ? 'afternoon' : null);
+  if(!period) return;
+  const arr = cs[period];
+  const chain = arr.filter(x=>!isOutOfPriorityChain(dateK,x));
+  const ci = chain.indexOf(slot), ni = ci+dir;
+  if(ci<0 || ni<0 || ni>=chain.length){ toast(dir<0?'Déjà en première priorité.':'Déjà en dernière priorité.','info'); return; }
+  const a = arr.indexOf(slot), b = arr.indexOf(chain[ni]);
+  [arr[a],arr[b]] = [arr[b],arr[a]];
+  await saveConfig();
+  render(); if(_pgSheet && !_pgSheet.user && !_pgSheet.multi) pgRenderSheet();
+  toast(`↕ ${slot} : priorité P${ni+1} ce jour-là`,'success');
+}
+// Ouvre (ou rétablit) d'un coup tous les créneaux kayak d'un jour
+async function pgOpenAllDay(dateK, on){
+  if(!S.isAdmin) return;
+  allSlots(dateK).forEach(sl=>{ const c=getKayakSlotCfg(dateK,sl); if(on) c.forceOpen=true; else delete c.forceOpen; });
+  await saveConfig();
+  render(); if(_pgSheet && !_pgSheet.user && !_pgSheet.multi) pgRenderSheet();
+  toast(on?'🔓 Tous les créneaux du jour sont ouverts':'🔒 Priorité rétablie sur ce jour','success');
+}
+// Raccourci dans une case du tableau (sans ouvrir la fiche)
+async function pgQuickForce(dateK, slot){
+  await toggleKayakForceOpen(dateK, slot);
+}
+async function pgQuickMove(dateK, slot, dir){
+  await pgMovePriority(dateK, slot, dir);
+}
+
 function slotStatus(dateK,slot,act='kayak'){
   if(act==='kayak' && isLocked(dateK,slot)) return 'locked';
   const n=getSlot(dateK,slot,act).length, c=cap(slot,dateK,act);
@@ -5572,7 +5605,7 @@ function renderPlanningGrid(){
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
   </div>`;
 
-  if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits.</p>`;
+  if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits. Si la priorité est active : ▲▼ pour changer l'ordre (P1, P2…) et 🔒/🔓 pour ouvrir un créneau malgré la priorité.</p>`;
 
   if(!S.isAdmin && !S.isReadonly) html += `<div class="pg-multi-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
     <button class="btn btn-sm${_pgMulti.on?' btn-primary':''}" onclick="pgToggleMulti()">☑ Sélection multiple</button>
@@ -5650,12 +5683,18 @@ function renderPlanningGrid(){
 
       let cellHtml = `<div class="${cellClass}">`;
       if(pri) cellHtml+=`<span class="pg-slot-lbl pg-pri" title="Ordre de priorité dans la demi-journée">P${pri.rank}</span> `;
+      if(pri && S.isAdmin && !blocked){
+        const bs='border:1px solid var(--border);background:var(--white);border-radius:4px;font-size:.62rem;line-height:1;padding:2px 4px;cursor:pointer;margin-right:2px';
+        cellHtml+=`<span style="white-space:nowrap">
+          <button type="button" style="${bs}" title="Monter dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${slot}',-1)">▲</button><button type="button" style="${bs}" title="Descendre dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${slot}',1)">▼</button>${(pri.locked||pri.forced)?`<button type="button" style="${bs};${pri.forced?'background:#dcfce7;border-color:#16a34a':'background:#fef3c7;border-color:#d97706'}" title="${pri.forced?'Ouvert malgré la priorité : cliquer pour rétablir':'Verrouillé : cliquer pour ouvrir malgré la priorité'}" onclick="event.stopPropagation();pgQuickForce('${k}','${slot}')">${pri.forced?'🔓':'🔒'}</button>`:''}</span><br>`;
+      }
       // Label (KX, CRRCK, CLUB)
       if(kx)  cellHtml+=`<span class="pg-kx-badge">🏄 KAYAK CROSS</span><br>`;
       if(label&&label!=='KX') cellHtml+=`<span class="pg-slot-lbl pg-lbl-${label}">${label}</span><br>`;
       if(blocked) cellHtml+=`<span class="pg-blocked-tag">${L('🚫 Bloqué','🚫 Blocked')}</span>`;
       else {
         if(pri && pri.locked) cellHtml+=`<span class="pg-blocked-tag" title="S'ouvre quand ${esc(pri.waitFor)} est complet">🔒 Pas encore ouvert</span><br>`;
+        if(pri && pri.forced) cellHtml+=`<span style="font-size:.6rem;font-weight:700;color:#15803d">🔓 Ouvert (admin)</span><br>`;
         // Compteur
         cellHtml+=`<span class="pg-count ${countClass}">${countTxt}</span>`;
         // Athlètes (max 4 affichés)
@@ -5783,6 +5822,22 @@ function pgRenderSheet(){
     ` : `
     <p style="font-size:.75rem;color:var(--text3);margin:10px 0 0">Capacité (${c}) et horaires du fitness : réglage global dans Admin › Salle de musculation.</p>
     `}
+    ${(()=>{ if(!isKayak) return ''; const ps=priorityState(dateK,slot); if(!isPriorityActive(dateK)) return '';
+      if(!ps) return `<p style="font-size:.75rem;color:var(--text3);margin:12px 0 0">Priorité : ce créneau est hors priorité (${cfg.blocked?'bloqué':'Kayak Cross'}).</p>`;
+      const state = ps.forced ? `🔓 ouvert malgré la priorité (attendait ${esc(ps.waitFor)})` : ps.locked ? `🔒 verrouillé pour les utilisateurs jusqu'à ce que ${esc(ps.waitFor)} soit complet` : '✅ ouvert';
+      return `<div style="margin-top:14px;padding:10px;border:1.5px solid #fde68a;border-radius:8px;background:#fffbeb">
+        <div style="font-weight:800;font-size:.82rem">⚖️ Priorité — P${ps.rank} <span style="font-weight:600;font-size:.76rem">· ${state}</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn btn-sm" onclick="pgMovePriority('${dateK}','${esc(slot)}',-1)">▲ Monter</button>
+          <button class="btn btn-sm" onclick="pgMovePriority('${dateK}','${esc(slot)}',1)">▼ Descendre</button>
+          ${(ps.waitFor||ps.forced)?`<button class="btn btn-sm" style="background:${ps.forced?'#16a34a':'#d97706'};color:white" onclick="toggleKayakForceOpen('${dateK}','${esc(slot)}')">${ps.forced?'✅ Rétablir la priorité':'🔓 Ouvrir malgré la priorité'}</button>`:''}
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <button class="btn btn-sm" onclick="pgOpenAllDay('${dateK}',true)">🔓 Ouvrir tout le jour</button>
+          <button class="btn btn-sm" onclick="pgOpenAllDay('${dateK}',false)">↺ Rétablir la priorité du jour</button>
+        </div>
+        <p style="font-size:.7rem;color:var(--text3);margin:6px 0 0">Les changements ne concernent que ce jour. En tant qu'admin tu peux toujours inscrire, même sur un créneau verrouillé ou complet.</p>
+      </div>`; })()}
     <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>
 
     <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px">
