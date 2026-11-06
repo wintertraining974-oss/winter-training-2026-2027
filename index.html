@@ -536,6 +536,22 @@ header .user-pill { color: #fff; }
 .pg-myperiod { display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; border-radius:var(--radius-sm); padding:8px 12px; margin:0 0 8px; font-size:.85rem; }
 .planning-grid th.pg-in-period { box-shadow: inset 0 -4px 0 #22c55e; }
 .planning-grid td.pg-out { opacity:.45; }
+
+/* ══ Couleurs de la grille : vert = ouvert · gris = complet · orange = kayak cross · rouge = pas encore ouvert ══ */
+:root { --slot-open:#16a34a; --slot-open-bg:#dcfce7; --slot-full:#475569; --slot-full-bg:#e2e8f0; --slot-blocked:#dc2626; --slot-blocked-bg:#fecaca; --slot-kx:#f97316; --slot-kx-bg:#ffedd5; }
+.planning-grid td > .pg-cell.pg-cell-open { background:var(--slot-open-bg) !important; box-shadow:inset 6px 0 0 var(--slot-open); }
+.planning-grid td > .pg-cell.pg-cell-full { background:var(--slot-full-bg) !important; box-shadow:inset 6px 0 0 var(--slot-full); }
+.planning-grid td > .pg-cell.pg-cell-kx   { background:var(--slot-kx-bg) !important; box-shadow:inset 6px 0 0 var(--slot-kx); }
+.planning-grid td > .pg-cell.pg-cell-blocked, .planning-grid td > .pg-cell.pg-cell-locked {
+  background-color:var(--slot-blocked-bg) !important;
+  background-image:repeating-linear-gradient(45deg, rgba(220,38,38,.14) 0 7px, transparent 7px 14px) !important;
+  box-shadow:inset 6px 0 0 var(--slot-blocked); }
+.pg-cnt { display:block; font-size:.7rem; line-height:1.4; margin-bottom:3px; }
+.pg-cnt b { font-weight:800; font-size:.84rem; }
+.pg-cnt-open { color:#14532d; }
+.pg-cnt-full { color:#334155; }
+.pg-cell-kx .pg-cnt { color:#9a3412; }
+.pg-cell-locked .pg-cnt, .pg-cell-blocked .pg-cnt { color:#7f1d1d; opacity:.8; }
 </style>
 
 </head>
@@ -6212,10 +6228,9 @@ function renderPlanningGrid(){
   if(isKayak) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px"><span class="pg-kx-badge">🏄 KAYAK CROSS</span> = séance de kayak cross (fond orange, toujours ouverte, hors priorité)</p>`;
 
   html += `<p class="pg-legend pg-colors" style="font-size:.74rem;color:var(--text2);margin:0 0 8px">
-    <span><span class="pg-sw" style="background:var(--slot-open)"></span>${L('Ouvert','Open')}</span>
-    <span><span class="pg-sw" style="background:var(--slot-mid)"></span>${L('Bien rempli (≥ 60 %)','Filling up (≥ 60%)')}</span>
+    <span><span class="pg-sw" style="background:var(--slot-open)"></span>${L('Ouvert (places libres)','Open (spots left)')}</span>
     <span><span class="pg-sw" style="background:var(--slot-full)"></span>${L('Complet','Full')}</span>
-    <span><span class="pg-sw" style="background:var(--slot-blocked)"></span>${L('Bloqué / pas encore ouvert','Blocked / not open yet')}</span>
+    <span><span class="pg-sw" style="background:var(--slot-blocked)"></span>${L('Pas encore ouvert / bloqué','Not open yet / blocked')}</span>
     ${isKayak?`<span><span class="pg-sw" style="background:#4f46e5"></span>${L('Exclusif','Exclusive')}</span><span><span class="pg-sw" style="background:var(--slot-kx)"></span>Kayak Cross</span><span><span class="pg-sw" style="background:#7c3aed"></span>CRRCK</span><span><span class="pg-sw" style="background:#0d9488"></span>CLUB</span>`:''}
     ${S.isAdmin?`<span style="color:#b91c1c;font-weight:700">⚠️ ${L('inscrit hors période de la frise','registered outside schedule period')}</span>`:''}</p>
   <p class="pg-swipe-hint">↔ Glisse pour parcourir toute la saison</p>`;
@@ -6283,12 +6298,11 @@ function renderPlanningGrid(){
       else if(kx) cellClass += ' pg-cell-kx';
       else if(label && label!=='KX') cellClass += ` pg-cell-${label}`;
       else if(aths.length>=c) cellClass += ' pg-cell-full';
-      else if(c>0 && aths.length/c>=0.6) cellClass += ' pg-cell-mid';
       else cellClass += ' pg-cell-open';
 
       // Badge count
       const pct = aths.length/c;
-      const countClass = blocked?'pg-count-block':pct>=1?'pg-count-full':pct>=0.6?'pg-count-mid':'pg-count-open';
+      const countClass = blocked?'pg-count-block':pct>=1?'pg-cnt-full':'pg-cnt-open';
       const countTxt = blocked?'🚫':kx?`🏄 ${aths.length}/${c}`:`${aths.length}/${c}`;
 
       let cellHtml = `<div class="${cellClass}">`;
@@ -6308,7 +6322,11 @@ function renderPlanningGrid(){
         if(pri && pri.locked) cellHtml+=`<span class="pg-blocked-tag" title="S'ouvre quand ${esc(pri.waitFor)} est complet">🔒 Pas encore ouvert</span><br>`;
         if(pri && pri.forced) cellHtml+=`<span style="font-size:.6rem;font-weight:700;color:#15803d">${pri.auto?'⚡ '+L('Ouvert (effectif)','Open (headcount)'):'🔓 '+L('Ouvert (admin)','Open (admin)')}</span><br>`;
         // Compteur
-        cellHtml+=`<span class="pg-count ${countClass}">${countTxt}</span>`;
+        { const n=aths.length, rem=Math.max(0,c-n);
+          const cnt = n>=c
+            ? `<b>${L('COMPLET','FULL')}</b> · <b>${n}</b>/${c}`
+            : `<b>${n}</b> ${L(n>1?'inscrits':'inscrit','registered')}<br><b>${rem}</b> ${L(rem>1?'places restantes':'place restante', rem>1?'spots left':'spot left')}`;
+          cellHtml+=`<span class="pg-cnt ${countClass}">${cnt}</span>`; }
         // Athlètes (max 4 affichés)
         const MAX_SHOW = 4;
         aths.slice(0,MAX_SHOW).forEach(a=>{
@@ -6318,7 +6336,6 @@ function renderPlanningGrid(){
           cellHtml+=`<span class="pg-ath${isKxAth?' pg-ath-kx':''}${hasRental?' pg-ath-rental':''}${outP?' pg-ath-out':''}" title="${esc(a.name)}${outP?' — '+esc(L('hors période de la frise','outside the schedule period'))+' ('+esc(friseInfoAdmin(a.name))+')':''}">${outP?'⚠️ ':''}${esc(a.name.split(' ')[0])} ${esc((a.name.split(' ')[1]||'').charAt(0)+'.')}</span>`;
         });
         if(aths.length>MAX_SHOW) cellHtml+=`<span class="pg-more">+${aths.length-MAX_SHOW} ${L('autres','more')}</span>`;
-        if(!aths.length) cellHtml+=`<span class="pg-empty">${L('Vide','Empty')}</span>`;
       }
       cellHtml+='</div>';
       { const selOn = !S.isAdmin && pgIsSel(k,slot);
