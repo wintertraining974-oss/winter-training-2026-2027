@@ -2301,7 +2301,7 @@ async function fqLoad(){
   const intro=document.getElementById('fqIntro');
   if(intro) intro.textContent = S.isAdmin
     ? "Tu gères la frise : pour chaque demande, saisis le nom du groupe, ses athlètes et la période sur laquelle ils viennent. Les athlètes ne peuvent ensuite s'inscrire (inscription rapide) que sur les jours de leur période. Tu peux aussi inscrire le groupe automatiquement sur les créneaux (kayak matin / après-midi, muscu)."
-    : "Voici les groupes présents sur chaque période. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.";
+    : "Voici les groupes ayant confirmé leur période de stage. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.";
   const rw=document.getElementById('fqRestrictWrap');
   if(rw){ rw.style.display=S.isAdmin?'flex':'none'; document.getElementById('fqRestrict').checked=S.friseRestrict!==false; }
   const rb=document.getElementById('fqReqBtn');
@@ -2372,7 +2372,7 @@ function fqRenderTimeline(){
   }
   const total=Math.round((Date.UTC(END.getFullYear(),END.getMonth(),END.getDate())-Date.UTC(START.getFullYear(),START.getMonth(),START.getDate()))/86400000)+1;
   const W=total*FQ_DAYW, LBL=170;
-  const periods=[...FQ.rows].sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
+  const periods=[...FQ.rows].filter(p=>S.isAdmin||fqResaKey(p)==='confirmed').sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
   const lblCss=`position:sticky;left:0;z-index:3;width:${LBL}px;min-width:${LBL}px;box-sizing:border-box;background:#f8fafc;border-right:1px solid var(--border);padding:4px 8px;font-size:.78rem;display:flex;align-items:center`;
   const nOf=fqN;
   const halvesOf=p=>{ const a=fqAths(p); if(!a.length) return (p.am?'🌅':'')+(p.pm?'🌇':''); return (a.some(x=>x.am)?'🌅':'')+(a.some(x=>x.pm)?'🌇':'')+(a.some(x=>x.mu)?'💪':''); };
@@ -2396,7 +2396,7 @@ function fqRenderTimeline(){
   const grid=`background-image:linear-gradient(to right,#eef0f3 1px,transparent 1px);background-size:${7*FQ_DAYW}px 100%`;
   const fmt=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
   let rows='';
-  if(!periods.length) rows=`<div style="padding:16px;color:var(--text3);font-size:.85rem">Aucun groupe déclaré pour le moment.</div>`;
+  if(!periods.length) rows=`<div style="padding:16px;color:var(--text3);font-size:.85rem">${S.isAdmin?'Aucun groupe déclaré pour le moment.':'Aucun groupe confirmé pour le moment.'}</div>`;
   periods.forEach(p=>{
     const i0=Math.max(0,fqDayIdx(p.start_date)), i1=Math.min(total-1,fqDayIdx(p.end_date));
     const col=fqColor(p.g), st=fqStatus(p), mine=false;
@@ -2751,6 +2751,7 @@ function fqRenderForecast(){
       let tot=0; const det=[];
       FQ.rows.forEach(r=>{
         if(k<r.start_date||k>r.end_date) return;
+        if(!S.isAdmin && fqResaKey(r)!=='confirmed') return;
         const fc=FC.rows[r.id]; if(!fc||!fc.data) return;
         const n=Object.values(fc.data).filter(v=>v&&v[c]).length;
         if(n){ tot+=n; det.push(`${r.g}: ${n}`); }
@@ -2759,12 +2760,37 @@ function fqRenderForecast(){
     });
     h+='</tr>';
   });
+  if(S.isAdmin){
+    h+=`<tr><td colspan="8" style="padding:6px 8px;border:1px solid var(--border);font-weight:800;font-size:.8rem;background:#0f172a;color:#fff">🗓️ Récap de la journée (admin) — séances ouvertes · inscrits</td></tr>`;
+    const recap=(d)=>{
+      const k=fqKey(d); let sl=0,kx=0,gy=0,slN=0,kxN=0,gyN=0;
+      allSlots(k).forEach(s=>{
+        if(getKayakSlotCfg(k,s).blocked) return;
+        const n=getSlot(k,s).length;
+        if(isKayakCross(k,s)){ kx++; kxN+=n; } else { sl++; slN+=n; }
+      });
+      (S.muscuSlots||[]).forEach(s=>{
+        const cfg=getMuscuSlotCfg(k,s); if(cfg&&cfg.blocked) return;
+        gy++; gyN+=getSlot(k,s,'muscu').length;
+      });
+      return {sl,kx,gy,slN,kxN,gyN};
+    };
+    const rc=days.map(d=>(isClosed(d)||outOfRange(d))?null:recap(d));
+    [['sl','slN','🚣 Séances slalom'],['kx','kxN','🏄 Séances kayak cross'],['gy','gyN','🏋️ Séances gym']].forEach(([a,b,lab])=>{
+      h+=`<tr><td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;font-size:.8rem;background:#f8fafc">${lab}</td>`;
+      rc.forEach(r=>{
+        if(!r){ h+=`<td style="border:1px solid var(--border);background:#f3f4f6"></td>`; return; }
+        h+=`<td style="text-align:center;border:1px solid var(--border);padding:5px;font-weight:${r[a]?700:400};color:${r[a]?'#0f172a':'#9ca3af'}">${r[a]}<span style="font-weight:400;font-size:.72rem;color:var(--text3)"> · ${r[b]} inscrit${r[b]>1?'s':''}</span></td>`;
+      });
+      h+='</tr>';
+    });
+  }
   box.innerHTML=h+`</tbody></table></div><p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Nombre d'athlètes prévus par séance, tous groupes confondus (survole une case pour le détail par groupe). Prévisionnel indicatif : il n'inscrit personne.</p>`;
 }
 
 // ── Impression / PDF de la frise (le navigateur propose « Enregistrer au format PDF ») ──
 function fqPrint(){
-  const rows=[...FQ.rows].sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
+  const rows=[...FQ.rows].filter(p=>S.isAdmin||fqResaKey(p)==='confirmed').sort((a,b)=>a.start_date.localeCompare(b.start_date)||a.end_date.localeCompare(b.end_date));
   const fmt=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short',year:'numeric'});
   const tick=v=>v?'✔':'';
   let h=`<div class="print-title">🧭 Inscription des TEAM saison 2026 - 2027 — Winter Training Réunion</div>
@@ -4120,7 +4146,7 @@ var EN_PHRASES = {
   "Aucun groupe déclaré.":"No group declared.",
   "Autres athlètes":"Other athletes",
   "Saisies précédentes (hors base)":"Previous entries (not in database)",
-  "Voici les groupes présents sur chaque période. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.":"Here are the groups present in each period. You can only register within your own group's period: if it is wrong or missing, contact the administrator.",
+  "Voici les groupes ayant confirmé leur période de stage. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.":"Here are the groups that have confirmed their training period. You can only register within your own group's period: if it is wrong or missing, contact the administrator.",
   "Renseigne l'email de la personne : un compte est créé avec un mot de passe provisoire qui lui sera envoyé par email. Elle pourra ensuite se connecter et changer son mot de passe.":"Enter the person's email: an account is created with a temporary password sent to them by email. They can then log in and change their password.",
   "Clique sur un jour ci-dessous pour modifier ses horaires (comme dans l'inscription rapide). Laisse vide = horaires par défaut. La priorité des inscriptions reste basée sur le nombre d'inscrits déjà présents sur chaque créneau.":"Click a day below to edit its times (as in quick registration). Leave empty = default times. Registration priority remains based on the number of people already registered on each slot.",
   "Les dates de début et de fin sont requises.":"Start and end dates are required.",
