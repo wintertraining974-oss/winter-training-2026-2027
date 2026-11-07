@@ -2306,7 +2306,6 @@ async function fqLoad(){
   if(rw){ rw.style.display=S.isAdmin?'flex':'none'; document.getElementById('fqRestrict').checked=S.friseRestrict!==false; }
   const rb=document.getElementById('fqReqBtn');
   if(rb){ rb.style.display = (S.isAdmin && FQ.reqs.length) ? '' : 'none'; rb.textContent=`📲 ${FQ.reqs.length} demande(s) de créneau à valider (voir Suivi)`; }
-  await fqLoadForecast();
   fqRenderTimeline();
   fqRenderForecast();
   const mb=document.getElementById('fqMyFcBtn'); if(mb) mb.style.display='none'; /* prévisionnel cases à cocher : réservé à l'admin */
@@ -2662,7 +2661,7 @@ function fqDetail(id){
   document.getElementById('fqDBody').innerHTML=h;
   document.getElementById('fqDDel').style.display=fqCanEdit()?'':'none';
   document.getElementById('fqDEdit').style.display=fqCanEdit()?'':'none';
-  document.getElementById('fqDFc').style.display=(S.isAdmin&&!S.isReadonly)?'':'none';
+  document.getElementById('fqDFc').style.display='none';
   document.getElementById('fqDetailModal').classList.add('show');
 }
 
@@ -2733,59 +2732,39 @@ async function fqFcSave(){
 function fqFcShift(n){ FC.monday.setDate(FC.monday.getDate()+7*n); fqRenderForecast(); }
 function fqRenderForecast(){
   const box=document.getElementById('fqForecast'); if(!box) return;
+  if(!S.isAdmin){ box.innerHTML=''; return; }   // récap de la journée : visible par l'admin uniquement
   if(!FC.monday){ const t=new Date(); FC.monday=fqMondayOf((t<START||t>END)?START:t); }
   const days=[...Array(7)].map((_,i)=>{ const d=new Date(FC.monday); d.setDate(d.getDate()+i); return d; });
   const dn=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   const fmt=d=>d.toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
   let h=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-    <b>📊 Prévisionnel de séances</b>
+    <b>🗓️ Récap de la journée</b>
     <button class="btn btn-sm" onclick="fqFcShift(-1)">◀</button><span style="font-size:.85rem">semaine du ${fmt(days[0])} au ${fmt(days[6])}</span><button class="btn btn-sm" onclick="fqFcShift(1)">▶</button>
-    ${FC.ok?'':`<span style="font-size:.75rem;color:#b45309">⚠️ table « frise_forecast » indisponible</span>`}
   </div>
-  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:640px"><thead><tr><th style="width:150px"></th>${days.map((d,i)=>`<th style="padding:5px;border:1px solid var(--border);font-size:.78rem;background:${i>=5?'#fef3c7':'var(--accent-light)'}">${dn[i]} ${d.getDate()}/${d.getMonth()+1}</th>`).join('')}</tr></thead><tbody>`;
-  FC_COLS.forEach(([c,,lab])=>{
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:640px"><thead><tr><th style="width:170px"></th>${days.map((d,i)=>`<th style="padding:5px;border:1px solid var(--border);font-size:.78rem;background:${i>=5?'#fef3c7':'var(--accent-light)'}">${dn[i]} ${d.getDate()}/${d.getMonth()+1}</th>`).join('')}</tr></thead><tbody>`;
+  const recap=(d)=>{
+    const k=fqKey(d); let sl=0,kx=0,gy=0,slN=0,kxN=0,gyN=0;
+    allSlots(k).forEach(s=>{
+      if(getKayakSlotCfg(k,s).blocked) return;
+      const n=getSlot(k,s).length;
+      if(isKayakCross(k,s)){ kx++; kxN+=n; } else { sl++; slN+=n; }
+    });
+    (S.muscuSlots||[]).forEach(s=>{
+      const cfg=getMuscuSlotCfg(k,s); if(cfg&&cfg.blocked) return;
+      gy++; gyN+=getSlot(k,s,'muscu').length;
+    });
+    return {sl,kx,gy,slN,kxN,gyN};
+  };
+  const rc=days.map(d=>(isClosed(d)||outOfRange(d))?null:recap(d));
+  [['sl','slN','🚣 Séances slalom'],['kx','kxN','🏄 Séances kayak cross'],['gy','gyN','🏋️ Séances gym']].forEach(([a,b,lab])=>{
     h+=`<tr><td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;font-size:.8rem;background:#f8fafc">${lab}</td>`;
-    days.forEach(d=>{
-      const k=fqKey(d);
-      if(isClosed(d)||outOfRange(d)){ h+=`<td style="border:1px solid var(--border);background:#f3f4f6"></td>`; return; }
-      let tot=0; const det=[];
-      FQ.rows.forEach(r=>{
-        if(k<r.start_date||k>r.end_date) return;
-        if(!S.isAdmin && fqResaKey(r)!=='confirmed') return;
-        const fc=FC.rows[r.id]; if(!fc||!fc.data) return;
-        const n=Object.values(fc.data).filter(v=>v&&v[c]).length;
-        if(n){ tot+=n; det.push(`${r.g}: ${n}`); }
-      });
-      h+=`<td title="${esc(det.join('\n'))}" style="text-align:center;border:1px solid var(--border);padding:5px;font-weight:${tot?700:400};background:${tot?`rgba(37,99,235,${Math.min(.5,.1+tot/60)})`:'#fff'};color:${tot?'#1e3a8a':'#9ca3af'}">${tot||''}</td>`;
+    rc.forEach(r=>{
+      if(!r){ h+=`<td style="border:1px solid var(--border);background:#f3f4f6"></td>`; return; }
+      h+=`<td style="text-align:center;border:1px solid var(--border);padding:5px;font-weight:${r[a]?700:400};color:${r[a]?'#0f172a':'#9ca3af'}">${r[a]}<span style="font-weight:400;font-size:.72rem;color:var(--text3)"> · ${r[b]} inscrit${r[b]>1?'s':''}</span></td>`;
     });
     h+='</tr>';
   });
-  if(S.isAdmin){
-    h+=`<tr><td colspan="8" style="padding:6px 8px;border:1px solid var(--border);font-weight:800;font-size:.8rem;background:#0f172a;color:#fff">🗓️ Récap de la journée (admin) — séances ouvertes · inscrits</td></tr>`;
-    const recap=(d)=>{
-      const k=fqKey(d); let sl=0,kx=0,gy=0,slN=0,kxN=0,gyN=0;
-      allSlots(k).forEach(s=>{
-        if(getKayakSlotCfg(k,s).blocked) return;
-        const n=getSlot(k,s).length;
-        if(isKayakCross(k,s)){ kx++; kxN+=n; } else { sl++; slN+=n; }
-      });
-      (S.muscuSlots||[]).forEach(s=>{
-        const cfg=getMuscuSlotCfg(k,s); if(cfg&&cfg.blocked) return;
-        gy++; gyN+=getSlot(k,s,'muscu').length;
-      });
-      return {sl,kx,gy,slN,kxN,gyN};
-    };
-    const rc=days.map(d=>(isClosed(d)||outOfRange(d))?null:recap(d));
-    [['sl','slN','🚣 Séances slalom'],['kx','kxN','🏄 Séances kayak cross'],['gy','gyN','🏋️ Séances gym']].forEach(([a,b,lab])=>{
-      h+=`<tr><td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;font-size:.8rem;background:#f8fafc">${lab}</td>`;
-      rc.forEach(r=>{
-        if(!r){ h+=`<td style="border:1px solid var(--border);background:#f3f4f6"></td>`; return; }
-        h+=`<td style="text-align:center;border:1px solid var(--border);padding:5px;font-weight:${r[a]?700:400};color:${r[a]?'#0f172a':'#9ca3af'}">${r[a]}<span style="font-weight:400;font-size:.72rem;color:var(--text3)"> · ${r[b]} inscrit${r[b]>1?'s':''}</span></td>`;
-      });
-      h+='</tr>';
-    });
-  }
-  box.innerHTML=h+`</tbody></table></div><p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Nombre d'athlètes prévus par séance, tous groupes confondus (survole une case pour le détail par groupe). Prévisionnel indicatif : il n'inscrit personne.</p>`;
+  box.innerHTML=h+`</tbody></table></div><p style="font-size:.72rem;color:var(--text3);margin:4px 0 0">Nombre de séances ouvertes par jour (créneaux bloqués exclus) et d'athlètes déjà inscrits.</p>`;
 }
 
 // ── Impression / PDF de la frise (le navigateur propose « Enregistrer au format PDF ») ──
