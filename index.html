@@ -2268,6 +2268,11 @@ function friseWindowsAdmin(name){
   if(!w.length) w=rows.filter(p=>fqNorm(p.g)===key);          // nom de groupe saisi à la place d'un athlète (ex. « Poland »)
   return _fwMemo.map[key]=w.map(p=>({from:p.start_date,to:p.end_date,g:p.g}));
 }
+// Admin : l'athlète est-il présent (période de la frise) à cette date ? Sans frise ou restriction désactivée → oui.
+function friseHere(name,dateK){
+  if(FQ.ok!==true || S.friseRestrict===false) return true;
+  return friseWindows(name).some(w=>dateK>=w.from&&dateK<=w.to);
+}
 function friseOutAdmin(name,dateK){
   if(!S.isAdmin || S.friseRestrict===false || FQ.ok!==true) return false;
   return !friseWindowsAdmin(name).some(w=>dateK>=w.from&&dateK<=w.to);
@@ -6401,7 +6406,7 @@ function pgRenderSheet(){
   const hasCustomCap = isKayak && S.dateCapacity && S.dateCapacity[dateK] && S.dateCapacity[dateK][slot]!=null;
   const d = parseDate(dateK);
   const title = d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'});
-  const teams = (S.teams||[]).filter(tm=>tm.members && tm.members.length);
+  const teams = (S.teams||[]).map(tm=>({...tm, members:(tm.members||[]).filter(m=>m.athlete && friseHere(m.athlete.full_name||'',dateK))})).filter(tm=>tm.members.length);
   const fld = 'style="width:100%;padding:6px 8px;font-size:.85rem"';
   const lbl = 'style="font-size:.72rem;font-weight:700;color:var(--text3);display:block;margin:10px 0 3px"';
 
@@ -6483,7 +6488,7 @@ function pgRenderSheet(){
       <label ${lbl}>➕ Ajouter un athlète de la base</label>
       <div style="display:flex;gap:6px">
         <input class="field" id="pgNames" list="pgAthList" placeholder="Tape un nom et choisis dans la liste…" autocomplete="off" style="flex:1;padding:6px 8px;font-size:.85rem" onkeydown="if(event.key==='Enter')pgAddManual()">
-        <datalist id="pgAthList">${(S.athletes||[]).filter(a=>a.full_name && !store.some(x=>(x.name||'').trim().toLowerCase()===a.full_name.trim().toLowerCase())).map(a=>`<option value="${esc(a.full_name)}"></option>`).join('')}</datalist>
+        <datalist id="pgAthList">${(S.athletes||[]).filter(a=>a.full_name && friseHere(a.full_name,dateK) && !store.some(x=>(x.name||'').trim().toLowerCase()===a.full_name.trim().toLowerCase())).map(a=>`<option value="${esc(a.full_name)}"></option>`).join('')}</datalist>
         <button class="btn btn-sm btn-primary" onclick="pgAddManual()">Ajouter</button>
       </div>
     </div>
@@ -6823,7 +6828,9 @@ async function pgAddTeam(){
   const id = document.getElementById('pgTeamSel').value;
   const tm = (S.teams||[]).find(x=>x.id===id);
   if(!tm) return;
-  const entries = tm.members.filter(m=>m.athlete).map(m=>({ name:m.athlete.full_name, role:m.athlete.role||'Athlète' }));
+  const dKey = _pgSheet.dateK;
+  const entries = tm.members.filter(m=>m.athlete && friseHere(m.athlete.full_name||'',dKey)).map(m=>({ name:m.athlete.full_name, role:m.athlete.role||'Athlète' }));
+  if(!entries.length){ toast('Aucun athlète de cette team n\'est présent à cette date.','error'); return; }
   await pgInsertEntries(entries, tm.owner_user_id || S.session.user.id, tm.name);
 }
 async function pgAddManual(){
@@ -6868,10 +6875,10 @@ function pgRenderUserSheet(){
   const members = (S.myTeam.members||[]).filter(m=>m.athlete).map(m=>m.athlete);
   const friseOn = friseRestrictActive();
 
-  const rows = members.map(a=>{
+  const rows = members.filter(a=>!friseOn || friseAllows(a.full_name||'',dateK)).map(a=>{
     const n = a.full_name||'';
     const already = inSlot.has(n.trim().toLowerCase());
-    const outFrise = friseOn && !friseAllows(n,dateK);
+    const outFrise = false;
     const off = already || outFrise || closed;
     const tag = already ? '✓ déjà inscrit(e)' : (outFrise ? '⛔ hors période de la frise' : '');
     return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:.88rem;${off?'opacity:.55':''}">
@@ -6908,7 +6915,7 @@ function pgRenderUserSheet(){
     ${msg?`<p style="margin:12px 0 0;padding:8px 10px;background:var(--red-light);color:#991b1b;border-radius:var(--radius-sm);font-size:.83rem;font-weight:600">${msg}</p>`:''}
     <div style="margin-top:14px">
       <div style="font-weight:800;font-size:.9rem;margin-bottom:2px">Ma team : ${esc(S.myTeam.name||'')}</div>
-      ${rows}
+      ${rows || '<p style="color:var(--text3);font-size:.82rem;margin:6px 0">Aucun athlète de ta team n\'est présent sur cette date (frise).</p>'}
       <button class="btn btn-primary" id="pgUserBtn" style="margin-top:12px;width:100%" onclick="pgUserRegister()" ${closed?'data-closed="1" disabled':''}>✅ Inscrire</button>
     </div>
     <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:10px">
@@ -7030,9 +7037,9 @@ function pgRenderMultiSheet(){
     </div>`;
   }).join('');
   const members = (S.myTeam.members||[]).filter(m=>m.athlete).map(m=>m.athlete);
-  const rows = members.map(a=>{
+  const rows = members.filter(a=>!friseOn || days.some(k=>friseAllows(a.full_name||'',k))).map(a=>{
     const n = a.full_name||'';
-    const off = friseOn && !friseWindows(n).length;
+    const off = false;
     return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:.88rem;${off?'opacity:.55':''}">
       <input type="checkbox" class="pg-m-chk" value="${esc(n)}" ${off?'disabled':'checked'}>
       <span style="flex:1">${esc(n)}</span><small style="color:var(--text3)">${off?'⛔ pas dans la frise':''}</small></label>`;
@@ -7053,7 +7060,7 @@ function pgRenderMultiSheet(){
     <div style="margin-top:10px">${sessions}</div>
     <div style="margin-top:14px">
       <div style="font-weight:800;font-size:.9rem;margin-bottom:2px">Ma team : ${esc(S.myTeam.name||'')}</div>
-      ${rows}
+      ${rows || '<p style="color:var(--text3);font-size:.82rem;margin:6px 0">Aucun athlète de ta team n\'est présent sur ces dates (frise).</p>'}
       <button class="btn btn-primary" id="pgMultiGo" style="margin-top:12px;width:100%" onclick="pgMultiRegister()">✅ Inscrire sur ces séances</button>
       <p style="font-size:.74rem;color:var(--text3);margin:8px 0 0">Les séances bloquées, déjà inscrites, hors période de la frise ou sans place sont ignorées et signalées.</p>
     </div>
@@ -7269,11 +7276,11 @@ function openMultiReg(preDate, preSlot, act){
     });
   }
   const selfName = S.profile?.full_name||S.session.user.email;
-  if(!MR.knownMembers.some(km=>km.name===selfName)){
+  if(!S.isAdmin && !MR.knownMembers.some(km=>km.name===selfName)){
     const selfAthlete = (S.athletes||[]).find(a=>a.full_name===selfName);
     MR.knownMembers.unshift({ name:selfName, role:'Athlète', rental:selfAthlete?.default_rental||'', team:'Moi' });
   }
-  if(!friseRestrictActive() || friseWindows(selfName).length) MR.selectedMembers.add(selfName);
+  if(!S.isAdmin && (!friseRestrictActive() || friseWindows(selfName).length)) MR.selectedMembers.add(selfName);
 
   document.getElementById('mdregCustoms').innerHTML='';
   document.getElementById('qrTabKayak').classList.toggle('active', MR.activity==='kayak');
@@ -7551,21 +7558,25 @@ function renderMdregMembers(){
     if(!byTeam[tn]){ byTeam[tn]={name:tn,items:[]}; groups.push(byTeam[tn]); }
     byTeam[tn].items.push({m,i});
   });
-  MR._teamsView=groups.map(g=>g.items.map(x=>x.m.name));
-  const nSel=MR.selectedMembers.size;
   const restrict=friseRestrictActive(), selDays=[...MR.selectedDays];
-  let h=(restrict?`<div style="font-size:.78rem;margin-bottom:8px;padding:6px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">🔒 Un athlète ne peut être inscrit que sur la période de son groupe (frise). Les athlètes hors période sont grisés.</div>`:'')+`<div style="font-size:.8rem;margin-bottom:8px"><b>${nSel}</b> athlète(s) sélectionné(s)${nSel?` <button class="btn btn-sm" style="margin-left:6px;padding:1px 8px" onclick="mdregClearSel()">Tout décocher</button>`:''}</div>
+  // Jours demandés : on ne propose que les athlètes présents sur au moins un de ces jours
+  const presentOn=m=>!restrict||!selDays.length||selDays.some(d=>friseAllows(m.name,d));
+  if(restrict&&selDays.length) MR.knownMembers.forEach(m=>{ if(!presentOn(m)) MR.selectedMembers.delete(m.name); });
+  MR._teamsView=groups.map(g=>g.items.filter(x=>presentOn(x.m)).map(x=>x.m.name));
+  const nSel=MR.selectedMembers.size;
+  let h=(restrict?`<div style="font-size:.78rem;margin-bottom:8px;padding:6px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">🔒 Un athlète ne peut être inscrit que sur la période de son groupe (frise). Seuls les athlètes présents sur les dates choisies sont proposés.</div>`:'')+`<div style="font-size:.8rem;margin-bottom:8px"><b>${nSel}</b> athlète(s) sélectionné(s)${nSel?` <button class="btn btn-sm" style="margin-left:6px;padding:1px 8px" onclick="mdregClearSel()">Tout décocher</button>`:''}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px">`;
   groups.forEach((g,gi)=>{
-    const shown=g.items.filter(x=>!f||x.m.name.toLowerCase().includes(f));
+    const vis=g.items.filter(x=>presentOn(x.m));
+    const shown=vis.filter(x=>!f||x.m.name.toLowerCase().includes(f));
     if(!shown.length) return;
-    const selN=g.items.filter(x=>MR.selectedMembers.has(x.m.name)).length;
-    const allOn=selN===g.items.length;
+    const selN=vis.filter(x=>MR.selectedMembers.has(x.m.name)).length;
+    const allOn=selN===vis.length;
     h+=`<div style="border:1.5px solid ${selN?'var(--accent)':'var(--border)'};border-radius:10px;overflow:hidden;background:#fff">
       <label style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:${selN?'var(--accent-light)':'#f8fafc'};cursor:pointer;font-weight:700;font-size:.85rem">
         <input type="checkbox" ${allOn?'checked':''} onchange="mdregToggleTeam(${gi},this.checked)">
         <span style="flex:1">👥 ${esc(g.name)}</span>
-        <span style="font-weight:600;font-size:.72rem;color:var(--text3)">${selN}/${g.items.length}</span>
+        <span style="font-weight:600;font-size:.72rem;color:var(--text3)">${selN}/${vis.length}</span>
       </label>
       <div style="padding:4px 6px">`;
     shown.forEach(({m,i})=>{
@@ -7767,7 +7778,7 @@ async function submitMultiReg(){
       const free = cap(slot,dateK,act) - getSlot(dateK,slot,act).length;
       // Doublons : une personne déjà inscrite dans cette catégorie ce jour-là est ignorée
       const eligible = participants.filter(p=>{
-        if(!friseAllows(p.name, dateK)){ if(!outside.includes(p.name)) outside.push(p.name); return false; }
+        if(!friseAllows(p.name, dateK)){ if(!days.some(d=>friseAllows(p.name,d)) && !outside.includes(p.name)) outside.push(p.name); return false; }
         if(alreadyRegisteredInCategory(dateK, slot, act, p.name)){ duplicates.push(`${p.name} (${dateK} ${slot})`); return false; }
         return true;
       });
