@@ -223,6 +223,25 @@ select.field { min-width: 110px; cursor: pointer; }
 .print-section-am { page-break-before: auto; page-break-after: always; break-after: page; }
 .print-section-pm { page-break-before: always; break-before: page; page-break-after: auto; }
 .print-sheet, .print-blocked-note { page-break-inside: avoid; break-inside: avoid; }
+
+/* ── Feuille d'émargement portrait : 1 page par créneau, écriture grande ── */
+.att-page { page-break-after: always; break-after: page; }
+.att-page:last-child { page-break-after: auto; break-after: auto; }
+.att-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.att-table th, .att-table td { border: 1px solid #222; padding: 0 6px; text-align: left; vertical-align: middle; overflow: hidden; }
+.att-table thead th { background: #eee; text-align: center; height: 9mm; }
+.att-num { width: 13mm; text-align: center !important; font-weight: 700; background: #f5f5f5; }
+.att-extra { width: 30mm; }
+.att-rent { width: 72mm; white-space: nowrap; padding: 0 3px !important; }
+.att-count { float: right; }
+@media print {
+  #printArea .att-page, #printArea .att-page * { font-size: 15pt !important; line-height: 1.2 !important; }
+  #printArea .att-page .att-h1 { font-size: 18pt !important; font-weight: 800; margin-bottom: 2mm; }
+  #printArea .att-page .att-h2 { font-size: 22pt !important; font-weight: 800; margin-bottom: 4mm; padding-bottom: 2mm; border-bottom: 3px solid #111; }
+  #printArea .att-page .att-h2 * { font-size: 16pt !important; }
+  #printArea .att-page .att-rent, #printArea .att-page .att-rent * { font-size: 10pt !important; }
+  #printArea .att-page th { font-size: 13pt !important; }
+}
 @media print {
   @page { size: landscape; margin: 10mm; }
   body * { visibility: hidden; }
@@ -7964,51 +7983,56 @@ function movePrio(group,idx,dir){
 function updateCap(slot,val){ S.capacity[slot]=Math.max(1,parseInt(val)||15); saveConfig(); renderDayPanel(); }
 function updateMuscuCap(slot,val){ S.muscuCapacity[slot]=Math.max(1,parseInt(val)||8); saveConfig(); renderMuscuDayPanel(); }
 
-// Feuille d'émargement réutilisable : colonnes = créneaux horaires, sous-colonnes = Nom Prénom + case (dossard/nationalité)
-// + colonne "Location kayak" (Pyrhana / Paname S / Paname M à cocher) pour les créneaux Kayak Cross.
-// Lignes numérotées de 1 à la capacité max du créneau (les inscrits d'abord, puis lignes vides jusqu'au max — pour écrire les athlètes à la main).
-function buildAttendanceSheetHTML(dateK, act, slots, extraLabel, extraKey){
-  slots = [...(slots||[])].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)); // ordre chronologique à l'impression
-  if(!slots.length) return `<p class="print-empty">${t('printEmptySlot')}</p>`;
+// Feuilles d'émargement : UNE PAGE PORTRAIT PAR CRÉNEAU OUVERT (écriture grande, ~20 lignes lisibles).
+// Colonnes : N° · Nom Prénom · dossard/nationalité · (location kayak pour les créneaux Kayak Cross).
+// Lignes numérotées de 1 à la capacité du créneau (inscrits d'abord, puis lignes vides à remplir à la main).
+// Les créneaux bloqués sont ignorés : aucune page n'est imprimée pour eux.
+function buildAttendancePages(dateK, act, slots, extraLabel, extraKey, ctx){
+  slots = [...(slots||[])].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b));
   const getCfg = s => act==='kayak' ? getKayakSlotCfg(dateK,s) : getMuscuSlotCfg(dateK,s);
-  // Les créneaux bloqués n'ont pas d'inscriptions possibles : inutile d'imprimer des
-  // lignes numérotées vides pour eux. On se contente de noter qui a bloqué (le label).
-  const blockedSlots = slots.filter(s=>getCfg(s).blocked);
-  const openSlots = slots.filter(s=>!getCfg(s).blocked);
-  let h = '';
-  if(blockedSlots.length){
-    h += `<p class="print-blocked-note">${t('printBlockedPfx')} ${blockedSlots.map(s=>{
-      const lbl = getCfg(s).label;
-      return `${esc(s)}${lbl?' — '+esc(lbl):''}`;
-    }).join(', ')}</p>`;
-  }
-  if(!openSlots.length) return h || `<p class="print-empty">${t('printEmptySlot')}</p>`;
   const models = ['Pyrhana','Paname S','Paname M'];
-  const maxRows = Math.max(1, ...openSlots.map(s=>cap(s,dateK,act)));
-  const kxOf = s => act==='kayak' && isKayakCross(dateK,s);
-  h += `<table class="print-sheet"><thead>
-    <tr class="ps-slot-row"><th class="ps-num-col"></th>${openSlots.map(s=>
-      `<th colspan="${kxOf(s)?3:2}">${esc(s)}${kxOf(s)?' 🏄 Kayak Cross':''}</th>`
-    ).join('')}</tr>
-    <tr class="ps-sub-row"><th class="ps-num-col">N°</th>${openSlots.map(s=>
-      `<th>${t('printColName')}</th><th>${extraLabel}</th>${kxOf(s)?`<th>${t('rentalLbl')}</th>`:''}`
-    ).join('')}</tr>
-  </thead><tbody>`;
-  for(let i=0;i<maxRows;i++){
-    h += `<tr><td class="ps-num-col">${i+1}</td>`;
-    openSlots.forEach(s=>{
-      const a = getSlot(dateK, s, act)[i];
+  return slots.filter(s=>!getCfg(s).blocked).map(s=>{
+    const kx = act==='kayak' && isKayakCross(dateK,s);
+    const store = getSlot(dateK, s, act);
+    const nRows = Math.max(1, cap(s,dateK,act), store.length);
+    const rowH = Math.min(12, 225/nRows).toFixed(2);
+    const lbl = getCfg(s).label;
+    let rows = '';
+    for(let i=0;i<nRows;i++){
+      const a = store[i];
       const extraVal = a ? (extraKey==='dossard' ? a.dossard : a.nationality) : '';
-      h += `<td class="ps-name-cell">${a?esc(a.name):''}</td><td class="ps-extra-cell">${esc(extraVal||'')}</td>`;
-      if(kxOf(s)){
-        const checks = models.map(m=>`<span class="ps-check">${a&&a.kayakModel===m?'☑':'☐'} ${m}</span>`).join('<br>');
-        h += `<td class="ps-rental-cell">${checks}</td>`;
-      }
-    });
-    h += `</tr>`;
-  }
-  h += `</tbody></table>`;
-  return h;
+      rows += `<tr style="height:${rowH}mm"><td class="att-num">${i+1}</td><td class="att-name">${a?esc(a.name):''}</td><td class="att-extra">${esc(extraVal||'')}</td>${kx?`<td class="att-rent">${models.map(m=>`${a&&a.kayakModel===m?'☑':'☐'} ${m}`).join(' &nbsp;')}</td>`:''}</tr>`;
+    }
+    return `<div class="att-page">
+      <div class="att-h1">${ctx.icon} ${esc(ctx.sectionLabel)} — ${esc(ctx.dateStr)}</div>
+      <div class="att-h2">${ctx.halfIcon} ${esc(ctx.half)} · 🕐 ${esc(s)}${kx?' · 🏄 Kayak Cross':''}${lbl&&!kx?' · '+esc(lbl):''}<span class="att-count">${store.length}/${cap(s,dateK,act)}</span></div>
+      <table class="att-table"><thead><tr><th class="att-num">N°</th><th>${t('printColName')}</th><th class="att-extra">${extraLabel}</th>${kx?`<th class="att-rent">${t('rentalLbl')}</th>`:''}</tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  });
+}
+// Pages d'une journée (matin puis après-midi) pour une activité
+function attendancePagesForDay(dateK, act){
+  const d = parseDate(dateK);
+  if(isClosed(d) || outOfRange(d)) return [];
+  const dateStr = `${t('dowFull')[d.getDay()]} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
+  const icon = act==='muscu' ? '🏋️' : '🚣';
+  const sectionLabel = act==='muscu' ? t('printMuscuSection') : t('printKayakSection');
+  const extraLabel = act==='muscu' ? t('printColNat') : t('printColDossard');
+  const extraKey = act==='muscu' ? 'nationality' : 'dossard';
+  const am = act==='muscu' ? S.muscuSlots.slice(0,4) : morningSlots(dateK);
+  const pm = act==='muscu' ? S.muscuSlots.slice(4)   : afternoonSlots(dateK);
+  return [
+    ...buildAttendancePages(dateK, act, am, extraLabel, extraKey, {icon, sectionLabel, dateStr, half:t('morning'), halfIcon:'🌅'}),
+    ...buildAttendancePages(dateK, act, pm, extraLabel, extraKey, {icon, sectionLabel, dateStr, half:t('afternoon'), halfIcon:'🌇'})
+  ];
+}
+// Lance l'impression des pages en PORTRAIT (le style @page est retiré après l'impression)
+function printAttendancePages(pages){
+  if(!pages.length){ toast('Aucune séance ouverte à imprimer (séances bloquées ignorées).','error'); return; }
+  document.getElementById('printArea').innerHTML = pages.join('');
+  const st=document.createElement('style'); st.id='attPrintStyle'; st.textContent='@page{size:A4 portrait;margin:10mm}'; document.head.appendChild(st);
+  window.addEventListener('afterprint',()=>{ st.remove(); },{once:true});
+  window.print();
 }
 
 // Imprime la fiche (liste des membres) d'une team donnée — point 10.
@@ -8031,92 +8055,17 @@ function printTeamRoster(teamId){
   window.print();
 }
 
-// Construit le sous-titre d'une section (matin/après-midi) : jour, date, année,
-// et la liste des horaires couverts (créneaux non bloqués), pour que chaque page
-// imprimée soit lisible indépendamment (point : chaque feuille doit porter la date).
-function printSectionSubtitle(dateStr, dateK, act, slots){
-  const getCfg = s => act==='kayak' ? getKayakSlotCfg(dateK,s) : getMuscuSlotCfg(dateK,s);
-  const openSlots = [...(slots||[])].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)).filter(s=>!getCfg(s).blocked);
-  const horaires = openSlots.length ? openSlots.join(', ') : '—';
-  return `<div class="print-sub">${esc(dateStr)}</div><div class="print-sub" style="font-size:.78rem;font-weight:600">🕐 ${esc(horaires)}</div>`;
-}
-
 function printDaySchedule(dateK, act){
-  const d = parseDate(dateK);
-  const dayName = t('dowFull')[d.getDay()];
-  const dateStr = `${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
-
-  const icon = act==='muscu' ? '🏋️' : '🚣';
-  const sectionLabel = act==='muscu' ? t('printMuscuSection') : t('printKayakSection');
-  let h = `<div class="print-title">${icon} ${sectionLabel}</div>
-    <div class="print-sub">${esc(dateStr)}</div>`;
-  if(isClosed(d)){
-    h += `<p class="print-sub">${esc(closedLabel(d))}</p>`;
-  } else if(act==='muscu'){
-    const extraLabel = t('printColNat'), extraKey = 'nationality';
-    const amSlots = S.muscuSlots.slice(0,4), pmSlots = S.muscuSlots.slice(4);
-    h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
-    ${printSectionSubtitle(dateStr, dateK, act, amSlots)}
-    ${buildAttendanceSheetHTML(dateK, act, amSlots, extraLabel, extraKey)}</div>`;
-    h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
-    ${printSectionSubtitle(dateStr, dateK, act, pmSlots)}
-    ${buildAttendanceSheetHTML(dateK, act, pmSlots, extraLabel, extraKey)}</div>`;
-  } else {
-    const extraLabel = t('printColDossard'), extraKey = 'dossard';
-    const amSlots = morningSlots(dateK), pmSlots = afternoonSlots(dateK);
-    h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
-    ${printSectionSubtitle(dateStr, dateK, act, amSlots)}
-    ${buildAttendanceSheetHTML(dateK, act, amSlots, extraLabel, extraKey)}</div>`;
-    h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
-    ${printSectionSubtitle(dateStr, dateK, act, pmSlots)}
-    ${buildAttendanceSheetHTML(dateK, act, pmSlots, extraLabel, extraKey)}</div>`;
-  }
-  document.getElementById('printArea').innerHTML = h;
-  window.print();
+  printAttendancePages(attendancePagesForDay(dateK, act));
 }
 
-// Impression de la semaine entière en feuilles d'émargement : un bloc par jour,
-// matin en haut puis après-midi en dessous, horaires triés chronologiquement (8h→18h),
-// une ligne numérotée par place disponible (capacité max du créneau), pré-remplies
-// pour les athlètes déjà inscrits et vides pour le reste.
+// Impression de la semaine : une page portrait par créneau ouvert, jour après jour
+// (matin puis après-midi, horaires chronologiques). Séances bloquées et jours fermés : aucune page.
 function printWeekAttendance(act){
   const ws = weekStart(S.currentDate);
-  const days = [];
-  for(let i=0;i<7;i++){ const d=new Date(ws); d.setDate(ws.getDate()+i); days.push(d); }
-  const icon = act==='muscu' ? '🏋️' : '🚣';
-  const sectionLabel = act==='muscu' ? t('printMuscuSection') : t('printKayakSection');
-  let h = '';
-  let first = true;
-  days.forEach(d=>{
-    const dateK = dk(d);
-    if(isClosed(d) || outOfRange(d)) return;
-    const dayName = t('dowFull')[d.getDay()];
-    const dateStr = `${dayName} ${d.getDate()} ${t('months')[d.getMonth()]} ${d.getFullYear()}`;
-    h += `<div class="print-title"${first?'':' style="page-break-before:always"'}>${icon} ${sectionLabel}</div>`;
-    if(act==='muscu'){
-      const extraLabel = t('printColNat'), extraKey = 'nationality';
-      const amSlots = S.muscuSlots.slice(0,4), pmSlots = S.muscuSlots.slice(4);
-      h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
-      ${printSectionSubtitle(dateStr, dateK, act, amSlots)}
-      ${buildAttendanceSheetHTML(dateK, act, amSlots, extraLabel, extraKey)}</div>`;
-      h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
-      ${printSectionSubtitle(dateStr, dateK, act, pmSlots)}
-      ${buildAttendanceSheetHTML(dateK, act, pmSlots, extraLabel, extraKey)}</div>`;
-    } else {
-      const extraLabel = t('printColDossard'), extraKey = 'dossard';
-      const amSlots = morningSlots(dateK), pmSlots = afternoonSlots(dateK);
-      h += `<div class="print-section-am"><div class="print-section-title">🌅 ${t('morning')}</div>
-      ${printSectionSubtitle(dateStr, dateK, act, amSlots)}
-      ${buildAttendanceSheetHTML(dateK, act, amSlots, extraLabel, extraKey)}</div>`;
-      h += `<div class="print-section-pm"><div class="print-section-title" style="margin-top:20px">🌇 ${t('afternoon')}</div>
-      ${printSectionSubtitle(dateStr, dateK, act, pmSlots)}
-      ${buildAttendanceSheetHTML(dateK, act, pmSlots, extraLabel, extraKey)}</div>`;
-    }
-    first = false;
-  });
-  if(!h){ toast('Aucun jour ouvert cette semaine.','error'); return; }
-  document.getElementById('printArea').innerHTML = h;
-  window.print();
+  let pages = [];
+  for(let i=0;i<7;i++){ const d=new Date(ws); d.setDate(ws.getDate()+i); pages = pages.concat(attendancePagesForDay(dk(d), act)); }
+  printAttendancePages(pages);
 }
 
 // Toggle jour de semaine
