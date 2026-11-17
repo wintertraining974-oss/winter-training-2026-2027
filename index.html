@@ -557,6 +557,20 @@ header .user-pill { color: #fff; }
 .slot-card.s-open{ border-color:#a8d26b; background:#f1f8e4; }
 .pg-excl-badge{ background:#4f46e5; color:#fff; font-size:.62rem; font-weight:800; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:3px; letter-spacing:.3px; }
 .planning-grid td > .pg-cell.pg-cell-excl{ background:#e0e7ff !important; box-shadow:inset 5px 0 0 #4f46e5; }
+
+/* ── Fréquentation : tableau effectifs (même principe que la frise) ── */
+.atn-tbl{ border-collapse:separate; border-spacing:0; font-size:.72rem; table-layout:fixed; }
+.atn-tbl th, .atn-tbl td{ box-sizing:border-box; border-right:1px solid #e9ecef; border-bottom:1px solid #e9ecef; text-align:center; padding:0; height:26px; overflow:hidden; white-space:nowrap; }
+.atn-tbl .lbl{ position:sticky; left:0; z-index:3; text-align:left; padding:0 8px; background:#f8fafc; border-right:2px solid var(--border); overflow:hidden; text-overflow:ellipsis; font-weight:700; }
+.atn-tbl thead th{ position:sticky; background:#f1f5f9; z-index:4; }
+.atn-tbl tr.atn-grp td{ background:#eef3e2; font-weight:800; height:22px; }
+.atn-tbl tr.atn-grp td.lbl{ color:#3e4a18; }
+.atn-tbl .atn-tot{ font-weight:800; background:#fafaf5; }
+.atn-tbl .atn-big{ background:#e6efd2; font-size:.8rem; }
+.atn-tbl .atn-pres{ background:#eef2ff; color:#3730a3; font-weight:700; }
+.atn-tbl .atn-x{ background:repeating-linear-gradient(45deg,#e5e7eb,#e5e7eb 3px,#f3f4f6 3px,#f3f4f6 6px); color:#9ca3af; }
+.atn-tbl .atn-cell{ cursor:pointer; font-weight:700; }
+.atn-tbl .atn-cell:hover{ outline:2px solid var(--sevi-olive-d,#3e4a18); outline-offset:-2px; }
 </style>
 
 </head>
@@ -807,7 +821,8 @@ header .user-pill { color: #fff; }
     <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Inscription séances</span></button>
     <button class="page-tab" id="pbAthletes" style="display:none" onclick="setPage('athletes')">📇 <span id="navAthletes">Athlete database</span></button>
     <button class="page-tab" id="pbSuivi" style="display:none" onclick="setPage('suivi')">📝 <span id="navSuivi">Suivi</span></button>
-    <button class="page-tab" id="pbFreq" style="display:none" onclick="setPage('freq')">🧭 <span>Inscription des TEAM saison 2026 - 2027</span></button>
+    <button class="page-tab" id="pbAttend" style="display:none" onclick="setPage('attend')">📈 <span>Fréquentation</span></button>
+<button class="page-tab" id="pbFreq" style="display:none" onclick="setPage('freq')">🧭 <span>Inscription des TEAM saison 2026 - 2027</span></button>
   </div>
 
   <div class="quick-reg-card" id="quickRegPanel">
@@ -1211,7 +1226,19 @@ header .user-pill { color: #fff; }
     </div>
   </div>
 
-  <!-- Point 12 : feuille de suivi / facturation, admin + référents de groupe -->
+  <!-- Fréquentation : effectif par jour et par créneau (admin) -->
+<div id="attendPage" style="display:none">
+  <div class="quick-reg-card">
+    <h2>📈 Fréquentation</h2>
+    <p class="qr-sub" id="attIntro"></p>
+    <div id="attControls" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"></div>
+    <div id="attSummary" style="margin-bottom:8px;font-weight:700;font-size:.88rem"></div>
+    <div id="attTable" style="overflow:auto;border:1px solid var(--border);border-radius:8px;max-height:72vh"></div>
+    <p id="attLegend" style="font-size:.72rem;color:var(--text3);margin-top:8px"></p>
+  </div>
+</div>
+
+<!-- Point 12 : feuille de suivi / facturation, admin + référents de groupe -->
   <div id="suiviPage" style="display:none">
     <div class="quick-reg-card">
       <h2>📝 Feuille de suivi des présences</h2>
@@ -2865,6 +2892,7 @@ async function fqPeriodDelete(){
 async function setPage(page){
   if(page==='athletes' && !S.isAdmin) page='quickreg'; // onglet réservé à l'admin
   if(page==='suivi' && !S.isAdmin) page='quickreg'; // réservé à l'admin uniquement
+  if(page==='attend' && !S.isAdmin) page='planning'; // fréquentation : admin uniquement
   if(page==='quickreg' && !S.isAdmin && !QUICKREG_FOR_USERS) page='planning'; // le planning remplace l'inscription rapide
   S.page = page;
   const qr = document.getElementById('quickRegPanel');
@@ -2873,6 +2901,10 @@ async function setPage(page){
   const ath = document.getElementById('athletesPage');
   const suivi = document.getElementById('suiviPage');
   const freqP = document.getElementById('freqPage');
+  const attP = document.getElementById('attendPage');
+  if(attP) attP.style.display = page==='attend' ? 'block' : 'none';
+  const pbAt = document.getElementById('pbAttend');
+  if(pbAt) pbAt.classList.toggle('active', page==='attend');
   if(page!=='planning') document.getElementById('pgMultiBar')?.remove();
   if(freqP) freqP.style.display = page==='freq' ? 'block' : 'none';
   const pbF = document.getElementById('pbFreq');
@@ -2906,6 +2938,7 @@ async function setPage(page){
   }
   if(page==='suivi' && S.isAdmin && typeof refreshPendingBadge==='function'){ try{ refreshPendingBadge(); }catch(e){} try{ renderSlotRequests(); }catch(e){} }
   if(page==='freq' && S.session){ await loadAthletes(); await loadTeamsData(); await fqLoad(); }
+  if(page==='attend' && S.session && S.isAdmin){ renderAttend(); try{ await load(); await loadConfig(); await fqLoadRows(); }catch(e){ console.warn('attend load',e); } if(S.page==='attend') renderAttend(true); }
   if(page==='team'){
     renderMyTeam();
     renderTeamPage();
@@ -3991,6 +4024,7 @@ function L(fr, en){ return LANG==='en' ? en : fr; }
 function LOCALE(){ return LANG==='en' ? 'en-GB' : 'fr-FR'; }
 
 var EN_PHRASES = {
+"Fréquentation":"Attendance",
   // connexion / écrans
   "Mot de passe oublié ?":"Forgot your password?",
   "Envoyer le lien de réinitialisation":"Send reset link",
@@ -4702,6 +4736,7 @@ async function onAuthed(session){
   if(pbT) pbT.style.display = S.isReadonly ? 'none' : '';
   if(pbA) pbA.style.display = S.isAdmin ? '' : 'none';
   if(pbS) pbS.style.display = S.isAdmin ? '' : 'none'; // réservé à l'admin uniquement
+  { const pbAt0=document.getElementById('pbAttend'); if(pbAt0) pbAt0.style.display = S.isAdmin ? '' : 'none'; }
   const pbFq = document.getElementById('pbFreq');
   if(pbFq) pbFq.style.display = '';
   { const usePlanning = S.isReadonly || (!S.isAdmin && !QUICKREG_FOR_USERS);
@@ -6638,6 +6673,156 @@ async function pgRenameKayakSlot(dateK, oldS, newS){
   const i = cs[period].indexOf(oldS); if(i>=0) cs[period][i] = newS;
   const mv = (obj)=>{ if(obj && obj[dateK] && obj[dateK][oldS]!==undefined){ obj[dateK][newS]=obj[dateK][oldS]; delete obj[dateK][oldS]; } };
   mv(S.data); mv(S.kayakSlotConfig); mv(S.dateCapacity); mv(S.kayakCross);
+}
+
+// ══════════════════════════════════════════════════════════════
+// FRÉQUENTATION (admin) : effectif par jour et par créneau, même principe que la frise
+// ══════════════════════════════════════════════════════════════
+var ATT = { act:'kayak', mode:'count' };
+const ATT_DAYW = 34, ATT_LBL = 150;
+function attSlotStart(sl){ const m=/(\d{1,2})\s*h\s*(\d{2})?/.exec(sl||''); return m ? (+m[1])*60+(+(m[2]||0)) : 0; }
+function attDays(){ const out=[]; for(let d=new Date(START); d<=END; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)) out.push({d:new Date(d),k:dk(d)}); return out; }
+// union de tous les créneaux existant sur la saison, triés par heure
+function attSlots(act){
+  const set=new Set();
+  if(act==='muscu'){
+    (S.muscuSlots||[]).forEach(x=>set.add(x));
+    Object.values(S.muscuData||{}).forEach(d=>Object.keys(d).forEach(x=>set.add(x)));
+  } else {
+    attDays().forEach(({k})=>{ try{ allSlots(k).forEach(x=>set.add(x)); }catch(e){} });
+    Object.values(S.data||{}).forEach(d=>Object.keys(d).forEach(x=>set.add(x)));
+  }
+  return [...set].sort((a,b)=>attSlotStart(a)-attSlotStart(b));
+}
+function attCell(k,slot,act){
+  let exists, blocked=false, kx=false;
+  if(act==='muscu'){ exists=(S.muscuSlots||[]).includes(slot) || !!((S.muscuData[k]||{})[slot]); const c=getMuscuSlotCfg(k,slot); blocked=!!(c&&c.blocked); }
+  else { exists=allSlots(k).includes(slot); if(exists){ blocked=!!getKayakSlotCfg(k,slot).blocked; kx=isKayakCross(k,slot); } }
+  if(!exists) return { exists:false };
+  const store=getSlot(k,slot,act)||[];
+  return { exists:true, blocked, kx, n:store.length, c:cap(slot,k,act), names:store.map(a=>a.name) };
+}
+function attPresent(k,act){
+  if(act!=='muscu') return friseHeadcount(k);
+  const names=new Set();
+  (FQ.rows||[]).forEach(p=>{ if(k<p.start_date||k>p.end_date) return; fqAths(p).forEach(a=>{ if(a.mu) names.add(fqNorm(a.name)); }); });
+  return names.size;
+}
+function attColor(n,c,kx){
+  if(!n) return kx?'#fff7ed':'#f6f7f2';
+  const r=c>0?n/c:1;
+  if(kx) return r>=1?'#fb923c':'#fed7aa';            // orange réservé au Kayak Cross
+  if(r>=1) return '#f4b6bd';                          // complet
+  if(r>=.6) return '#f6e08e';                         // bien rempli
+  return r>=.3?'#c8e3a0':'#e1f0c8';                   // ouvert (vert)
+}
+function attSet(k,v){ ATT[k]=v; renderAttend(); }
+function attJump(i){ const el=document.getElementById('attTable'); if(el) el.scrollLeft=Math.max(0,i*ATT_DAYW); }
+function attToday(){ const el=document.getElementById('attTable'); const ti=fqDayIdx(dk(new Date())); if(el&&ti>=0) el.scrollLeft=Math.max(0,ti*ATT_DAYW-160); }
+async function attGo(k,slot){
+  try{ _pgActivity=ATT.act; }catch(e){}
+  S.currentDate=parseDate(k); S.view='planning';
+  await setPage('planning');
+  window._pgGoto=k; try{ renderPlanningGrid(); }catch(e){}
+  try{ pgOpenSlot(k,slot,ATT.act); }catch(e){}
+}
+function attExport(){
+  const act=ATT.act, slots=attSlots(act);
+  const rows=[[L('Date','Date'),L('Jour','Day'),L('Présents (frise)','Present (schedule)'),L('Matin','Morning'),L('Après-midi','Afternoon'),L('Total inscrits','Total registered'),...slots]];
+  attDays().forEach(({d,k})=>{
+    if(isClosed(d)||outOfRange(d)) return;
+    let am=0,pm=0; const per=[];
+    slots.forEach(sl=>{ const c=attCell(k,sl,act); if(!c.exists){ per.push(''); return; } if(c.blocked){ per.push('X'); return; } per.push(c.n); if(attSlotStart(sl)<720) am+=c.n; else pm+=c.n; });
+    rows.push([k,d.toLocaleDateString(LOCALE(),{weekday:'short'}),attPresent(k,act),am,pm,am+pm,...per]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`frequentation-${act}.csv`; document.body.appendChild(a); a.click(); a.remove();
+}
+function renderAttend(keepScroll){
+  if(!S.isAdmin) return;
+  const wrap=document.getElementById('attTable'); if(!wrap) return;
+  const act=ATT.act, pct=ATT.mode==='pct';
+  const prevL=wrap.scrollLeft, prevT=wrap.scrollTop, hadContent=!!wrap.firstChild;
+  const days=attDays(), N=days.length, DW=ATT_DAYW, LBL=ATT_LBL;
+  const slots=attSlots(act);
+  const amSlots=slots.filter(x=>attSlotStart(x)<720), pmSlots=slots.filter(x=>attSlotStart(x)>=720);
+  // données
+  const M={}; const dayInfo={};
+  days.forEach(({d,k})=>{
+    const closed=isClosed(d)||outOfRange(d);
+    const cells={}; let am=0,pm=0;
+    if(!closed) slots.forEach(sl=>{ const c=attCell(k,sl,act); cells[sl]=c; if(c.exists && !c.blocked){ if(attSlotStart(sl)<720) am+=c.n; else pm+=c.n; } });
+    M[k]=cells; dayInfo[k]={ closed, am, pm, tot:am+pm, present:attPresent(k,act), label: closed? (outOfRange(d)?'':(closedLabel(d)||'')) : '' };
+  });
+  // synthèse
+  let season=0, peak={k:'',v:0}, openDays=0;
+  const slotTot={};
+  days.forEach(({k})=>{ const di=dayInfo[k]; if(di.closed) return; if(di.tot>0) openDays++; season+=di.tot; if(di.tot>peak.v) peak={k,v:di.tot};
+    slots.forEach(sl=>{ const c=M[k][sl]; if(c&&c.exists&&!c.blocked) slotTot[sl]=(slotTot[sl]||0)+c.n; }); });
+  const best=Object.entries(slotTot).sort((a,b)=>b[1]-a[1])[0];
+  const fmtD=k=>fqParse(k).toLocaleDateString(LOCALE(),{weekday:'short',day:'numeric',month:'short'});
+  document.getElementById('attIntro').textContent = L("Effectif inscrit par jour et par créneau sur toute la saison. Clique sur une case pour ouvrir la séance dans le planning.","Registered headcount per day and per slot across the season. Click a cell to open the session in the planning.");
+  document.getElementById('attSummary').innerHTML = `${season} ${esc(L('inscriptions','registrations'))} · ${openDays} ${esc(L('jours avec inscrits','days with registrations'))}${peak.v?` · ${esc(L('pic','peak'))} : <b>${peak.v}</b> (${esc(fmtD(peak.k))})`:''}${best&&best[1]?` · ${esc(L('créneau le plus fréquenté','busiest slot'))} : <b>${esc(best[0])}</b> (${best[1]})`:''}`;
+  // contrôles
+  const months=[]; days.forEach(({d},i)=>{ if(d.getDate()===1||i===0) months.push({i,label:d.toLocaleDateString(LOCALE(),{month:'long',year:'numeric'})}); });
+  const bt=(on,txt,fn)=>`<button class="btn btn-sm${on?' btn-primary':''}" onclick="${fn}">${txt}</button>`;
+  document.getElementById('attControls').innerHTML =
+    bt(act==='kayak','🚣 Kayak',"attSet('act','kayak')")+bt(act==='muscu','🏋️ '+esc(L('Muscu','Gym')),"attSet('act','muscu')")+
+    `<span style="width:8px"></span>`+bt(!pct,esc(L('Inscrits','Registered')),"attSet('mode','count')")+bt(pct,esc(L('Remplissage %','Fill %')),"attSet('mode','pct')")+
+    `<select class="field" style="max-width:190px" onchange="attJump(this.value)"><option value="">${esc(L('Aller au mois…','Jump to month…'))}</option>${months.map(m=>`<option value="${m.i}">${esc(m.label)}</option>`).join('')}</select>`+
+    `<button class="btn btn-sm" onclick="attToday()">📍 ${esc(L("Aujourd'hui","Today"))}</button>`+
+    `<button class="btn btn-sm" style="margin-left:auto" onclick="attExport()">📥 ${esc(L('Exporter (CSV)','Export (CSV)'))}</button>`;
+  // en-têtes : mois / semaines / jours
+  let hMonth='', hWeek='', hDay='';
+  let i=0;
+  while(i<N){ const m=days[i].d.getMonth(); let j=i; while(j<N&&days[j].d.getMonth()===m) j++;
+    hMonth+=`<th colspan="${j-i}" style="top:0;height:24px;text-align:left;padding:0 6px;font-weight:800;border-left:2px solid #cbd5e1">${esc(days[i].d.toLocaleDateString(LOCALE(),{month:'long',year:'numeric'}))}</th>`; i=j; }
+  i=0;
+  while(i<N){ const wk=dk(weekStart(days[i].d)); let j=i, sum=0; while(j<N&&dk(weekStart(days[j].d))===wk){ if(!dayInfo[days[j].k].closed) sum+=dayInfo[days[j].k].tot; j++; }
+    hWeek+=`<th colspan="${j-i}" title="${esc(L('Semaine du','Week of'))} ${esc(fqParse(wk).toLocaleDateString(LOCALE()))}" style="top:24px;height:24px;font-weight:800;color:#3e4a18;border-left:2px solid #e2e8f0">${sum}</th>`; i=j; }
+  days.forEach(({d,k})=>{ const di=dayInfo[k], wknd=d.getDay()===0||d.getDay()===6;
+    hDay+=`<th title="${esc(fmtD(k))}${di.label?' — '+esc(di.label):''}" style="top:48px;height:38px;line-height:1.15;font-weight:${d.getDate()===1?800:600};${wknd?'background:#e8edf3;':''}${di.closed?'color:#9ca3af;':''}"><span style="font-size:.6rem;opacity:.8">${esc(String(t('dowNames')[d.getDay()]).slice(0,2))}</span><br>${d.getDate()}</th>`; });
+  const lblTh=(txt,top,h)=>`<th class="lbl" style="top:${top}px;height:${h}px;z-index:6">${txt}</th>`;
+  const head=`<thead><tr>${lblTh(esc(L('Mois','Month')),0,24)}${hMonth}</tr><tr>${lblTh(esc(L('Inscrits / semaine','Registered / week')),24,24)}${hWeek}</tr><tr>${lblTh(esc(L('Créneau','Slot')),48,38)}${hDay}</tr></thead>`;
+  // corps
+  const closedTd=`<td class="atn-x"></td>`;
+  const slotRow=sl=>{
+    let tds='';
+    days.forEach(({k})=>{
+      const di=dayInfo[k]; if(di.closed){ tds+=closedTd; return; }
+      const c=M[k][sl];
+      if(!c||!c.exists){ tds+=`<td class="atn-x"></td>`; return; }
+      if(c.blocked){ tds+=`<td class="atn-x" title="${esc(sl)} — ${esc(L('bloqué','blocked'))}">✕</td>`; return; }
+      const txt=c.n? (pct?Math.round(100*c.n/(c.c||1)):c.n) : '';
+      const tip=`${fmtD(k)} · ${sl}\n${c.n}/${c.c}${c.kx?' · Kayak Cross':''}${c.names.length?'\n'+c.names.slice(0,14).join(', ')+(c.names.length>14?' …':''):''}`;
+      tds+=`<td class="atn-cell" style="background:${attColor(c.n,c.c,c.kx)}" title="${esc(tip)}" onclick="attGo('${k}','${esc(sl)}')">${txt}</td>`;
+    });
+    return `<tr><td class="lbl">${esc(sl)} <small style="font-weight:500;color:var(--text3)">Σ ${slotTot[sl]||0}</small></td>${tds}</tr>`;
+  };
+  const totRow=(label,fn,cls)=>{ let tds=''; days.forEach(({k})=>{ const di=dayInfo[k]; tds+= di.closed?closedTd:`<td class="atn-tot ${cls||''}">${fn(di)||''}</td>`; }); return `<tr class="atn-trow"><td class="lbl">${label}</td>${tds}</tr>`; };
+  const grp=(label)=>`<tr class="atn-grp"><td class="lbl">${label}</td><td colspan="${N}"></td></tr>`;
+  let body='<tbody>';
+  if(amSlots.length){ body+=grp('🌅 '+esc(L('Matin','Morning'))); amSlots.forEach(sl=>{ body+=slotRow(sl); }); body+=totRow(esc(L('Total matin','Morning total')),di=>di.am); }
+  if(pmSlots.length){ body+=grp('🌇 '+esc(L('Après-midi','Afternoon'))); pmSlots.forEach(sl=>{ body+=slotRow(sl); }); body+=totRow(esc(L('Total après-midi','Afternoon total')),di=>di.pm); }
+  body+=totRow('<b>'+esc(L('TOTAL JOUR','DAY TOTAL'))+'</b>',di=>di.tot,'atn-big');
+  body+=totRow('👥 '+esc(L('Présents (frise)','Present (schedule)')),di=>di.present,'atn-pres');
+  body+='</tbody>';
+  const ti=fqDayIdx(dk(new Date()));
+  const todayLine=(ti>=0&&ti<N)?`<div style="position:absolute;top:0;bottom:0;left:${LBL+ti*DW+DW/2}px;width:2px;background:#dc2626;opacity:.55;z-index:2;pointer-events:none" title="${esc(L("Aujourd'hui","Today"))}"></div>`:'';
+  wrap.innerHTML=`<div style="position:relative;width:${LBL+N*DW}px">${todayLine}<table class="atn-tbl" style="width:${LBL+N*DW}px"><colgroup><col style="width:${LBL}px">${('<col style="width:'+DW+'px">').repeat(N)}</colgroup>${head}${body}</table></div>`;
+  if(keepScroll===true && hadContent){ wrap.scrollLeft=prevL; wrap.scrollTop=prevT; }
+  else if(hadContent && keepScroll===undefined){ wrap.scrollLeft=prevL; wrap.scrollTop=prevT; }
+  else if(ti>=0&&ti<N){ wrap.scrollLeft=Math.max(0,ti*DW-160); }
+  document.getElementById('attLegend').innerHTML = [
+    `<span class="pg-sw" style="background:#c8e3a0"></span>${esc(L('ouvert','open'))}`,
+    `<span class="pg-sw" style="background:#f6e08e"></span>${esc(L('bien rempli (≥ 60 %)','filling up (≥ 60%)'))}`,
+    `<span class="pg-sw" style="background:#f4b6bd"></span>${esc(L('complet','full'))}`,
+    act==='kayak'?`<span class="pg-sw" style="background:#fed7aa"></span>Kayak Cross`:'',
+    `<span class="pg-sw" style="background:#d1d5db"></span>${esc(L('fermé / bloqué / inexistant','closed / blocked / none'))}`,
+    `<span style="color:#dc2626">▌</span> ${esc(L("aujourd'hui","today"))}`
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 }
 
 // ══════════════════════════════════════════════════════════════
