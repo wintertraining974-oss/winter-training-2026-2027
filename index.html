@@ -4809,8 +4809,21 @@ function rowsToData(rows, act='kayak'){
   return out;
 }
 
+// Supabase renvoie au maximum 1000 lignes par requête : on lit les inscriptions par pages de 1000
+// pour ne jamais « perdre » les plus récentes (elles s'enregistraient mais disparaissaient à l'affichage).
+async function fetchAllInscriptions() {
+  const PAGE = 1000; let all = [];
+  for(let from = 0; ; from += PAGE){
+    const { data, error } = await sb.from('inscriptions').select('*')
+      .order('created_at', { ascending:true }).order('id', { ascending:true }).range(from, from + PAGE - 1);
+    if(error) return { data:null, error };
+    all = all.concat(data||[]);
+    if(!data || data.length < PAGE) break;
+  }
+  return { data:all, error:null };
+}
 async function load() {
-  const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
+  const { data: rows, error } = await fetchAllInscriptions();
   if(error){ console.error('Supabase load error', error); return; }
   S.data = rowsToData(rows||[], 'kayak');
   S.muscuData = rowsToData(rows||[], 'muscu');
@@ -4874,7 +4887,7 @@ async function loadConfig() {
 async function silentReload() {
   if (!S.session) return;
   if (document.querySelector('.modal-bg.show')) return;
-  const { data: rows, error } = await sb.from('inscriptions').select('*').order('created_at', { ascending:true });
+  const { data: rows, error } = await fetchAllInscriptions();
   if(error) return;
   const newData = rowsToData(rows||[], 'kayak');
   const newMuscuData = rowsToData(rows||[], 'muscu');
