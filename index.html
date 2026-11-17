@@ -1372,6 +1372,17 @@ header .user-pill { color: #fff; }
   </div>
 </div>
 
+<!-- Modal Audit -->
+<div class="modal-bg" id="auditModal">
+  <div class="modal-box" style="max-width:780px;width:96%;max-height:88vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0">🩺 Audit teams &amp; périodes / Teams &amp; periods audit</h3>
+      <button class="btn btn-sm" onclick="closeModal('auditModal')">✕</button>
+    </div>
+    <div id="auditBody"></div>
+  </div>
+</div>
+
 <!-- Modal Diagnostic inscription -->
 <div class="modal-bg" id="diagModal">
   <div class="modal-box" style="max-width:720px;width:96%;max-height:88vh;overflow:auto">
@@ -6258,6 +6269,7 @@ function renderPlanningGrid(){
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0369a1;color:white" onclick="diagOpen()">🔎 ${L('Diagnostic','Check')}</button>`:''}
+    ${S.isAdmin?`<button class="btn btn-sm" style="background:#15803d;color:white" onclick="auditOpen()">🩺 ${L('Audit','Audit')}</button>`:''}
   </div>`;
 
   if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits. Si la priorité est active : ▲▼ pour changer l'ordre (P1, P2…) et 🔒/🔓 pour ouvrir un créneau malgré la priorité.</p>`;
@@ -6626,6 +6638,130 @@ async function pgRenameKayakSlot(dateK, oldS, newS){
   const i = cs[period].indexOf(oldS); if(i>=0) cs[period][i] = newS;
   const mv = (obj)=>{ if(obj && obj[dateK] && obj[dateK][oldS]!==undefined){ obj[dateK][newS]=obj[dateK][oldS]; delete obj[dateK][oldS]; } };
   mv(S.data); mv(S.kayakSlotConfig); mv(S.dateCapacity); mv(S.kayakCross);
+}
+
+// ══════════════════════════════════════════════════════════════
+// AUDIT (admin) : contrôle de cohérence de toutes les teams, périodes et athlètes
+// ══════════════════════════════════════════════════════════════
+async function auditOpen(){
+  if(!S.isAdmin) return;
+  document.getElementById('auditModal').classList.add('show');
+  document.getElementById('auditBody').innerHTML=`<p style="color:var(--text3)">${esc(L('Analyse en cours…','Analyzing…'))}</p>`;
+  await auditRun();
+}
+async function auditResync(){
+  await fqSyncTeams(); await fqLoadRows(); await loadTeamsData();
+  toast(L('↻ Périodes resynchronisées avec les teams','↻ Periods resynced with teams'),'success');
+  await auditRun();
+}
+async function auditFixAdd(rowId,name){
+  const row=(FQ.rows||[]).find(r=>r.id===rowId); if(!row||!S.isAdmin) return;
+  const ath=fqAths(row).slice(); if(!ath.some(a=>fqNorm(a.name)===fqNorm(name))) ath.push({name,am:true,pm:true,mu:true});
+  const summary={...(row.summary||{}),custom:true};
+  const { error } = await sb.from('frise_periods').update({ athletes:ath, summary }).eq('id',rowId);
+  if(error){ toast(error.message,'error'); return; }
+  Object.assign(row,{ athletes:ath, summary });
+  toast(L(`➕ ${name} ajouté à la période`,`➕ ${name} added to the period`),'success');
+  await auditRun();
+}
+function auditCompute(profs){
+  const fmt=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
+  const teams=S.teams||[], frows=FQ.rows||[];
+  const sections=[]; let nBad=0, nWarn=0;
+  const mk=()=>{ const it=[]; return { it, add:(lv,t,fix)=>{ it.push({lv,t,fix}); if(lv==='bad') nBad++; else if(lv==='warn') nWarn++; } }; };
+  // ── par team ──
+  teams.forEach(tm=>{
+    const { it, add } = mk();
+    const members=(tm.members||[]).filter(m=>m.athlete).map(m=>m.athlete.full_name);
+    const trs=fqTeamRows(tm.id);
+    const pr=profs[tm.owner_user_id];
+    if(pr){
+      if(pr.blocked) add('bad',L(`Compte « ${pr.full_name||pr.email} » bloqué : le groupe ne peut pas se connecter.`,`Account "${pr.full_name||pr.email}" is blocked: group cannot log in.`));
+      else if(!pr.approved) add('bad',L(`Compte « ${pr.full_name||pr.email} » pas encore validé : le groupe ne peut pas se connecter.`,`Account "${pr.full_name||pr.email}" not approved yet: group cannot log in.`));
+    } else if(!tm.owner_user_id) add('warn',L("Aucun compte responsable rattaché à la team.","No owner account linked to the team."));
+    if(!members.length) add('warn',L("La team n'a aucun athlète.","The team has no athletes."));
+    if(!trs.length) add('bad',L("Aucune période dans la frise : les athlètes ne peuvent pas s'inscrire.","No period in the schedule: athletes cannot register."));
+    for(let i=0;i<trs.length;i++) for(let j=i+1;j<trs.length;j++)
+      if(trs[j].start_date<=trs[i].end_date) add('warn',L(`Les périodes ${i+1} (${fqPeriodShort(trs[i])}) et ${j+1} (${fqPeriodShort(trs[j])}) se chevauchent.`,`Periods ${i+1} (${fqPeriodShort(trs[i])}) and ${j+1} (${fqPeriodShort(trs[j])}) overlap.`));
+    trs.forEach((r,idx)=>{
+      const label=L(`Période ${idx+1} (${fqPeriodShort(r)})`,`Period ${idx+1} (${fqPeriodShort(r)})`);
+      const names=fqAths(r).map(a=>a.name);
+      const custom=!!(r.summary&&r.summary.custom);
+      if(r.start_date<dk(START)||r.end_date>dk(END)) add('warn',L(`${label} : dépasse la saison (${fmt(dk(START))} → ${fmt(dk(END))}).`,`${label}: goes beyond the season.`));
+      if(!names.length) add('warn',L(`${label} : aucun athlète sur cette période.`,`${label}: no athletes on this period.`));
+      members.filter(n=>!names.some(x=>fqNorm(x)===fqNorm(n))).forEach(n=>{
+        if(custom) add('warn',L(`${label} : ${n} n'est pas coché (sélection personnalisée) — il ne pourra pas s'inscrire sur ces dates.`,`${label}: ${n} is not ticked (custom selection) — they cannot register on these dates.`),{kind:'add',rowId:r.id,name:n});
+        else add('bad',L(`${label} : ${n} absent alors que la période suit la team → resynchroniser.`,`${label}: ${n} missing although the period follows the team → resync.`),{kind:'sync'});
+      });
+      names.filter(n=>!members.some(x=>fqNorm(x)===fqNorm(n))).forEach(n=>add('warn',L(`${label} : « ${n} » n'est plus dans la team.`,`${label}: "${n}" is no longer in the team.`)));
+      // jours fermés / bloqués par l'admin dans la période
+      const closed=[];
+      for(let d=fqParse(r.start_date); fqKey(d)<=r.end_date; d.setDate(d.getDate()+1)){
+        const k=fqKey(d); if(outOfRange(d)) continue;
+        if(S.customClosed[k]===true) closed.push(`${fmt(k)} (${closedReasonLabel(k)||L('fermé','closed')})`);
+        else if(!isClosed(d) && allSlots(k).length && allSlots(k).every(sl=>getKayakSlotCfg(k,sl).blocked)) closed.push(`${fmt(k)} (${L('tous créneaux bloqués','all slots blocked')})`);
+      }
+      if(closed.length) add('info',L(`${label} : ${closed.length} jour(s) fermé(s) ou bloqué(s) : ${closed.slice(0,8).join(', ')}${closed.length>8?'…':''}`,`${label}: ${closed.length} closed/blocked day(s): ${closed.slice(0,8).join(', ')}${closed.length>8?'…':''}`));
+    });
+    sections.push({ title:tm.name, meta:`${members.length} ${L('athlète(s)','athlete(s)')} · ${trs.length} ${L('période(s)','period(s)')}`, it });
+  });
+  // ── global ──
+  const g=mk();
+  const byName={};
+  teams.forEach(tm=>(tm.members||[]).filter(m=>m.athlete).forEach(m=>{ (byName[fqNorm(m.athlete.full_name)]=byName[fqNorm(m.athlete.full_name)]||[]).push(tm.name); }));
+  Object.entries(byName).filter(([,v])=>v.length>1).forEach(([k,v])=>g.add('warn',L(`Athlète présent dans plusieurs teams (${v.join(', ')}) : ses périodes s'additionnent.`,`Athlete in several teams (${v.join(', ')}): periods add up.`)+` [${k}]`));
+  const byNorm={};
+  (S.athletes||[]).forEach(a=>{ (byNorm[fqNorm(a.full_name)]=byNorm[fqNorm(a.full_name)]||[]).push(a.full_name); });
+  Object.values(byNorm).filter(v=>v.length>1).forEach(v=>g.add('warn',L(`Doublon possible dans la liste des athlètes : ${v.join(' / ')}.`,`Possible duplicate in athletes list: ${v.join(' / ')}.`)));
+  const noTeam=frows.filter(r=>!r.team_id);
+  if(noTeam.length) g.add('info',L(`${noTeam.length} période(s) de la frise sans team liée : ${noTeam.slice(0,6).map(r=>r.g||'?').join(', ')}${noTeam.length>6?'…':''}`,`${noTeam.length} schedule period(s) with no linked team: ${noTeam.slice(0,6).map(r=>r.g||'?').join(', ')}${noTeam.length>6?'…':''}`));
+  frows.filter(r=>r.team_id && !teams.some(t=>t.id===r.team_id)).forEach(r=>g.add('warn',L(`Période « ${r.g||'?'} » liée à une team qui n'existe plus.`,`Period "${r.g||'?'}" linked to a team that no longer exists.`)));
+  // inscriptions hors période
+  const out=[];
+  if(S.friseRestrict!==false && FQ.ok===true){
+    [['kayak',S.data],['muscu',S.muscuData]].forEach(([act,data])=>{
+      Object.keys(data||{}).forEach(dateK=>Object.keys(data[dateK]||{}).forEach(slot=>(data[dateK][slot]||[]).forEach(a=>{
+        if(a.role && a.role!=='Athlète') return;
+        if(friseOutAdmin(a.name,dateK)) out.push({name:a.name,dateK,slot,act});
+      })));
+    });
+  }
+  if(out.length){
+    const byAth={}; out.forEach(o=>{ (byAth[o.name]=byAth[o.name]||[]).push(o); });
+    Object.entries(byAth).slice(0,25).forEach(([n,list])=>{
+      list.sort((x,y)=>x.dateK.localeCompare(y.dateK));
+      g.add('warn',L(`${n} : ${list.length} inscription(s) hors période — ${friseInfoAdmin(n)} — ex. ${fmt(list[0].dateK)} ${list[0].slot}`,`${n}: ${list.length} registration(s) outside period — ${friseInfoAdmin(n)} — e.g. ${fmt(list[0].dateK)} ${list[0].slot}`),{kind:'go',dateK:list[0].dateK,act:list[0].act});
+    });
+    if(Object.keys(byAth).length>25) g.add('info',L(`… et ${Object.keys(byAth).length-25} autre(s) athlète(s).`,`… and ${Object.keys(byAth).length-25} more athlete(s).`));
+  }
+  sections.unshift({ title:L('🌐 Vérifications générales','🌐 General checks'), meta:'', it:g.it });
+  return { sections, nBad, nWarn, nTeams:teams.length, nPeriods:frows.length };
+}
+async function auditRun(){
+  const body=document.getElementById('auditBody'); if(!body) return;
+  let profs={};
+  try{
+    const ids=[...new Set((S.teams||[]).map(t=>t.owner_user_id).filter(Boolean))];
+    if(ids.length){ const r=await sb.from('profiles').select('id,full_name,email,approved,blocked').in('id',ids); (Array.isArray(r.data)?r.data:[]).forEach(p=>{ profs[p.id]=p; }); }
+  }catch(e){}
+  const R=auditCompute(profs);
+  const ico={ok:'✅',bad:'⛔',warn:'⚠️',info:'ℹ️'}, col={bad:'#b91c1c',warn:'#b45309',info:'var(--text2)',ok:'#15803d'};
+  const fixBtn=f=>!f?'':(f.kind==='add'?` <button class="btn btn-sm" onclick="auditFixAdd('${f.rowId}','${esc(f.name).replace(/'/g,"\\'")}')">➕ ${esc(L('Ajouter à la période','Add to period'))}</button>`
+    :f.kind==='sync'?` <button class="btn btn-sm" onclick="auditResync()">↻ ${esc(L('Resynchroniser','Resync'))}</button>`
+    :f.kind==='go'?` <button class="btn btn-sm" onclick="closeModal('auditModal');histGo('${f.dateK}','${f.act}')">📍 ${esc(L('Voir','View'))}</button>`:'');
+  const head=`<div style="padding:10px 12px;border-radius:8px;margin-bottom:10px;font-weight:800;background:${R.nBad?'#fee2e2':(R.nWarn?'#fef3c7':'#dcfce7')};color:${R.nBad?'#991b1b':(R.nWarn?'#92400e':'#166534')}">
+      ${R.nBad?'⛔ '+esc(L(`${R.nBad} problème(s) à corriger`,`${R.nBad} problem(s) to fix`)):(R.nWarn?'⚠️ '+esc(L('Aucun blocage, mais des points à vérifier','No blocker, but some points to check')):'✅ '+esc(L('Tout est cohérent','Everything is consistent')))}
+      ${R.nWarn&&R.nBad?` · ⚠️ ${R.nWarn}`:''}
+      <div style="font-weight:600;font-size:.76rem;margin-top:2px">${R.nTeams} team(s) · ${R.nPeriods} ${esc(L('période(s) dans la frise','period(s) in the schedule'))}</div></div>
+    <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" onclick="auditResync()">↻ ${esc(L('Resynchroniser les périodes avec les teams','Resync periods with teams'))}</button><button class="btn btn-sm" onclick="auditRun()">🔄 ${esc(L('Relancer','Re-run'))}</button></div>`;
+  body.innerHTML=head+R.sections.map(sec=>{
+    const nb=sec.it.filter(i=>i.lv==='bad').length, nw=sec.it.filter(i=>i.lv==='warn').length;
+    const badge=nb?`<span style="color:#b91c1c;font-weight:800">⛔ ${nb}</span>`:(nw?`<span style="color:#b45309;font-weight:800">⚠️ ${nw}</span>`:`<span style="color:#15803d;font-weight:800">✅</span>`);
+    return `<details ${(nb||nw)?'open':''} style="border:1px solid var(--border);border-radius:8px;margin-bottom:6px;padding:6px 10px">
+      <summary style="cursor:pointer;font-weight:700">${esc(sec.title)} ${badge} <small style="color:var(--text3);font-weight:500">${esc(sec.meta)}</small></summary>
+      <div style="margin-top:6px;font-size:.82rem">${sec.it.length?sec.it.map(i=>`<div style="padding:3px 0;color:${col[i.lv]}">${ico[i.lv]} ${esc(i.t)}${fixBtn(i.fix)}</div>`).join(''):`<div style="color:#15803d">✅ ${esc(L('Rien à signaler','Nothing to report'))}</div>`}</div>
+    </details>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════════════════
