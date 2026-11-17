@@ -1372,6 +1372,17 @@ header .user-pill { color: #fff; }
   </div>
 </div>
 
+<!-- Modal Diagnostic inscription -->
+<div class="modal-bg" id="diagModal">
+  <div class="modal-box" style="max-width:720px;width:96%;max-height:88vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0">🔎 Diagnostic inscription / Registration check</h3>
+      <button class="btn btn-sm" onclick="closeModal('diagModal')">✕</button>
+    </div>
+    <div id="diagBody"></div>
+  </div>
+</div>
+
 <!-- Modal Historique des actions -->
 <div class="modal-bg" id="historyModal">
   <div class="modal-box" style="max-width:820px;width:96%;max-height:88vh;overflow:auto">
@@ -2509,11 +2520,11 @@ function fqChosen(){
   return Object.entries(FQS.sel).filter(([n,c])=>c&&(c.am||c.pm||c.mu)).map(([name,c])=>({name,am:!!c.am,pm:!!c.pm,mu:!!c.mu}));
 }
 function fqOpenDays(start,end){
-  const stay=(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date)?[S.profile.arrival_date,S.profile.departure_date]:null;
+  
   let n=0;
   for(let d=fqParse(start); fqKey(d)<=end; d.setDate(d.getDate()+1)){
     const k=fqKey(d);
-    if(isClosed(d)||outOfRange(d)||(stay&&(k<stay[0]||k>stay[1]))) continue;
+    if(isClosed(d)||outOfRange(d)||profileStayBlocks(k)) continue;
     n++;
   }
   return n;
@@ -2611,7 +2622,7 @@ async function fqPeriodSubmit(){
 async function fqAutoRegister(p){
   await load();
   const aths=fqAths(p);
-  const stay=(!S.isAdmin&&S.profile?.arrival_date&&S.profile?.departure_date)?[S.profile.arrival_date,S.profile.departure_date]:null;
+  
   const referent=p.owner_name||S.profile?.full_name||'';
   const nat=S.profile?.nationality||null;
   const added={}, rows=[], reqs=[];
@@ -2619,7 +2630,7 @@ async function fqAutoRegister(p){
   const free=(k,s,act)=>cap(s,k,act)-getSlot(k,s,act).length-(added[act+'|'+k+'|'+s]||0);
   for(let d=fqParse(p.start_date); fqKey(d)<=p.end_date; d.setDate(d.getDate()+1)){
     const k=fqKey(d);
-    if(isClosed(d)||outOfRange(d)||(stay&&(k<stay[0]||k>stay[1]))){ sum.skipped++; continue; }
+    if(isClosed(d)||outOfRange(d)||profileStayBlocks(k)){ sum.skipped++; continue; }
     for(const half of ['am','pm','mu']){
       const names=aths.filter(a=>a[half]).map(a=>a.name);
       if(!names.length) continue;
@@ -4431,9 +4442,17 @@ function todayClamped(){
 // Date de départ pour un utilisateur : sa période de séjour demandée
 // (arrivée/départ du profil, sinon période de son groupe dans la frise).
 // Si aujourd'hui est dans son séjour, on reste sur aujourd'hui.
+// Dates d'arrivée/départ du profil : elles ne limitent l'inscription que si la restriction « frise » est désactivée.
+// Quand la frise est active, ce sont les périodes du groupe (une ou plusieurs) qui font foi.
+function profileStayBlocks(dateK){
+  if(S.isAdmin) return false;
+  if(friseRestrictActive()) return false;
+  const a=S.profile&&S.profile.arrival_date, d=S.profile&&S.profile.departure_date;
+  return !!(a && d && (dateK<a || dateK>d));
+}
 function userStartDate(){
   let from = S.profile?.arrival_date, to = S.profile?.departure_date;
-  if((!from||!to) && S.myTeam && typeof fqTeamRows==='function'){
+  if(S.myTeam && typeof fqTeamRows==='function'){
     try{
       const rows = fqTeamRows(S.myTeam.id)||[];
       if(rows.length){ from = rows[0].start_date; to = rows[rows.length-1].end_date; }
@@ -6238,6 +6257,7 @@ function renderPlanningGrid(){
     <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>`:''}
+    ${S.isAdmin?`<button class="btn btn-sm" style="background:#0369a1;color:white" onclick="diagOpen()">🔎 ${L('Diagnostic','Check')}</button>`:''}
   </div>`;
 
   if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits. Si la priorité est active : ▲▼ pour changer l'ordre (P1, P2…) et 🔒/🔓 pour ouvrir un créneau malgré la priorité.</p>`;
@@ -6606,6 +6626,99 @@ async function pgRenameKayakSlot(dateK, oldS, newS){
   const i = cs[period].indexOf(oldS); if(i>=0) cs[period][i] = newS;
   const mv = (obj)=>{ if(obj && obj[dateK] && obj[dateK][oldS]!==undefined){ obj[dateK][newS]=obj[dateK][oldS]; delete obj[dateK][oldS]; } };
   mv(S.data); mv(S.kayakSlotConfig); mv(S.dateCapacity); mv(S.kayakCross);
+}
+
+// ══════════════════════════════════════════════════════════════
+// DIAGNOSTIC (admin) : pourquoi cet athlète ne peut-il pas s'inscrire ce jour-là ?
+// ══════════════════════════════════════════════════════════════
+function diagOpen(){
+  if(!S.isAdmin) return;
+  const dl=(S.athletes||[]).map(a=>`<option value="${esc(a.full_name)}">`).join('');
+  document.getElementById('diagBody').innerHTML=`<datalist id="diagAth">${dl}</datalist>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input class="field" id="diagName" list="diagAth" placeholder="${esc(L("Nom de l'athlète (ex. Oblinger)","Athlete name (e.g. Oblinger)"))}" style="flex:1;min-width:200px">
+      <input class="field" type="date" id="diagDate" value="${dk(todayClamped())}" min="${dk(START)}" max="${dk(END)}">
+      <button class="btn btn-primary" onclick="diagRun()">🔎 ${esc(L('Analyser','Analyze'))}</button>
+    </div>
+    <div id="diagOut" style="font-size:.85rem"></div>`;
+  document.getElementById('diagModal').classList.add('show');
+}
+async function diagRun(){
+  const out=document.getElementById('diagOut'); if(!out) return;
+  const typed=(document.getElementById('diagName').value||'').trim();
+  const dateK=document.getElementById('diagDate').value;
+  if(!typed||!dateK){ out.innerHTML=`<p style="color:var(--text3)">${esc(L("Saisis un nom et une date.","Enter a name and a date."))}</p>`; return; }
+  out.innerHTML=`<p style="color:var(--text3)">${esc(L('Analyse…','Analyzing…'))}</p>`;
+  const items=[]; const add=(lv,t)=>items.push({lv,t});
+  const fmt=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short',year:'numeric'});
+  // 1) athlète + team
+  const q=fqNorm(typed).split(' ').filter(Boolean);
+  const matches=(S.athletes||[]).filter(a=>{ const tk=fqNorm(a.full_name).split(' '); return q.every(w=>tk.some(x=>x.startsWith(w))); });
+  const ath=matches[0]; const name=ath?ath.full_name:typed;
+  if(!ath) add('bad',L(`« ${typed} » est introuvable dans la liste des athlètes.`,`"${typed}" was not found in the athletes list.`));
+  else add('ok',L(`Athlète : ${ath.full_name}`,`Athlete: ${ath.full_name}`));
+  if(matches.length>1) add('info',L(`${matches.length-1} autre(s) athlète(s) correspondent aussi : ${matches.slice(1,4).map(a=>a.full_name).join(', ')}`,`${matches.length-1} other athlete(s) also match: ${matches.slice(1,4).map(a=>a.full_name).join(', ')}`));
+  const tm=ath ? (S.teams||[]).find(t=>(t.members||[]).some(m=>m.athlete&&m.athlete.id===ath.id)) : null;
+  if(ath && !tm) add('bad',L("N'appartient à aucune team : il n'a donc aucune période dans la frise et ne peut pas s'inscrire.","Not in any team: no schedule period, so registration is not possible."));
+  if(tm) add('ok',L(`Team : ${tm.name}`,`Team: ${tm.name}`));
+  // 2) compte du responsable de la team
+  let prof=null;
+  if(tm && tm.owner_user_id){
+    try{ const r=await sb.from('profiles').select('id,full_name,email,approved,blocked,arrival_date,departure_date').eq('id',tm.owner_user_id).maybeSingle(); prof=(r.data && !Array.isArray(r.data))?r.data:null; }catch(e){}
+  }
+  if(prof){
+    if(prof.blocked) add('bad',L(`Compte « ${prof.full_name||prof.email} » bloqué : connexion impossible.`,`Account "${prof.full_name||prof.email}" is blocked: cannot log in.`));
+    else if(!prof.approved) add('bad',L(`Compte « ${prof.full_name||prof.email} » pas encore validé : connexion impossible.`,`Account "${prof.full_name||prof.email}" not approved yet: cannot log in.`));
+    else add('ok',L(`Compte du groupe : ${prof.full_name||prof.email} (actif)`,`Group account: ${prof.full_name||prof.email} (active)`));
+  } else if(tm) add('warn',L("Compte responsable de la team introuvable (pas d'owner).","Team owner account not found."));
+  // 3) frise
+  const restrict = S.friseRestrict!==false;
+  const wins=friseWindows(name);
+  const inWin=wins.some(w=>dateK>=w.from&&dateK<=w.to);
+  if(!wins.length) add(restrict?'bad':'info',L("Absent de la frise : aucune période pour cet athlète.","Not in the schedule: no period for this athlete."));
+  else add(inWin?'ok':(restrict?'bad':'info'),L(`Périodes dans la frise : ${wins.map(w=>fmt(w.from)+' → '+fmt(w.to)).join(' · ')}`,`Schedule periods: ${wins.map(w=>fmt(w.from)+' → '+fmt(w.to)).join(' · ')}`)+(inWin?'':L(` — le ${fmt(dateK)} est HORS période.`,` — ${fmt(dateK)} is OUTSIDE the period.`)));
+  if(tm && ath && !inWin){
+    const cover=fqTeamRows(tm.id).filter(r=>dateK>=r.start_date&&dateK<=r.end_date);
+    if(cover.length) add('bad',L(`La team a bien une période qui couvre le ${fmt(dateK)} (${cover.map(fqPeriodShort).join(', ')}) mais ${ath.full_name} n'y est pas coché. → Admin › Teams › « 👥 Athlètes sur cette période » (ou ↺ Tous les athlètes de la team).`,`The team has a period covering ${fmt(dateK)} (${cover.map(fqPeriodShort).join(', ')}) but ${ath.full_name} is not ticked there. → Admin › Teams › "👥 Athletes on this period".`));
+    else if(fqTeamRows(tm.id).length) add('bad',L(`Aucune période de la team ne couvre le ${fmt(dateK)} (périodes : ${fqTeamRows(tm.id).map(fqPeriodShort).join(', ')}). → Ajoute une période dans Admin › Teams.`,`No team period covers ${fmt(dateK)} (periods: ${fqTeamRows(tm.id).map(fqPeriodShort).join(', ')}). → Add a period in Admin › Teams.`));
+    else add('bad',L("La team n'a aucune période dans la frise. → Ajoute une période dans Admin › Teams.","The team has no period in the schedule. → Add one in Admin › Teams."));
+  }
+  add('info',restrict?L("Restriction « frise » : ACTIVE (les athlètes ne s'inscrivent que sur leur période).","Schedule restriction: ON (athletes can only register during their period)."):L("Restriction « frise » : désactivée.","Schedule restriction: OFF."));
+  // 4) dates d'arrivée / départ du profil
+  if(prof && prof.arrival_date && prof.departure_date){
+    const out_=dateK<prof.arrival_date||dateK>prof.departure_date;
+    if(out_ && !restrict) add('bad',L(`Séjour du compte : ${fmt(prof.arrival_date)} → ${fmt(prof.departure_date)} : le ${fmt(dateK)} est hors séjour (bloque car la restriction frise est désactivée).`,`Account stay: ${fmt(prof.arrival_date)} → ${fmt(prof.departure_date)}: ${fmt(dateK)} is outside the stay (blocks because schedule restriction is OFF).`));
+    else if(out_) add('info',L(`Séjour du compte : ${fmt(prof.arrival_date)} → ${fmt(prof.departure_date)} (le ${fmt(dateK)} est en dehors, ignoré car la frise fait foi).`,`Account stay: ${fmt(prof.arrival_date)} → ${fmt(prof.departure_date)} (${fmt(dateK)} is outside, ignored because the schedule rules).`));
+    else add('ok',L(`Séjour du compte : ${fmt(prof.arrival_date)} → ${fmt(prof.departure_date)}`,`Account stay: ${fmt(prof.arrival_date)} → ${fmt(prof.departure_date)}`));
+  }
+  // 5) jour
+  const d=parseDate(dateK);
+  let dayOpen=true;
+  if(outOfRange(d)){ add('bad',L(`Le ${fmt(dateK)} est hors de la saison (${fmt(dk(START))} → ${fmt(dk(END))}).`,`${fmt(dateK)} is outside the season.`)); dayOpen=false; }
+  else if(isClosed(d)){ add('bad',L(`Journée fermée : ${closedLabel(d)||'—'}`,`Day closed: ${closedLabel(d)||'—'}`)); dayOpen=false; }
+  else add('ok',L('Journée ouverte.','Day open.'));
+  // 6) créneaux
+  let slotsHtml='', nOpen=0;
+  if(dayOpen){
+    const uid=tm&&tm.owner_user_id;
+    slotsHtml=allSlots(dateK).map(sl=>{
+      const cfg=getKayakSlotCfg(dateK,sl), n=getSlot(dateK,sl).length, c=cap(sl,dateK);
+      let st='✅ '+L('ouvert','open');
+      if(cfg.blocked) st='🚫 '+L('bloqué','blocked');
+      else if(uid && exclusiveBlocks(dateK,sl,uid)) st='🔐 '+L('exclusif, déjà réservé par un autre groupe','exclusive, booked by another group');
+      else { const ps=priorityState(dateK,sl); if(ps&&ps.locked) st='⏳ '+L(`pas encore ouvert (attend ${ps.waitFor})`,`not open yet (waits for ${ps.waitFor})`); else if(n>=c) st='🟥 '+L('complet','full'); }
+      if(st.startsWith('✅')) nOpen++;
+      return `<span style="display:inline-block;margin:2px 8px 2px 0"><b>${esc(sl)}</b> ${st} <small style="color:var(--text3)">(${n}/${c})</small></span>`;
+    }).join('');
+    if(!nOpen) add('bad',L("Aucun créneau ouvert ce jour-là (bloqués, verrouillés par la priorité, exclusifs ou complets).","No open slot that day (blocked, priority-locked, exclusive or full)."));
+    else add('ok',L(`${nOpen} créneau(x) ouvert(s) ce jour-là.`,`${nOpen} open slot(s) that day.`));
+  }
+  const bads=items.filter(i=>i.lv==='bad');
+  const ico={ok:'✅',bad:'⛔',warn:'⚠️',info:'ℹ️'}, col={ok:'#15803d',bad:'#b91c1c',warn:'#b45309',info:'var(--text2)'};
+  out.innerHTML=`<div style="padding:10px 12px;border-radius:8px;margin-bottom:10px;font-weight:800;background:${bads.length?'#fee2e2':'#dcfce7'};color:${bads.length?'#991b1b':'#166534'}">
+      ${bads.length?'⛔ '+esc(L(`Bloqué : ${bads.length} cause(s) trouvée(s)`,`Blocked: ${bads.length} cause(s) found`)):'✅ '+esc(L("Aucun blocage trouvé : il peut s'inscrire.","No blocker found: registration should work."))}</div>
+    ${items.map(i=>`<div style="padding:4px 0;color:${col[i.lv]}">${ico[i.lv]} ${esc(i.t)}</div>`).join('')}
+    ${slotsHtml?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><b>${esc(L('Créneaux du jour','Slots of the day'))}</b><br>${slotsHtml}</div>`:''}`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -7362,10 +7475,7 @@ function renderMdregWeek(){
     const k = dk(dt);
     const closed = isClosed(dt)||outOfRange(dt);
     // Vérifier période de stage
-    let outOfStage = false;
-    if(!S.isAdmin && S.profile?.arrival_date && S.profile?.departure_date){
-      outOfStage = k < S.profile.arrival_date || k > S.profile.departure_date;
-    }
+    const outOfStage = profileStayBlocks(k);
     const disabled = closed || outOfStage;
     const sel = MR.selectedDays.has(k);
     const dow = t('calHeads')[i];
@@ -7783,11 +7893,7 @@ async function submitMultiReg(){
     const slots = [...(MR.daySlots[dateK]||[])];
     for(const slot of slots){
       // Vérifier période de stage
-      if(!S.isAdmin && !friseRestrictActive() && S.profile?.arrival_date && S.profile?.departure_date){
-        if(dateK < S.profile.arrival_date || dateK > S.profile.departure_date){
-          skipped++; continue;
-        }
-      }
+      if(profileStayBlocks(dateK)){ skipped++; continue; }
       // Vérifier jour fermé
       const dt = new Date(dateK+'T12:00:00');
       if(isClosed(dt)||outOfRange(dt)){ skipped++; continue; }
