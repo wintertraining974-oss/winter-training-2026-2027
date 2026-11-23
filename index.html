@@ -821,6 +821,7 @@ header .user-pill { color: #fff; }
     <button class="page-tab" id="pbPlanning" onclick="setPage('planning')">📋 <span id="navPlanning">Inscription séances</span></button>
     <button class="page-tab" id="pbAthletes" style="display:none" onclick="setPage('athletes')">📇 <span id="navAthletes">Athlete database</span></button>
     <button class="page-tab" id="pbSuivi" style="display:none" onclick="setPage('suivi')">📝 <span id="navSuivi">Suivi</span></button>
+    <button class="page-tab" id="pbPrint" style="display:none" onclick="setPage('print')">🖨️ <span>Impression</span></button>
     <button class="page-tab" id="pbAttend" style="display:none" onclick="setPage('attend')">📈 <span>Fréquentation</span></button>
 <button class="page-tab" id="pbFreq" style="display:none" onclick="setPage('freq')">🧭 <span>Inscription des TEAM saison 2026 - 2027</span></button>
   </div>
@@ -1239,6 +1240,14 @@ header .user-pill { color: #fff; }
 </div>
 
 <!-- Point 12 : feuille de suivi / facturation, admin + référents de groupe -->
+  <div id="printPage" style="display:none">
+    <div class="quick-reg-card">
+      <h2>🖨️ Espace impression</h2>
+      <p class="qr-sub">Imprime le planning ou les feuilles d'émargement (une page portrait par séance ouverte, séances bloquées ignorées).</p>
+      <div id="printPageBody"></div>
+    </div>
+  </div>
+
   <div id="suiviPage" style="display:none">
     <div class="quick-reg-card">
       <h2>📝 Feuille de suivi des présences</h2>
@@ -1350,6 +1359,8 @@ header .user-pill { color: #fff; }
             <option value="referent">Référent — peut s'inscrire et modifier</option>
             <option value="readonly">Lecture seule — visuel du site uniquement</option>
             <option value="suivi">Référent + Suivi (lecture seule)</option>
+            <option value="accueil">Accueil — planning en lecture + impressions</option>
+            <option value="admin2">Admin 2 — tout sauf les paramètres du planning</option>
           </select>
         </div>
         <button class="btn btn-primary btn-sm" onclick="adminCreateUserAccess()">Créer l'accès</button>
@@ -2175,6 +2186,7 @@ function fqUuid(){ return crypto.randomUUID ? crypto.randomUUID() : (Date.now()+
 const FQ_RESA={ confirmed:{e:'✅',l:'Réservation confirmée',c:'#16a34a'}, unconfirmed:{e:'❌',l:'Date non confirmée',c:'#dc2626'} };
 // Un groupe « hors effectif » (ex. CRRCK, créneaux spécifiques) n'entre pas dans l'effectif présent :
 // ni pour l'ouverture automatique des créneaux, ni dans le total par semaine de la frise.
+function canPlanSettings(){ return !!S.isAdmin && !S.isAdmin2; }   // paramètres du planning : super-admin uniquement
 function fqCounts(p){ return !(p && p.summary && p.summary.noCount); }
 function fqResaKey(p){ const r=p&&p.summary&&p.summary.resa; return r==='confirmed'?'confirmed':'unconfirmed'; }
 function fqResaEmoji(p){ return FQ_RESA[fqResaKey(p)].e; }
@@ -2387,7 +2399,7 @@ async function fqLoad(){
     ? "Tu gères la frise : pour chaque demande, saisis le nom du groupe, ses athlètes et la période sur laquelle ils viennent. Les athlètes ne peuvent ensuite s'inscrire (inscription rapide) que sur les jours de leur période. Tu peux aussi inscrire le groupe automatiquement sur les créneaux (kayak matin / après-midi, muscu)."
     : "Voici les groupes ayant confirmé leur période de stage. Tu ne peux t'inscrire que sur la période de ton groupe : si elle est incorrecte ou manquante, contacte l'administrateur.";
   const rw=document.getElementById('fqRestrictWrap');
-  if(rw){ rw.style.display=S.isAdmin?'flex':'none'; document.getElementById('fqRestrict').checked=S.friseRestrict!==false; }
+  if(rw){ rw.style.display=canPlanSettings()?'flex':'none'; document.getElementById('fqRestrict').checked=S.friseRestrict!==false; }
   const rb=document.getElementById('fqReqBtn');
   if(rb){ rb.style.display = (S.isAdmin && FQ.reqs.length) ? '' : 'none'; rb.textContent=`📲 ${FQ.reqs.length} demande(s) de créneau à valider (voir Suivi)`; }
   fqRenderTimeline();
@@ -2917,6 +2929,7 @@ async function fqPeriodDelete(){
 
 async function setPage(page){
   if(page==='athletes' && !S.isAdmin) page='quickreg'; // onglet réservé à l'admin
+  if(page==='print' && !S.isAdmin && !S.isAccueil) page='planning';
   if(page==='suivi' && !S.isAdmin && !S.isSuivi) page='quickreg'; // admin (écriture) et rôle Suivi (lecture seule)
   if(page==='attend' && !S.isAdmin) page='planning'; // fréquentation : admin uniquement
   if(page==='quickreg' && !S.isAdmin && !QUICKREG_FOR_USERS) page='planning'; // le planning remplace l'inscription rapide
@@ -2927,6 +2940,10 @@ async function setPage(page){
   const ath = document.getElementById('athletesPage');
   const suivi = document.getElementById('suiviPage');
   const freqP = document.getElementById('freqPage');
+  const prtP = document.getElementById('printPage');
+  if(prtP) prtP.style.display = page==='print' ? 'block' : 'none';
+  { const pbPr=document.getElementById('pbPrint'); if(pbPr) pbPr.classList.toggle('active', page==='print'); }
+  if(page==='print') renderPrintPage();
   const attP = document.getElementById('attendPage');
   if(attP) attP.style.display = page==='attend' ? 'block' : 'none';
   const pbAt = document.getElementById('pbAttend');
@@ -4545,7 +4562,7 @@ let S = {
   page:'quickreg',
   athletes:[], teams:[], myTeam:null, teamManagers:[],
   view:'week', currentDate:todayClamped(), selectedDate:null,
-  isAdmin:false, isReadonly:false, isSuivi:false, priorityOn:false,   // par défaut : tous les créneaux ouverts, l'admin bloque/ouvre à la main (priorité en option)
+  isAdmin:false, isAdmin2:false, isAccueil:false, isReadonly:false, isSuivi:false, priorityOn:false,   // par défaut : tous les créneaux ouverts, l'admin bloque/ouvre à la main (priorité en option)
   priorityDays:{},  // { "2026-07-06": true } → priorité active ce jour uniquement
   morningOrder:['7h-8h','8h-9h','9h-10h','10h-11h','11h-12h'],
   afternoonOrder:['12h-13h','13h-14h','14h-15h','15h-16h','16h-17h'],
@@ -4716,7 +4733,7 @@ async function submitAuth(){
 
 async function logout(){
   await sb.auth.signOut();
-  S.session=null; S.profile=null; S.isAdmin=false; S.isReadonly=false; S.isSuivi=false;
+  S.session=null; S.profile=null; S.isAdmin=false; S.isAdmin2=false; S.isAccueil=false; S.isReadonly=false; S.isSuivi=false;
   adminPendingClear();
   ['pendingScreen','blockedScreen','resetPwdScreen','appHeader','appBody','readonlyBanner'].forEach(id=>{
     const el=document.getElementById(id);
@@ -4733,8 +4750,13 @@ async function onAuthed(session){
     ({ data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle());
   }
   S.profile = profile;
-  S.isAdmin = !!(profile && profile.is_admin);
-  S.isReadonly = !S.isAdmin && !!(profile && profile.role === 'readonly');
+  // « Admin 2 » : tous les droits admin SAUF les paramètres du planning (réservés au super-admin = is_admin)
+  const _isAdm2 = !!(profile && !profile.is_admin && profile.role === 'admin2' && profile.approved && !profile.blocked);
+  S.isAdmin = !!(profile && profile.is_admin) || _isAdm2;
+  S.isAdmin2 = _isAdm2;
+  // « Accueil » : consultation du planning + espace Impression (aucune inscription)
+  S.isAccueil = !S.isAdmin && !!(profile && profile.role === 'accueil');
+  S.isReadonly = !S.isAdmin && !!(profile && (profile.role === 'readonly' || profile.role === 'accueil'));
   // Rôle « Suivi » : comme un référent normal + page Suivi en lecture seule (aucun paramètre admin)
   S.isSuivi = !S.isAdmin && !!(profile && profile.role === 'suivi');
 
@@ -4766,6 +4788,7 @@ async function onAuthed(session){
   if(pbT) pbT.style.display = S.isReadonly ? 'none' : '';
   if(pbA) pbA.style.display = S.isAdmin ? '' : 'none';
   if(pbS) pbS.style.display = (S.isAdmin || S.isSuivi) ? '' : 'none'; // admin, ou rôle Suivi (lecture seule)
+  { const pbPr=document.getElementById('pbPrint'); if(pbPr) pbPr.style.display = (S.isAdmin || S.isAccueil) ? '' : 'none'; }
   { const pbAt0=document.getElementById('pbAttend'); if(pbAt0) pbAt0.style.display = S.isAdmin ? '' : 'none'; }
   const pbFq = document.getElementById('pbFreq');
   if(pbFq) pbFq.style.display = '';
@@ -4862,7 +4885,7 @@ async function load() {
 // ── Config admin (closedDow, customClosed, capacity, ordre créneaux) ──
 
 async function saveConfig() {
-  if(!S.isAdmin) return;
+  if(!S.isAdmin || S.isAdmin2) return;
   const cfg = {
     closedDow:      S.closedDow,
     customClosed:   S.customClosed,
@@ -5542,7 +5565,7 @@ function renderKayakSlotBlock(k,slot){
       <div class="slot-header" style="cursor:default">
         <div class="slot-time">${slot}</div>
         <span style="flex:1;font-size:.78rem;font-weight:700;color:#dc2626">🚫 ${label?'['+label+'] ':''} Bloqué</span>
-        ${S.isAdmin?`<div style="display:flex;gap:6px;align-items:center">
+        ${canPlanSettings()?`<div style="display:flex;gap:6px;align-items:center">
           ${renderKayakLabelSelect(k,slot,label)}
           <button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.72rem" onclick="toggleKayakBlock('${k}','${slot}')">🔓 Débloquer</button>
         </div>`:''}
@@ -5555,7 +5578,7 @@ function renderKayakSlotBlock(k,slot){
     h+=`<div style="background:${labelColor};color:white;font-size:.68rem;font-weight:700;padding:2px 10px;border-radius:4px 4px 0 0;display:inline-block;margin-bottom:-1px;letter-spacing:.06em">${label}</div>`;
   }
   h+=renderSlot(k,slot);
-  if(S.isAdmin){
+  if(canPlanSettings()){
     h+=`<div style="display:flex;gap:6px;align-items:center;padding:4px 10px 8px;flex-wrap:wrap">
       <span style="font-size:.72rem;color:var(--text3)">Admin:</span>
       ${renderKayakLabelSelect(k,slot,label)}
@@ -5587,7 +5610,7 @@ function renderSlot(dateK,slot,act='kayak'){
       <div class="slot-count-text">${aths.length} / ${c} ${t('registered')}</div>
       <div class="slot-progress"><div class="slot-progress-fill" style="width:${pct*100}%;background:${kx?'#f97316':''}"></div></div>
       <span class="slot-badge ${bCls[st]}">${labels[st]}</span>
-      ${(S.isAdmin&&act==='kayak')?`<button class="kx-toggle${kx?' active':''}" onclick="event.stopPropagation();toggleKayakCross('${dateK}','${slot}')" title="Kayak Cross / Slalom">🏄 KX</button>`:''}
+      ${(canPlanSettings()&&act==='kayak')?`<button class="kx-toggle${kx?' active':''}" onclick="event.stopPropagation();toggleKayakCross('${dateK}','${slot}')" title="Kayak Cross / Slalom">🏄 KX</button>`:''}
       <span class="slot-chevron${exp?' open':''}">▼</span>
     </div>`;
   if(st==='locked'&&!S.isAdmin)
@@ -5664,7 +5687,7 @@ function renderMuscuDayPanel(){
           <div class="slot-header" style="cursor:default">
             <div class="slot-time">${slot}</div>
             <span style="flex:1;font-size:.78rem;font-weight:700;color:#dc2626">🚫 ${label?'['+label+'] ':''} Blocked</span>
-            ${S.isAdmin?`<div style="display:flex;gap:6px;align-items:center">
+            ${canPlanSettings()?`<div style="display:flex;gap:6px;align-items:center">
               ${renderMuscuLabelSelect(k,slot,label)}
               <button class="btn btn-sm" style="background:#dc2626;color:white;font-size:.72rem" onclick="toggleMuscuBlock('${k}','${slot}')">🔓 Unblock</button>
             </div>`:''}
@@ -5679,7 +5702,7 @@ function renderMuscuDayPanel(){
         }
         h+=renderSlot(k,slot,'muscu');
         // Contrôles admin pour ce créneau
-        if(S.isAdmin){
+        if(canPlanSettings()){
           h+=`<div style="display:flex;gap:6px;align-items:center;padding:4px 10px 8px;flex-wrap:wrap">
             <span style="font-size:.72rem;color:var(--text3)">Admin:</span>
             ${renderMuscuLabelSelect(k,slot,label)}
@@ -6215,7 +6238,7 @@ function renderAdmin(){
   document.getElementById('aTeamsMovedDesc') && (document.getElementById('aTeamsMovedDesc').textContent = t('aTeamsMovedDesc'));
   document.getElementById('aTeamsMovedBtn') && (document.getElementById('aTeamsMovedBtn').textContent = t('aTeamsMovedBtn'));
   if(!S.isAdmin){ panel.style.display='none'; if(teamAdminSection) teamAdminSection.style.display='none'; return; }
-  panel.style.display='block';
+  panel.style.display = S.isAdmin2 ? 'none' : 'block';   // paramètres du planning : super-admin uniquement
   if(teamAdminSection) teamAdminSection.style.display='block';
   renderAdminTeams();
   document.getElementById('priorityToggle').className='toggle-wrap'+(S.priorityOn?' on':'');
@@ -6358,7 +6381,7 @@ function renderPlanningGrid(){
     <span style="font-size:.78rem;color:var(--text2)">${_pgMulti.on?'👆 Clique toutes les séances voulues (même sur plusieurs semaines), puis « Inscrire ma team ».':'👆 Clique sur une séance pour y inscrire ta team, ou active la sélection multiple.'}</span>
   </div>`;
 
-  if(S.isAdmin && isKayak && S.priorityOn) html += pgPerPanelHtml();
+  if(canPlanSettings() && isKayak && S.priorityOn) html += pgPerPanelHtml();
 
   if(isKayak && S.priorityOn) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px;line-height:1.5">
     <span class="pg-slot-lbl pg-pri">P1</span> <span class="pg-slot-lbl pg-pri">P2</span>… = <b>ordre de priorité</b> dans la demi-journée : un créneau s'ouvre quand les précédents sont complets ·
@@ -6569,7 +6592,7 @@ function pgRenderSheet(){
       <button class="btn btn-sm" onclick="pgCloseSheet()">✕ Fermer</button>
     </div>
 
-    <label ${lbl}>Statut</label>
+    ${S.isAdmin2?'':`<label ${lbl}>Statut</label>
     ${pgBtns('pgStatus', cfg.blocked?'blocked':'open', [{v:'open',t:'✅ Ouvert'},{v:'blocked',t:'🚫 Bloqué'}])}
 
     <label ${lbl}>Étiquette</label>
@@ -6606,7 +6629,7 @@ function pgRenderSheet(){
         </div>
         <p style="font-size:.7rem;color:var(--text3);margin:6px 0 0">Les changements ne concernent que ce jour. En tant qu'admin tu peux toujours inscrire, même sur un créneau verrouillé ou complet.</p>
       </div>`; })()}
-    <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>
+    <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>`}
 
     <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px">
       <div style="font-weight:800;font-size:.9rem;margin-bottom:4px">Inscrits (${store.length}/${c})</div>
@@ -7633,8 +7656,8 @@ function pgSetActivity(act){
   renderPlanningGrid();
 }
 
-function printPlanningGrid(){
-  const ws = weekStart(S.currentDate);
+function printPlanningGrid(baseDate){
+  const ws = weekStart(baseDate || S.currentDate);
   const months = t('months');
   const we = new Date(ws); we.setDate(ws.getDate()+6);
   const weekLabel = `${ws.getDate()} ${months[ws.getMonth()]} – ${we.getDate()} ${months[we.getMonth()]} ${we.getFullYear()}`;
@@ -8536,10 +8559,49 @@ function printDaySchedule(dateK, act){
   printAttendancePages(attendancePagesForDay(dateK, act));
 }
 
+// ── Espace impression (admin, admin 2, accueil) ──
+var PR = { act:'kayak', week:null, day:null };
+function renderPrintPage(){
+  const el=document.getElementById('printPageBody'); if(!el) return;
+  if(!PR.week){ PR.week = weekStart(todayClamped()); }
+  if(!PR.day){ PR.day = dk(todayClamped()); }
+  const we=new Date(PR.week); we.setDate(we.getDate()+6);
+  const f=d=>d.toLocaleDateString(LOCALE(),{day:'numeric',month:'short'});
+  el.innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn${PR.act==='kayak'?' btn-primary':''}" onclick="prSetAct('kayak')">🚣 Kayak</button>
+      <button class="btn${PR.act==='muscu'?' btn-primary':''}" onclick="prSetAct('muscu')">🏋️ Fitness</button>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px">
+      <b>📅 Semaine</b>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0">
+        <button class="btn btn-sm" onclick="prShift(-1)">◀</button>
+        <span style="font-weight:700">${f(PR.week)} → ${f(we)}</span>
+        <button class="btn btn-sm" onclick="prShift(1)">▶</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="prPrintWeekPlanning()">🖨️ Planning de la semaine</button>
+        <button class="btn" style="background:#7c3aed;color:white" onclick="prPrintWeekAttendance()">🖨️ Feuilles d'émargement (semaine)</button>
+      </div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px">
+      <b>🗓️ Un jour</b>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0">
+        <input type="date" class="field" style="width:auto" min="${dk(START)}" max="${dk(END)}" value="${PR.day}" onchange="PR.day=this.value">
+        <button class="btn" style="background:#7c3aed;color:white" onclick="prPrintDay()">🖨️ Feuilles d'émargement (jour)</button>
+      </div>
+    </div>`;
+}
+function prSetAct(a){ PR.act=a; renderPrintPage(); }
+function prShift(n){ PR.week=new Date(PR.week); PR.week.setDate(PR.week.getDate()+7*n); renderPrintPage(); }
+function prPrintWeekPlanning(){ _pgActivity=PR.act; printPlanningGrid(PR.week); }
+function prPrintWeekAttendance(){ printWeekAttendance(PR.act, PR.week); }
+function prPrintDay(){ if(!PR.day){ toast('Choisis un jour.','error'); return; } printDaySchedule(PR.day, PR.act); }
+
 // Impression de la semaine : une page portrait par créneau ouvert, jour après jour
 // (matin puis après-midi, horaires chronologiques). Séances bloquées et jours fermés : aucune page.
-function printWeekAttendance(act){
-  const ws = weekStart(S.currentDate);
+function printWeekAttendance(act, baseDate){
+  const ws = weekStart(baseDate || S.currentDate);
   let pages = [];
   for(let i=0;i<7;i++){ const d=new Date(ws); d.setDate(ws.getDate()+i); pages = pages.concat(attendancePagesForDay(dk(d), act)); }
   printAttendancePages(pages);
@@ -9179,6 +9241,8 @@ function filterRequests(filter){
           <option value="referent" ${role==='referent'?'selected':''}>👤 Référent (inscrit/modifie)</option>
           <option value="readonly" ${role==='readonly'?'selected':''}>👁️ Lecture seule (visuel)</option>
           <option value="suivi" ${role==='suivi'?'selected':''}>📊 Référent + Suivi (lecture seule)</option>
+          <option value="accueil" ${role==='accueil'?'selected':''}>🖨️ Accueil (planning + impressions)</option>
+          ${(!S.isAdmin2||role==='admin2')?`<option value="admin2" ${role==='admin2'?'selected':''} ${S.isAdmin2?'disabled':''}>🛡️ Admin 2 (sans paramètres du planning)</option>`:''}
         </select>
         <button class="btn btn-sm" style="font-size:.72rem" onclick="adminSendReset('${esc(p.email)}')">🔑 Lien de réinitialisation</button>
       </div>
@@ -9197,11 +9261,12 @@ async function adminSendReset(email){
 
 // Change le rôle d'un utilisateur existant (référent ↔ lecture seule ↔ suivi)
 async function updateUserRole(userId, role){
+  if(role==='admin2' && S.isAdmin2){ toast('Seul le super-admin peut donner l\'accès Admin 2.','error'); return; }
   const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
-  if(error){ toast("Erreur lors du changement de rôle.","error"); return; }
+  if(error){ toast("Erreur lors du changement de rôle : "+error.message,"error"); return; }
   const p = _allProfiles.find(x=>x.id===userId);
   if(p) p.role = role;
-  toast(role==='readonly' ? '👁️ Compte passé en lecture seule.' : role==='suivi' ? '📊 Compte passé en référent + Suivi (lecture seule).' : '👤 Compte passé en référent.', 'success');
+  toast(role==='readonly' ? '👁️ Compte passé en lecture seule.' : role==='accueil' ? '🖨️ Compte passé en Accueil (planning + impressions).' : role==='admin2' ? '🛡️ Compte passé en Admin 2.' : role==='suivi' ? '📊 Compte passé en référent + Suivi (lecture seule).' : '👤 Compte passé en référent.', 'success');
 }
 
 async function approveUser(userId, name, email, arrival, departure){
