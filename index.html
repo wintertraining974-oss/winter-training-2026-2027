@@ -1494,6 +1494,7 @@ header .user-pill { color: #fff; }
         <p style="font-size:.74rem;color:var(--text3);margin:4px 0 0">Les cases cochées sont inscrites sur chaque jour ouvert de la période. En-tête de colonne = tout cocher pour la team.</p>
       </div>
       <div><label>Réservation</label><br><span id="fqPResaWrap"></span></div>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:.82rem"><input type="checkbox" id="fqPCount" checked> Compte dans l'effectif (décoche pour un groupe aux créneaux spécifiques, ex. CRRCK)</label>
       <div><label>Note (facultatif)</label><input class="field" id="fqPNote" type="text" style="width:100%"></div>
       <label id="fqNoteOnlyWrap" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:.82rem;padding:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
         <input type="checkbox" id="fqAutoReg" style="margin-top:3px" onchange="fqNoteOnlyChange()">
@@ -2172,6 +2173,9 @@ function fqDayIdx(k){ const [y,m,d]=k.split('-').map(Number); return Math.round(
 function fqColor(name){ let h=0; for(const c of String(name||'')) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h},55%,42%)`; }
 function fqUuid(){ return crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()); }
 const FQ_RESA={ confirmed:{e:'✅',l:'Réservation confirmée',c:'#16a34a'}, unconfirmed:{e:'❌',l:'Date non confirmée',c:'#dc2626'} };
+// Un groupe « hors effectif » (ex. CRRCK, créneaux spécifiques) n'entre pas dans l'effectif présent :
+// ni pour l'ouverture automatique des créneaux, ni dans le total par semaine de la frise.
+function fqCounts(p){ return !(p && p.summary && p.summary.noCount); }
 function fqResaKey(p){ const r=p&&p.summary&&p.summary.resa; return r==='confirmed'?'confirmed':'unconfirmed'; }
 function fqResaEmoji(p){ return FQ_RESA[fqResaKey(p)].e; }
 function fqResaSelect(id,cur){ return `<select class="field" id="${id}" style="min-width:210px">${Object.entries(FQ_RESA).map(([k,v])=>`<option value="${k}" ${k===(cur||'unconfirmed')?'selected':''}>${v.e} ${v.l}</option>`).join('')}</select>`; }
@@ -2464,7 +2468,7 @@ function fqRenderTimeline(){
   const loads=[]; let maxLoad=1;
   for(let w=0; w*7<total; w++){
     const a=w*7, b=w*7+6;
-    const load=periods.reduce((acc,p)=>(fqDayIdx(p.start_date)<=b && fqDayIdx(p.end_date)>=a)?acc+nOf(p):acc,0);
+    const load=periods.reduce((acc,p)=>(fqDayIdx(p.start_date)<=b && fqDayIdx(p.end_date)>=a && fqCounts(p))?acc+nOf(p):acc,0);
     loads.push(load); if(load>maxLoad) maxLoad=load;
   }
   let weeks='';
@@ -2480,8 +2484,8 @@ function fqRenderTimeline(){
     const i0=Math.max(0,fqDayIdx(p.start_date)), i1=Math.min(total-1,fqDayIdx(p.end_date));
     const col=fqColor(p.g), st=fqStatus(p), mine=false;
     const halves=halvesOf(p);
-    const txt=`${fqResaEmoji(p)} ${['🕓','⚠️'].includes(st.icon)?st.icon+' ':''}${esc(p.g||'(sans nom)')} · ${nOf(p)} ath. · ${halves}`;
-    const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${FQ_RESA[fqResaKey(p)].l}\n${nOf(p)} athlète(s) ${halves}\n${st.txt}`;
+    const txt=`${fqResaEmoji(p)} ${['🕓','⚠️'].includes(st.icon)?st.icon+' ':''}${esc(p.g||'(sans nom)')} · ${nOf(p)} ath. · ${halves}${fqCounts(p)?'':' · 🚫 hors effectif'}`;
+    const tip=`${p.g||''} — du ${fmt(p.start_date)} au ${fmt(p.end_date)}\n${FQ_RESA[fqResaKey(p)].l}\n${nOf(p)} athlète(s) ${halves}${fqCounts(p)?'':'\n🚫 Hors effectif (ne compte pas dans l\'effectif présent)'}\n${st.txt}`;
     const wBar=(i1-i0+1)*FQ_DAYW, long=wBar>=230;
     rows+=`<div style="display:flex;height:34px;border-top:1px solid #eef0f3">
       <div style="${lblCss}" title="${esc(tip)}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${fqResaEmoji(p)} ${esc(p.g||'(sans nom)')}${fqTeamSuffix(p)}</b>${mine?' <span style="color:var(--accent)">· moi</span>':''}<br><span style="color:var(--text3);font-size:.68rem">${fmt(p.start_date)} → ${fmt(p.end_date)}</span></span></div>
@@ -2592,6 +2596,7 @@ function fqPeriodOpen(id){
   // groupe sans détail de séances (anciennes saisies) : on coche « kayak matin » pour garder l'athlète dans le groupe
   Object.values(FQS.sel).forEach(c=>{ if(!c.am&&!c.pm&&!c.mu) c.am=true; });
   document.getElementById('fqPResaWrap').innerHTML=fqResaSelect('fqPResa',p?fqResaKey(p):'unconfirmed');
+  { const c=document.getElementById('fqPCount'); if(c) c.checked=fqCounts(p); }
   document.getElementById('fqAutoReg').checked=false;
   const linked=!!(p&&p.team_id);
   document.getElementById('fqAthWrap').style.display=linked?'none':'';
@@ -2643,6 +2648,8 @@ async function fqPeriodSubmit(){
       catch(e){ console.error('fqAutoRegister',e); summary={sessions:0,seats:0,requested:0,unplaced:[],dups:0,skipped:0,error:String(e?.message||e)}; }
     }
     summary={...summary,resa};
+    { const c=document.getElementById('fqPCount'); if(c){ if(c.checked) delete summary.noCount; else summary.noCount=true; } }
+    _hcMemo={rows:null,map:{}};
     await sb.from('frise_periods').update({summary}).eq('id',saved.id);
     closeModal('fqPeriodModal');
     await fqLoad();
@@ -2713,6 +2720,18 @@ async function fqAutoRegister(p){
 }
 
 const FQ_HALF={am:' matin',pm:' ap.-midi',mu:' muscu'};
+async function fqSetCount(id,counts){
+  if(!S.isAdmin) return;
+  const p=FQ.rows.find(x=>x.id===id); if(!p) return;
+  const summary={...(p.summary||{}), noCount:!counts};
+  if(counts) delete summary.noCount;
+  const { error } = await sb.from('frise_periods').update({summary}).eq('id',id);
+  if(error){ toast(error.message,'error'); return; }
+  p.summary=summary; _hcMemo={rows:null,map:{}};
+  fqRenderTimeline(); fqDetail(id);
+  try{ renderCal(); }catch(e){}
+  toast(counts?'✅ Le groupe compte dans l\'effectif.':'🚫 Le groupe ne compte plus dans l\'effectif.','success');
+}
 function fqDetail(id){
   const p=FQ.rows.find(x=>x.id===id); if(!p) return;
   FQ.cur=p;
@@ -2726,6 +2745,12 @@ function fqDetail(id){
   if(fqCanSee(p)) h+=`<table style="border-collapse:collapse;width:100%;margin-bottom:8px;font-size:.82rem">${aths.map(a=>`<tr><td style="padding:2px 6px;border-top:1px solid #eef0f3">${esc(a.name)}</td><td style="padding:2px 6px;border-top:1px solid #eef0f3;text-align:right">${flag(a)}</td></tr>`).join('')}</table>
     <p style="font-size:.72rem;color:var(--text3);margin:0 0 6px">🌅 kayak matin · 🌇 kayak après-midi · 💪 muscu</p>`;
   if(S.isAdmin) h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px">${Object.entries(FQ_RESA).map(([k,v])=>`<button class="btn btn-sm" style="${k===fqResaKey(p)?'border:2px solid '+v.c+';font-weight:700':''}" onclick="fqSetResa('${p.id}','${k}')">${v.e} ${v.l}</button>`).join('')}</div>`;
+  if(S.isAdmin) h+=`<div style="margin:0 0 8px;padding:8px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;font-size:.82rem">
+    <b>Effectif présent :</b> ce groupe compte-t-il dans l'effectif (ouverture automatique des créneaux, total de la frise) ?
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+      <button class="btn btn-sm" style="${fqCounts(p)?'border:2px solid #16a34a;font-weight:700':''}" onclick="fqSetCount('${p.id}',true)">✅ Compte dans l'effectif</button>
+      <button class="btn btn-sm" style="${!fqCounts(p)?'border:2px solid #dc2626;font-weight:700':''}" onclick="fqSetCount('${p.id}',false)">🚫 Hors effectif (créneaux spécifiques)</button>
+    </div></div>`;
   h+=`<p style="margin:0 0 6px"><b>État :</b> ${esc(st.txt)}</p>`;
   if(p.summary&&p.summary.imported&&!aths.length) h+=`<p style="margin:0 0 6px"><b>Effectif :</b> ${fqN(p)} athlète(s) · séances : ${p.summary.am||0} matin / ${p.summary.pm||0} après-midi <span style="color:var(--text3)">(saisie récupérée)</span></p>`;
   if(S.isAdmin && p.summary && !p.summary.noteOnly && !p.summary.imported){
@@ -5062,6 +5087,7 @@ function friseHeadcount(dateK){
   const names=new Set(); let extra=0;
   (FQ.rows||[]).forEach(p=>{
     if(dateK<p.start_date||dateK>p.end_date) return;
+    if(!fqCounts(p)) return;
     const a=fqAths(p);
     if(a.length) a.forEach(x=>names.add(fqNorm(x.name))); else extra+=fqN(p);
   });
@@ -6723,7 +6749,7 @@ function attCell(k,slot,act){
 function attPresent(k,act){
   if(act!=='muscu') return friseHeadcount(k);
   const names=new Set();
-  (FQ.rows||[]).forEach(p=>{ if(k<p.start_date||k>p.end_date) return; fqAths(p).forEach(a=>{ if(a.mu) names.add(fqNorm(a.name)); }); });
+  (FQ.rows||[]).forEach(p=>{ if(k<p.start_date||k>p.end_date||!fqCounts(p)) return; fqAths(p).forEach(a=>{ if(a.mu) names.add(fqNorm(a.name)); }); });
   return names.size;
 }
 function attColor(n,c,kx){
