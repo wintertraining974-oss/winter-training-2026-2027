@@ -3153,7 +3153,7 @@ async function adminClearMyInscriptionsHistory(){
 //     team_id uuid references teams(id) on delete cascade,
 //     athlete_name text not null,
 //     date date not null,
-//     type text not null check (type in ('kayak','kayak_cross','kayak_cross_rental','muscu')),
+//     type text not null check (type in ('kayak','kayak_pm','kayak_cross','kayak_cross_pm','kayak_cross_rental','muscu')),
 //     created_by uuid,
 //     created_at timestamptz default now(),
 //     unique (team_id, athlete_name, date, type)
@@ -3161,10 +3161,12 @@ async function adminClearMyInscriptionsHistory(){
 // Cette table est indépendante des inscriptions en ligne : elle sert à cocher la
 // présence RÉELLE (qui est venu), pour la facturation, séance par séance.
 
-const SUIVI_PRICES = { kayak: 12, kayak_cross: 12, kayak_cross_rental: 10, muscu: 7 };
+const SUIVI_PRICES = { kayak: 12, kayak_pm: 12, kayak_cross: 12, kayak_cross_pm: 12, kayak_cross_rental: 10, muscu: 7 };
 const SUIVI_TYPES = [
-  { key:'kayak', label:'Séance normale (kayak)' },
-  { key:'kayak_cross', label:'Kayak Cross' },
+  { key:'kayak', label:'Kayak matin' },
+  { key:'kayak_pm', label:'Kayak après-midi' },
+  { key:'kayak_cross', label:'Kayak Cross matin' },
+  { key:'kayak_cross_pm', label:'Kayak Cross après-midi' },
   { key:'kayak_cross_rental', label:'Location kayak Cross' },
   { key:'muscu', label:'Musculation' },
 ];
@@ -3298,23 +3300,24 @@ async function toggleSuiviAttendance(name, date, type){
 // Coche en un clic le Kayak Cross pour tout le groupe, sur le jour sélectionné
 // (point : "je préfère avoir à décocher" — plus rapide quand la majorité y participe).
 // Il suffit ensuite de décocher les quelques absents.
-async function suiviCheckAllKayakCross(){
+async function suiviCheckAllKayakCross(type){
   if(!S.isAdmin) return;
+  type = type || 'kayak_cross';
   const team = suiviCurrentTeam();
   if(!team) return;
   const members = (team.members||[]).filter(m=>m.athlete);
   const date = SUIVI.date;
   const toInsert = members
     .map(m=>m.athlete.full_name)
-    .filter(name=>!suiviIsChecked(name, date, 'kayak_cross'))
-    .map(name=>({ team_id:SUIVI.teamId, athlete_name:name, date, type:'kayak_cross', created_by:S.session?S.session.user.id:null }));
+      .filter(name=>!suiviIsChecked(name, date, type))
+    .map(name=>({ team_id:SUIVI.teamId, athlete_name:name, date, type, created_by:S.session?S.session.user.id:null }));
   if(!toInsert.length){ toast('Déjà coché pour tout le groupe.'); return; }
   SUIVI.rows = [...SUIVI.rows, ...toInsert];
   renderSuiviDayGrid();
   renderSuiviRecap();
   const { error } = await sb.from('attendance').upsert(toInsert, { onConflict:'team_id,athlete_name,date,type' });
   if(error){ toast(error.message,'error'); await loadSuiviAttendance(); renderSuiviDayGrid(); renderSuiviRecap(); return; }
-  toast('✅ Kayak Cross coché pour tout le groupe — décoche les absents si besoin.');
+  toast('✅ '+(SUIVI_TYPES.find(x=>x.key===type)||{}).label+' coché pour tout le groupe — décoche les absents si besoin.');
 }
 
 function renderSuiviDayGrid(){
@@ -3326,7 +3329,7 @@ function renderSuiviDayGrid(){
   if(!members.length){ el.innerHTML = `<p style="color:var(--text3);font-size:.85rem">${suiviPeriodRow()?'Aucun athlète sur cette période.':'Ce groupe n\'a pas encore d\'athlètes.'}</p>`; return; }
   const date = SUIVI.date;
   let h = `<div style="overflow-x:auto"><table class="print-sheet" style="font-size:.78rem">
-    <thead><tr><th style="text-align:left">Athlète</th>${SUIVI_TYPES.map(ty=>`<th>${esc(ty.label)}${(ty.key==='kayak_cross'&&S.isAdmin)?`<br><button class="btn btn-sm" style="margin-top:4px;font-size:.62rem;padding:2px 6px;white-space:nowrap" onclick="suiviCheckAllKayakCross()">☑️ Tout cocher</button>`:''}</th>`).join('')}</tr></thead><tbody>`;
+    <thead><tr><th style="text-align:left">Athlète</th>${SUIVI_TYPES.map(ty=>`<th>${esc(ty.label)}${((ty.key==='kayak_cross'||ty.key==='kayak_cross_pm')&&S.isAdmin)?`<br><button class="btn btn-sm" style="margin-top:4px;font-size:.62rem;padding:2px 6px;white-space:nowrap" onclick="suiviCheckAllKayakCross('${ty.key}')">☑️ Tout cocher</button>`:''}</th>`).join('')}</tr></thead><tbody>`;
   members.forEach(m=>{
     const name = m.athlete.full_name;
     h += `<tr><td style="text-align:left;font-weight:600">${esc(name)}</td>`;
@@ -3347,9 +3350,9 @@ function computeSuiviTotals(){
   const members = team ? suiviScopedMembers(team) : [];
   const names = members.map(m=>m.athlete.full_name);
   const perPerson = names.map(name=>{
-    const counts = { kayak:0, kayak_cross:0, kayak_cross_rental:0, muscu:0 };
+    const counts = { kayak:0, kayak_pm:0, kayak_cross:0, kayak_cross_pm:0, kayak_cross_rental:0, muscu:0 };
     suiviScopedRows().forEach(r=>{ if(r.athlete_name===name && counts[r.type]!==undefined) counts[r.type]++; });
-    const kayakSessions = counts.kayak + counts.kayak_cross; // même tarif, comptés ensemble
+    const kayakSessions = counts.kayak + counts.kayak_pm + counts.kayak_cross + counts.kayak_cross_pm; // même tarif, comptés ensemble
     const amount = kayakSessions*SUIVI_PRICES.kayak + counts.kayak_cross_rental*SUIVI_PRICES.kayak_cross_rental + counts.muscu*SUIVI_PRICES.muscu;
     return { name, counts, kayakSessions, amount };
   });
