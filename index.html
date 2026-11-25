@@ -6463,7 +6463,6 @@ function renderPlanningGrid(){
   html += `<div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
-    ${(canPlanSettings()&&isKayak)?`<button class="btn btn-sm btn-primary" onclick="agOpen()">📅 Agenda (glisser-déposer)</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0369a1;color:white" onclick="diagOpen()">🔎 ${L('Diagnostic','Check')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#15803d;color:white" onclick="auditOpen()">🩺 ${L('Audit','Audit')}</button>`:''}
@@ -6701,7 +6700,6 @@ async function pgAddSlotConfirm(dateK){
   await saveConfig();
   document.getElementById('pgAddSheet')?.remove();
   renderPlanningGrid();
-  if(document.getElementById('agOverlay')) agRender();
   toast(`✅ Séance ${v} ajoutée`,'success');
 }
 async function pgDeleteSlot(){
@@ -6723,164 +6721,10 @@ async function pgDeleteSlot(){
   toast('🗑 Séance supprimée','success');
   pgCloseSheet();
 }
-// ══════════════════════════════════════════════════════════════
-//  AGENDA glisser-déposer (kayak, super-admin) : vue semaine type Google Agenda
-//  Une bulle = une séance (hauteur proportionnelle à sa durée). On la déplace
-//  vers un autre jour et/ou une autre heure (pas de 30'), ses inscrits suivent.
-// ══════════════════════════════════════════════════════════════
-var AG = { week:null };
-const AG_PH = 60, AG_T0 = 420, AG_T1 = 1080;   // 60 px par heure, 7h → 18h
-function agOpen(){
-  if(!canPlanSettings()) return;
-  if(!AG.week) AG.week = weekStart(todayClamped());
-  let el = document.getElementById('agOverlay');
-  if(!el){
-    el = document.createElement('div'); el.id='agOverlay';
-    el.style.cssText='position:fixed;inset:0;z-index:9000;background:var(--white);color:var(--text);display:flex;flex-direction:column';
-    document.body.appendChild(el);
-  }
-  agRender();
-}
-function agClose(){ document.getElementById('agOverlay')?.remove(); renderPlanningGrid(); }
-function agShift(n){ AG.week = new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+7*n); agRender(); }
-function agToday(){ AG.week = weekStart(todayClamped()); agRender(); }
-function agLayout(items){
-  items.sort((x,y)=>x.a-y.a||x.b-y.b);
-  let cluster=[], end=0;
-  const flush=()=>{ if(!cluster.length) return; const lanes=[];
-    cluster.forEach(it=>{ let l=lanes.findIndex(e=>e<=it.a); if(l<0){ l=lanes.length; lanes.push(0); } lanes[l]=it.b; it.lane=l; });
-    cluster.forEach(it=>it.lanes=lanes.length); cluster=[]; };
-  items.forEach(it=>{ if(cluster.length && it.a>=end){ flush(); end=0; } cluster.push(it); end=Math.max(end,it.b); });
-  flush(); return items;
-}
-function agRender(){
-  const el=document.getElementById('agOverlay'); if(!el) return;
-  const LOC=LOCALE();
-  const days=[]; for(let i=0;i<7;i++) days.push(new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+i));
-  const H=(AG_T1-AG_T0)/60*AG_PH;
-  const line='rgba(128,128,128,.28)', half='rgba(128,128,128,.12)';
-  let unparsed=[];
-  const head=days.map(d=>{ const off=isClosed(d)||outOfRange(d);
-    return `<div style="flex:1;text-align:center;padding:6px 2px;font-size:.78rem;font-weight:800;border-left:1px solid ${line};${off?'background:rgba(128,128,128,.12);color:#9ca3af':''}">${esc(d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'}))}${isClosed(d)?'<div style="font-size:.6rem">🚫 bloqué</div>':''}</div>`; }).join('');
-  const hours=[]; for(let h=7;h<18;h++) hours.push(`<div style="position:absolute;top:${(h-7)*AG_PH-7}px;right:4px;font-size:.68rem;color:var(--text3)">${h}:00</div>`);
-  let blocks='';
-  days.forEach((d,idx)=>{
-    const k=dk(d);
-    if(isClosed(d)||outOfRange(d)){ blocks+=`<div style="position:absolute;left:calc(${idx}*100%/7);width:calc(100%/7);top:0;height:${H}px;background:rgba(128,128,128,.12);pointer-events:none"></div>`; if(outOfRange(d)) return; }
-    const items=[];
-    allSlots(k).forEach(sl=>{ const p=pgParseSlot(sl); if(!p){ unparsed.push(k+' '+sl); return; }
-      items.push({slot:sl,a:p[0],b:p[1],n:getSlot(k,sl).length,c:cap(sl,k,'kayak'),blocked:!!getKayakSlotCfg(k,sl).blocked,kx:isKayakCross(k,sl),label:getKayakSlotCfg(k,sl).label||''}); });
-    agLayout(items).forEach(it=>{
-      const top=(it.a-AG_T0)/60*AG_PH, h=Math.max(20,(it.b-it.a)/60*AG_PH-2);
-      const bg = it.blocked ? '#9ca3af' : (it.kx ? '#ea580c' : '#2563eb');
-      blocks+=`<div class="ag-blk" data-k="${k}" data-s="${esc(it.slot)}" data-a="${it.a}" data-b="${it.b}" data-idx="${idx}"
-        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:7px;padding:3px 6px;font-size:.74rem;line-height:1.2;overflow:hidden;cursor:grab;touch-action:none;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.3);box-sizing:border-box">
-        <b>${esc(it.slot)}</b>${it.label?` <span style="opacity:.9">· ${esc(it.label)}</span>`:''}<br>${it.blocked?'🚫 bloqué':`${it.kx?'KX':'Slalom'} · ${it.n}/${it.c}`}</div>`;
-    });
-  });
-  el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid ${line}">
-      <b style="font-size:1rem">📅 Agenda kayak</b>
-      <button class="btn btn-sm" onclick="agShift(-1)">◀</button>
-      <button class="btn btn-sm" onclick="agToday()">Aujourd'hui</button>
-      <button class="btn btn-sm" onclick="agShift(1)">▶</button>
-      <span style="font-size:.78rem;color:var(--text3);flex:1;min-width:200px">Glisse une bulle pour la déplacer (30 min) · clique dessus pour la modifier · clique dans le vide pour ajouter une séance d'1 h</span>
-      <button class="btn btn-sm" onclick="agClose()">✕ Fermer</button>
-    </div>
-    <div style="flex:1;overflow:auto">
-      <div style="min-width:760px">
-        <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--white);border-bottom:1px solid ${line}"><div style="width:46px"></div>${head}</div>
-        <div style="display:flex">
-          <div style="width:46px;position:relative;height:${H}px;flex:none">${hours.join('')}</div>
-          <div id="agBody" onclick="agBodyClick(event)" onpointerdown="agDown(event)" style="flex:1;position:relative;height:${H}px;background-image:repeating-linear-gradient(to bottom,${line} 0 1px,transparent 1px ${AG_PH}px),repeating-linear-gradient(to bottom,transparent 0 ${AG_PH/2-1}px,${half} ${AG_PH/2-1}px ${AG_PH/2}px,transparent ${AG_PH/2}px ${AG_PH}px)">
-            <div style="position:absolute;left:0;right:0;top:${(720-AG_T0)/60*AG_PH}px;height:${AG_PH}px;background:rgba(128,128,128,.10);pointer-events:none"></div>
-            ${days.map((d,i)=>`<div style="position:absolute;top:0;bottom:0;left:calc(${i}*100%/7);border-left:1px solid ${line};pointer-events:none"></div>`).join('')}
-            ${blocks}
-          </div>
-        </div>
-        ${unparsed.length?`<p style="font-size:.72rem;color:var(--text3);padding:6px 12px">Séances sans horaire exploitable (non affichées) : ${esc(unparsed.slice(0,8).join(', '))}</p>`:''}
-      </div>
-    </div>`;
-}
-function agDown(e){
-  const blk=e.target.closest('.ag-blk'); if(!blk || e.button>0) return;
-  const body=document.getElementById('agBody');
-  const D={ blk, k:blk.dataset.k, s:blk.dataset.s, a:+blk.dataset.a, b:+blk.dataset.b, x0:e.clientX, y0:e.clientY, top0:parseFloat(blk.style.top), moved:false, tgt:null, ghost:null };
-  D.dur=D.b-D.a;
-  try{ blk.setPointerCapture(e.pointerId); }catch(_){}
-  const move=ev=>{
-    if(!D.moved && Math.hypot(ev.clientX-D.x0,ev.clientY-D.y0)<6) return;
-    if(!D.moved){ D.moved=true; blk.style.opacity='.4'; blk.style.cursor='grabbing';
-      D.ghost=document.createElement('div');
-      D.ghost.style.cssText='position:absolute;border:2px dashed #111;background:rgba(37,99,235,.18);border-radius:7px;pointer-events:none;z-index:6;box-sizing:border-box;font-size:.74rem;font-weight:800;padding:2px 5px';
-      body.appendChild(D.ghost); }
-    const r=body.getBoundingClientRect(), colW=r.width/7;
-    const idx=Math.max(0,Math.min(6,Math.floor((ev.clientX-r.left)/colW)));
-    let st=AG_T0+Math.round((D.top0+(ev.clientY-D.y0))/AG_PH*2)*30;
-    st=Math.max(AG_T0,Math.min(AG_T1-D.dur,st));
-    D.tgt={idx,st};
-    D.ghost.style.left=(idx*colW)+'px'; D.ghost.style.width=(colW-3)+'px';
-    D.ghost.style.top=((st-AG_T0)/60*AG_PH)+'px'; D.ghost.style.height=(D.dur/60*AG_PH-2)+'px';
-    D.ghost.textContent=pgFmtMin(st)+'-'+pgFmtMin(st+D.dur);
-  };
-  const up=ev=>{
-    blk.removeEventListener('pointermove',move); blk.removeEventListener('pointerup',up); blk.removeEventListener('pointercancel',up);
-    try{ blk.releasePointerCapture(ev.pointerId); }catch(_){}
-    if(D.ghost) D.ghost.remove();
-    blk.style.opacity=''; blk.style.cursor='grab';
-    if(!D.moved){ _pgSheet={ dateK:D.k, slot:D.s, act:'kayak' }; pgRenderSheet(); return; }
-    if(D.tgt && ev.type==='pointerup') agMove(D.k, D.s, D.tgt.idx, D.tgt.st, D.dur);
-  };
-  blk.addEventListener('pointermove',move); blk.addEventListener('pointerup',up); blk.addEventListener('pointercancel',up);
-}
-function agBodyClick(e){
-  if(e.target.closest('.ag-blk')) return;
-  const body=document.getElementById('agBody'), r=body.getBoundingClientRect();
-  const idx=Math.max(0,Math.min(6,Math.floor((e.clientX-r.left)/(r.width/7))));
-  let st=AG_T0+Math.floor((e.clientY-r.top)/AG_PH*2)*30;
-  st=Math.max(AG_T0,Math.min(AG_T1-60,st)); if(st>=690&&st<780) st=st<720?660:780;
-  const d=new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+idx);
-  if(isClosed(d)||outOfRange(d)){ toast('Journée bloquée ou hors saison','error'); return; }
-  pgAddSlotSheet(dk(d), pgFmtMin(st)+'-'+pgFmtMin(st+60));
-}
-async function agMove(fromK, slot, idx, st, dur){
-  const d=new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+idx), toK=dk(d);
-  const newS=pgFmtMin(st)+'-'+pgFmtMin(st+dur);
-  if(toK===fromK && newS===slot) return;
-  if(isClosed(d)||outOfRange(d)){ toast('⚠️ Journée bloquée ou hors saison','error'); return; }
-  const err=pgTimeError(newS); if(err){ toast('⚠️ '+err,'error'); return; }
-  const n=getSlot(fromK,slot).length;
-  if(toK!==fromK && n && !confirm(`Déplacer la séance ${slot} (${n} inscrit(s)) vers le ${d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'})} à ${newS} ?\nLes inscrits suivent la séance.`)) return;
-  try{
-    if(toK===fromK) await pgRenameKayakSlot(fromK, slot, newS);
-    else await pgMoveSlotToDay(fromK, slot, toK, newS);
-    await saveConfig();
-    toast(`✅ Séance déplacée : ${newS}`,'success');
-  }catch(e){ toast('⚠️ Déplacement impossible : '+(e.message||e),'error'); }
-  agRender(); renderPlanningGrid();
-}
-async function pgMoveSlotToDay(fromK, oldS, toK, newS){
-  if(allSlots(toK).includes(newS)) throw new Error('ce créneau existe déjà ce jour-là');
-  const base=(S.customSlots&&S.customSlots[fromK])||{morning:S.morningOrder,afternoon:S.afternoonOrder};
-  if(!base.morning.includes(oldS) && !base.afternoon.includes(oldS)) throw new Error('créneau introuvable dans les horaires du jour');
-  const n=(S.data[fromK]&&S.data[fromK][oldS]||[]).length;
-  if(n){
-    const { data, error } = await sb.from('inscriptions').update({ date:toK, creneau:newS })
-      .eq('date',fromK).eq('creneau',oldS).or('activity.eq.kayak,activity.is.null').select();
-    if(error) throw error;
-    if((data||[]).length < n) throw new Error('droits insuffisants sur la table inscriptions (policy UPDATE admin)');
-  }
-  const src=ensureKayakCustomSlots(fromK), dst=ensureKayakCustomSlots(toK);
-  ['morning','afternoon'].forEach(per=>{ const i=src[per].indexOf(oldS); if(i>=0) src[per].splice(i,1); });
-  dst[slotStartMinutes(newS)>=720?'afternoon':'morning'].push(newS);
-  [S.data,S.kayakSlotConfig,S.dateCapacity,S.kayakCross].forEach(o=>{
-    if(o && o[fromK] && o[fromK][oldS]!==undefined){ if(!o[toK]) o[toK]={}; o[toK][newS]=o[fromK][oldS]; delete o[fromK][oldS]; }
-  });
-}
 function pgCloseSheet(){
   _pgSheet = null;
   document.getElementById('pgSheet')?.remove();
   renderPlanningGrid();
-  if(document.getElementById('agOverlay')) agRender();
 }
 function pgRefresh(){ renderPlanningGrid(); pgRenderSheet(); }
 
