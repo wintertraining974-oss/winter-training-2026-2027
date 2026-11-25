@@ -1289,6 +1289,17 @@ header .user-pill { color: #fff; }
       <div id="suiviDayGrid"></div>
       <div style="margin-top:24px;border-top:2px solid var(--border);padding-top:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <h3 style="margin:0">📆 Synthèse de la réservation du groupe</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <label style="font-size:.75rem;display:flex;gap:4px;align-items:center"><input type="checkbox" id="suiviBkNames" onchange="renderSuiviBooking()"> avec les noms</label>
+            <button class="btn btn-sm" onclick="suiviBookingCopy()">📋 Copier</button>
+            <button class="btn btn-sm" onclick="suiviBookingPrint()">🖨️ Imprimer</button>
+          </div>
+        </div>
+        <div id="suiviBooking"></div>
+      </div>
+      <div style="margin-top:24px;border-top:2px solid var(--border);padding-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <h3 style="margin:0">💶 Récapitulatif / Facture du groupe</h3>
           <button class="btn btn-sm" onclick="printSuiviInvoice()">🖨️ Imprimer la facture</button>
         </div>
@@ -3382,7 +3393,68 @@ function suiviContactBlockHtml(contact){
   return `<div style="font-size:.8rem;color:#444;margin-bottom:12px;line-height:1.6">${lines.join('<br>')}</div>`;
 }
 
+// ── Synthèse de la réservation d'un groupe : séances par jour, avec horaires ──
+function suiviBookingData(){
+  const team=suiviCurrentTeam(); if(!team) return null;
+  const members=suiviScopedMembers(team);
+  const names=new Set(members.map(m=>(m.athlete.full_name||'').trim().toLowerCase()));
+  const r=suiviPeriodRow();
+  const from=r?r.start_date:dk(START), to=r?r.end_date:dk(END);
+  const days=[];
+  for(let d=fqParse(from); dk(d)<=to; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)){
+    const k=dk(d), items=[];
+    const mine=(store)=>(store||[]).map(a=>a.name).filter(n=>names.has((n||'').trim().toLowerCase()));
+    let ks=[]; try{ ks=[...allSlots(k)].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)); }catch(e){}
+    ks.forEach(sl=>{ const n=mine(getSlot(k,sl)); if(n.length) items.push({slot:sl,type:isKayakCross(k,sl)?'Kayak cross':'Kayak slalom',names:n,t:slotStartMinutes(sl)}); });
+    [...(S.muscuSlots||[])].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)).forEach(sl=>{ const n=mine(getSlot(k,sl,'muscu')); if(n.length) items.push({slot:sl,type:'Musculation',names:n,t:slotStartMinutes(sl)}); });
+    items.sort((a,b)=>a.t-b.t);
+    if(items.length) days.push({k,items});
+  }
+  return { team, days, periodLabel:suiviPeriodLabel() };
+}
+function suiviBookingText(withNames){
+  const b=suiviBookingData(); if(!b) return '';
+  const LOC=LOCALE();
+  let t=`Réservation ${b.team.name}${b.periodLabel?' — '+b.periodLabel:''}\n`;
+  if(!b.days.length) return t+'Aucune séance réservée.';
+  b.days.forEach(day=>{
+    t+='\n'+fqParse(day.k).toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long'})+'\n';
+    day.items.forEach(it=>{ t+=`  • ${it.slot} — ${it.type} (${it.names.length} pers.)${withNames?' : '+it.names.join(', '):''}\n`; });
+  });
+  return t.trim();
+}
+function renderSuiviBooking(){
+  const el=document.getElementById('suiviBooking'); if(!el) return;
+  const b=suiviBookingData();
+  if(!b){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem">Choisis un groupe.</p>'; return; }
+  if(!b.days.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem">Aucune séance réservée pour ce groupe sur la période.</p>'; return; }
+  const withNames=!!document.getElementById('suiviBkNames')?.checked;
+  const LOC=LOCALE();
+  el.innerHTML=b.days.map(day=>`<div style="margin-bottom:10px">
+    <div style="font-weight:800;font-size:.85rem;text-transform:capitalize;border-bottom:1px solid var(--border);padding-bottom:2px">${esc(fqParse(day.k).toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long'}))}</div>
+    ${day.items.map(it=>`<div style="font-size:.84rem;padding:3px 0"><b>${esc(it.slot)}</b> · ${esc(it.type)} · ${it.names.length} pers.${withNames?`<div style="font-size:.74rem;color:var(--text3)">${esc(it.names.join(', '))}</div>`:''}</div>`).join('')}
+  </div>`).join('');
+}
+async function suiviBookingCopy(){
+  const t=suiviBookingText(!!document.getElementById('suiviBkNames')?.checked);
+  try{ await navigator.clipboard.writeText(t); toast('📋 Synthèse copiée — colle-la dans un mail ou WhatsApp','success'); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); toast('📋 Synthèse copiée','success');}catch(_){toast('Copie impossible','error');} ta.remove(); }
+}
+function suiviBookingPrint(){
+  const b=suiviBookingData(); if(!b||!b.days.length){ toast('Aucune séance à imprimer','error'); return; }
+  const withNames=!!document.getElementById('suiviBkNames')?.checked;
+  const LOC=LOCALE();
+  let h=`<div style="font-size:18pt !important;font-weight:900;border-bottom:3px solid #111;padding-bottom:6px;margin-bottom:12px">Réservation — ${esc(b.team.name)}${b.periodLabel?`<div style="font-size:11pt !important;font-weight:600">${esc(b.periodLabel)}</div>`:''}</div>`;
+  b.days.forEach(day=>{
+    h+=`<div style="page-break-inside:avoid;margin-bottom:12px"><div style="font-weight:800;text-transform:capitalize;border-bottom:1px solid #111;margin-bottom:3px">${esc(fqParse(day.k).toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}</div>`;
+    day.items.forEach(it=>{ h+=`<div style="padding:2px 0"><b>${esc(it.slot)}</b> — ${esc(it.type)} — ${it.names.length} pers.${withNames?` <span style="font-size:.85em">(${esc(it.names.join(', '))})</span>`:''}</div>`; });
+    h+='</div>';
+  });
+  document.getElementById('printArea').innerHTML=h;
+  window.print();
+}
 function renderSuiviRecap(){
+  try{ renderSuiviBooking(); }catch(e){ console.warn('renderSuiviBooking',e); }
   const el = document.getElementById('suiviRecap');
   if(!el) return;
   const { perPerson, grand, teamName, contact, periodLabel } = computeSuiviTotals();
@@ -5243,6 +5315,9 @@ function pgDayHeadExtra(d,k){
   }
   const reason = S.customClosed[k]===true ? closedReasonLabel(k) : '';
   if(reason) h += `<br><span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.92);color:#b91c1c;font-size:.6rem;font-weight:800">${esc(reason)}</span>`;
+  if(canPlanSettings() && _pgActivity==='kayak' && !isClosed(d)){
+    h += `<br><button type="button" title="Ajouter une séance ce jour" onclick="event.stopPropagation();pgAddSlotSheet('${k}','')" style="margin-top:3px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.18);color:inherit;border-radius:5px;font-size:.62rem;line-height:1;padding:2px 6px;cursor:pointer;font-weight:800">＋</button>`;
+  }
   if(S.isAdmin){
     const closed = isClosed(d);
     h += `<br><button type="button" style="margin-top:3px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.18);color:inherit;border-radius:5px;font-size:.6rem;line-height:1;padding:2px 6px;cursor:pointer"
@@ -6452,7 +6527,10 @@ function renderPlanningGrid(){
       const slotExists = getSlots(k).includes(slot);
 
       if(closed||!slotExists){
-        html+=`<td class="pg-cell${closed?' pg-cell-closed':''}"><div class="pg-cell"><span class="pg-empty">—</span></div></td>`;
+        const plus = (!closed && isKayak && canPlanSettings() && !outOfRange(d))
+          ? `<button type="button" title="Ajouter une séance ${esc(slot)}" onclick="event.stopPropagation();pgAddSlotSheet('${k}','${esc(slot)}')" style="border:1.5px dashed #9ca3af;background:transparent;color:#6b7280;border-radius:6px;width:100%;padding:4px 0;font-size:.95rem;font-weight:800;cursor:pointer;line-height:1">＋</button>`
+          : '<span class="pg-empty">—</span>';
+        html+=`<td class="pg-cell${closed?' pg-cell-closed':''}"><div class="pg-cell">${plus}</div></td>`;
         return;
       }
 
@@ -6550,6 +6628,99 @@ function pgOpenSlot(dateK, slot, act){
   _pgSheet = { dateK, slot, act };
   pgRenderSheet();
 }
+// ── Construction du planning : horaires par pas de 30' (7h-12h / 13h-18h) ──
+function pgFmtMin(m){ const h=Math.floor(m/60), mm=m%60; return h+'h'+(mm?String(mm).padStart(2,'0'):''); }
+function pgFmtClock(m){ return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); }
+function pgParseSlot(sl){
+  const m=/^\s*(\d{1,2})\s*h\s*(\d{2})?\s*-\s*(\d{1,2})\s*h\s*(\d{2})?\s*$/i.exec(sl||'');
+  return m ? [(+m[1])*60+(+(m[2]||0)), (+m[3])*60+(+(m[4]||0))] : null;
+}
+function pgTimeError(label){
+  const p=pgParseSlot(label); if(!p) return "Format d'horaire invalide";
+  const [a,b]=p;
+  if(b<=a) return "L'heure de fin doit être après l'heure de début";
+  if(a<420 || b>1080) return 'Les séances sont entre 7h et 18h';
+  if(a<720 && b>720) return 'Une séance ne peut pas chevaucher la pause 12h-13h';
+  if(a>=720 && a<780) return 'Pas de séance entre 12h et 13h';
+  return '';
+}
+function pgTimeOpts(kind, sel){
+  const rng = kind==='s' ? [[420,690],[780,1050]] : [[450,720],[810,1080]];
+  const vals=[]; rng.forEach(([a,b])=>{ for(let m=a;m<=b;m+=30) vals.push(m); });
+  if(sel!=null && !vals.includes(sel)){ vals.push(sel); vals.sort((x,y)=>x-y); }
+  return vals.map(m=>`<option value="${m}"${m===sel?' selected':''}>${pgFmtClock(m)}</option>`).join('');
+}
+// Sélecteurs début/fin ; la valeur "9h-10h30" est gardée dans <input hidden id="pgTime">
+function pgTimeFields(slot, deflt){
+  const p = pgParseSlot(slot) || deflt || [540,630];
+  const st='style="flex:1;padding:6px 8px;font-size:.9rem"';
+  return `<input type="hidden" id="pgTime" value="${esc(slot||pgFmtMin(p[0])+'-'+pgFmtMin(p[1]))}">
+  <div style="display:flex;gap:8px;align-items:center">
+    <select class="field" id="pgT1" ${st} onchange="pgTimeSync()">${pgTimeOpts('s',p[0])}</select>
+    <span>→</span>
+    <select class="field" id="pgT2" ${st} onchange="pgTimeSync()">${pgTimeOpts('e',p[1])}</select>
+  </div>
+  <div id="pgTimeHint" style="font-size:.72rem;color:#b91c1c;margin-top:3px;min-height:1em"></div>`;
+}
+function pgTimeSync(){
+  const a=+document.getElementById('pgT1').value, b=+document.getElementById('pgT2').value;
+  const lab=pgFmtMin(a)+'-'+pgFmtMin(b);
+  document.getElementById('pgTime').value=lab;
+  const h=document.getElementById('pgTimeHint'); if(h) h.textContent=pgTimeError(lab);
+}
+function pgAddSlotSheet(dateK, preset){
+  if(!canPlanSettings()) return;
+  document.getElementById('pgAddSheet')?.remove();
+  const d=parseDate(dateK);
+  const title=d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'});
+  const pre=pgParseSlot(preset);
+  const el=document.createElement('div');
+  el.id='pgAddSheet';
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:40px 10px;overflow:auto';
+  el.onclick=ev=>{ if(ev.target===el) el.remove(); };
+  el.innerHTML=`<div style="background:var(--white);color:var(--text);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.3);width:100%;max-width:380px;padding:18px">
+    <div style="font-size:.75rem;color:var(--text3)">🚣 Kayak — nouvelle séance</div>
+    <div style="font-size:1.05rem;font-weight:800;text-transform:capitalize;margin-bottom:10px">${esc(title)}</div>
+    <label style="font-size:.72rem;font-weight:700;color:var(--text3);display:block;margin:6px 0 3px">Horaire de la séance</label>
+    ${pgTimeFields('', pre||[540,630])}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn" style="flex:1" onclick="document.getElementById('pgAddSheet').remove()">Annuler</button>
+      <button class="btn btn-primary" style="flex:2" onclick="pgAddSlotConfirm('${dateK}')">➕ Ajouter la séance</button>
+    </div></div>`;
+  document.body.appendChild(el);
+  pgTimeSync();
+}
+async function pgAddSlotConfirm(dateK){
+  if(!canPlanSettings()) return;
+  const v=(document.getElementById('pgTime').value||'').trim();
+  const err=pgTimeError(v); if(err){ toast('⚠️ '+err,'error'); return; }
+  if(allSlots(dateK).includes(v)){ toast('⚠️ Ce créneau existe déjà ce jour-là','error'); return; }
+  const cs=ensureKayakCustomSlots(dateK);
+  cs[pgParseSlot(v)[0]>=720?'afternoon':'morning'].push(v);
+  await saveConfig();
+  document.getElementById('pgAddSheet')?.remove();
+  renderPlanningGrid();
+  toast(`✅ Séance ${v} ajoutée`,'success');
+}
+async function pgDeleteSlot(){
+  if(!canPlanSettings() || !_pgSheet || _pgSheet.act!=='kayak') return;
+  const { dateK, slot } = _pgSheet;
+  const store=getSlot(dateK,slot,'kayak');
+  const msg = store.length
+    ? `Supprimer la séance ${slot} ?\n${store.length} inscrit(s) seront retirés.`
+    : `Supprimer la séance ${slot} de ce jour ?`;
+  if(!confirm(msg)) return;
+  if(store.length){
+    if(!(await pgDeleteRows(store.map(a=>a._id)))) return;
+    store.length=0;
+  }
+  const cs=ensureKayakCustomSlots(dateK);
+  ['morning','afternoon'].forEach(per=>{ const i=cs[per].indexOf(slot); if(i>=0) cs[per].splice(i,1); });
+  [S.data,S.kayakSlotConfig,S.dateCapacity,S.kayakCross].forEach(o=>{ if(o && o[dateK]) delete o[dateK][slot]; });
+  await saveConfig();
+  toast('🗑 Séance supprimée','success');
+  pgCloseSheet();
+}
 function pgCloseSheet(){
   _pgSheet = null;
   document.getElementById('pgSheet')?.remove();
@@ -6628,7 +6799,7 @@ function pgRenderSheet(){
     <label ${lbl}>Nombre max de pratiquants (ce jour) ${hasCustomCap?'':'<span style="font-weight:400">— défaut : '+c+'</span>'}</label>
     <input class="field" id="pgCap" type="number" min="0" placeholder="${c}" value="${hasCustomCap?c:''}" ${fld}>
     <label ${lbl}>Horaire de la séance (ce jour)</label>
-    <input class="field" id="pgTime" value="${esc(slot)}" placeholder="ex : 9h-10h30" ${fld}>
+    ${canPlanSettings() ? pgTimeFields(slot) : `<input class="field" id="pgTime" value="${esc(slot)}" ${fld}>`}
     ` : `
     <p style="font-size:.75rem;color:var(--text3);margin:10px 0 0">Capacité (${c}) et horaires du fitness : réglage global dans Admin › Salle de musculation.</p>
     `}
@@ -6648,7 +6819,8 @@ function pgRenderSheet(){
         </div>
         <p style="font-size:.7rem;color:var(--text3);margin:6px 0 0">Les changements ne concernent que ce jour. En tant qu'admin tu peux toujours inscrire, même sur un créneau verrouillé ou complet.</p>
       </div>`; })()}
-    <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>`}
+    <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>
+    ${(isKayak && canPlanSettings())?`<button class="btn btn-sm" style="margin-top:8px;width:100%;color:var(--red)" onclick="pgDeleteSlot()">🗑 Supprimer la séance</button>`:''}`}
 
     <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px">
       <div style="font-weight:800;font-size:.9rem;margin-bottom:4px">Inscrits (${store.length}/${c})</div>
@@ -6688,6 +6860,7 @@ async function pgSaveSlot(){
   if(isKayak){
     const newSlot = (document.getElementById('pgTime').value||'').trim();
     if(newSlot && newSlot!==slot){
+      const terr = pgTimeError(newSlot); if(terr){ toast('⚠️ '+terr,'error'); return; }
       try { await pgRenameKayakSlot(dateK, slot, newSlot); slot = newSlot; _pgSheet.slot = newSlot; }
       catch(e){ toast('⚠️ Horaire non modifié : '+(e.message||e),'error'); return; }
     }
@@ -6756,7 +6929,9 @@ async function pgRenameKayakSlot(dateK, oldS, newS){
   }
   // configuration locale
   const cs = ensureKayakCustomSlots(dateK);
-  const i = cs[period].indexOf(oldS); if(i>=0) cs[period][i] = newS;
+  const np = slotStartMinutes(newS)>=720 ? 'afternoon' : 'morning';
+  const i = cs[period].indexOf(oldS);
+  if(i>=0){ if(np===period) cs[period][i]=newS; else { cs[period].splice(i,1); cs[np].push(newS); } }
   const mv = (obj)=>{ if(obj && obj[dateK] && obj[dateK][oldS]!==undefined){ obj[dateK][newS]=obj[dateK][oldS]; delete obj[dateK][oldS]; } };
   mv(S.data); mv(S.kayakSlotConfig); mv(S.dateCapacity); mv(S.kayakCross);
 }
