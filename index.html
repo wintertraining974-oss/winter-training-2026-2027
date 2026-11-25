@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1197,7 +1198,22 @@ header .user-pill { color: #fff; }
       <div id="athleteDbList" style="margin-top:12px"></div>
     </div>
 
-    <!-- Historique des inscriptions retiré à la demande de l'utilisateur -->
+    <!-- Historique de mes réservations -->
+    <div class="quick-reg-card" id="resaHistPanel" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <h2 id="resaHistTitle" style="margin:0">📜 Historique de mes réservations</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select class="field" id="resaHistFilter" onchange="renderMyResaHistory()" style="min-width:150px">
+            <option value="all">Toutes</option>
+            <option value="upcoming">À venir</option>
+            <option value="past">Passées</option>
+          </select>
+          <button class="btn btn-sm" onclick="renderMyResaHistory()">🔄</button>
+        </div>
+      </div>
+      <p class="qr-sub" id="resaHistSub" style="margin-top:6px"></p>
+      <div id="resaHistBody" style="margin-top:12px"></div>
+    </div>
   </div>
 
   <!-- Onglet dédié admin : base de données des athlètes (séparée de la gestion des teams) -->
@@ -3021,6 +3037,7 @@ async function setPage(page){
         try{ renderAdmin(); }catch(e){ console.warn(e); }
       }
       renderTeamPage();
+      try{ await fqLoadRows(); renderMyResaHistory(); }catch(e){ console.warn(e); }
     }
   }
   if(page==='athletes' && S.session){
@@ -3038,7 +3055,69 @@ async function setPage(page){
 
 // Construit la liste "Mon équipe" : nom/prénom des athlètes inscrits par ce compte,
 // regroupés par groupe d'inscription (une inscription groupée = une équipe).
+// ── Historique de mes réservations (séances inscrites par ce compte + périodes de stage) ──
+function renderMyResaHistory(){
+  const body=document.getElementById('resaHistBody'); if(!body) return;
+  const sub=document.getElementById('resaHistSub');
+  const ttl=document.getElementById('resaHistTitle');
+  if(ttl) ttl.textContent='📜 '+L('Historique de mes réservations','My booking history');
+  const flt=document.getElementById('resaHistFilter');
+  if(flt){ const o=flt.options; o[0].text=L('Toutes','All'); o[1].text=L('À venir','Upcoming'); o[2].text=L('Passées','Past'); }
+  if(!S.session){ body.innerHTML=`<p style="color:var(--text3);font-size:.85rem">${esc(L('Connecte-toi pour voir tes réservations.','Log in to see your bookings.'))}</p>`; if(sub) sub.textContent=''; return; }
+  const me=S.session.user.id, today=dk(new Date()), filter=flt?flt.value:'all';
+  const acts=[['kayak',S.data,'🛶 '+L('Kayak','Kayak')],['muscu',S.muscuData,'🏋️ '+L('Muscu','Gym')]];
+  const byKey={}; // date|slot|act -> {date,slot,actLabel,names:[]}
+  acts.forEach(([a,src,lbl])=>{
+    Object.keys(src||{}).forEach(d=>Object.keys(src[d]).forEach(sl=>{
+      (src[d][sl]||[]).forEach(r=>{
+        if(r.user_id!==me) return;
+        const k=d+'|'+sl+'|'+a;
+        (byKey[k] ||= {date:d,slot:sl,actLabel:lbl,names:[]}).names.push({name:r.name,role:r.role});
+      });
+    }));
+  });
+  let items=Object.values(byKey);
+  const nAll=items.length, nUp=items.filter(x=>x.date>=today).length;
+  if(filter==='upcoming') items=items.filter(x=>x.date>=today);
+  if(filter==='past') items=items.filter(x=>x.date<today);
+  items.sort((a,b)=> filter==='upcoming' ? a.date.localeCompare(b.date)||a.slot.localeCompare(b.slot) : b.date.localeCompare(a.date)||b.slot.localeCompare(a.slot));
+  if(sub) sub.textContent=L(`${nAll} séance(s) réservée(s) au total · ${nUp} à venir · ${nAll-nUp} passée(s)`,`${nAll} booked session(s) in total · ${nUp} upcoming · ${nAll-nUp} past`);
+  let h='';
+  // Périodes de stage (réservations frise) liées à ce compte
+  try{
+    const mine=(FQ.rows||[]).filter(p=>p.user_id===me).sort((a,b)=>b.start_date.localeCompare(a.start_date));
+    if(mine.length){
+      const f=k=>fqParse(k).toLocaleDateString(LOCALE(),{day:'numeric',month:'short',year:'numeric'});
+      h+=`<h5 style="font-size:.8rem;font-weight:700;margin:0 0 8px">🧭 ${esc(L('Mes périodes de stage','My training periods'))}</h5>`;
+      mine.forEach(p=>{
+        const k=fqResaKey(p), r=FQ_RESA[k];
+        h+=`<div class="ath-row" style="flex-wrap:wrap;gap:8px"><span class="ath-name"><b>${esc(p.g||'')}</b> · ${esc(f(p.start_date))} → ${esc(f(p.end_date))}</span><span class="slot-badge" style="color:${r.c}">${r.e} ${esc(r.l)}</span></div>`;
+      });
+      h+='<div style="height:12px"></div>';
+    }
+  }catch(e){}
+  if(!items.length){
+    h+=`<p style="color:var(--text3);font-size:.85rem">${esc(L('Aucune réservation dans cette vue.','No bookings in this view.'))}</p>`;
+    body.innerHTML=h; return;
+  }
+  h+=`<h5 style="font-size:.8rem;font-weight:700;margin:0 0 8px">🗓️ ${esc(L('Mes séances','My sessions'))}</h5>`;
+  let lastDate='';
+  items.forEach(x=>{
+    if(x.date!==lastDate){
+      lastDate=x.date;
+      const dl=fqParse(x.date).toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+      const up=x.date>=today;
+      h+=`<div class="slot-group-title" style="margin-top:10px;display:flex;justify-content:space-between;gap:8px"><span>${esc(dl)}</span><span style="font-size:.7rem;font-weight:700;color:${up?'var(--green)':'var(--text3)'}">${up?esc(L('À venir','Upcoming')):esc(L('Passée','Past'))}</span></div>`;
+    }
+    const names=x.names.sort((a,b)=>a.name.localeCompare(b.name)).map(n=>esc(n.name)).join(', ');
+    h+=`<div class="ath-row" style="flex-wrap:wrap;gap:8px"><span class="ath-name"><b>${esc(x.slot)}</b> · ${x.actLabel}</span><span style="font-size:.78rem;color:var(--text2)">${names} <span style="color:var(--text3)">(${x.names.length})</span></span></div>`;
+  });
+  if(S.isAdmin) h+=`<div style="margin-top:14px"><button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${esc(L('Historique complet des actions (admin)','Full action log (admin)'))}</button></div>`;
+  body.innerHTML=h;
+}
+
 function renderMyTeam(){
+  try{ renderMyResaHistory(); }catch(e){ console.warn('resaHist',e); }
   const subEl = document.getElementById('teamSub');
   if(subEl) subEl.textContent = t('teamSub');
   const body = document.getElementById('teamBody');
