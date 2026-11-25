@@ -243,6 +243,22 @@ select.field { min-width: 110px; cursor: pointer; }
   #printArea .att-page .att-rent, #printArea .att-page .att-rent * { font-size: 10pt !important; font-weight: 700 !important; }
   #printArea .att-page th { font-size: 14pt !important; }
 }
+/* ── Aperçu de la semaine (accueil) ── */
+.ov-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ov-table th, .ov-table td { border: 1px solid #222; padding: 4px 8px; vertical-align: top; }
+.ov-table th { background: #eee; }
+.ov-day { width: 28mm; font-weight: 800; }
+.ov-line { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dotted #999; padding: 2px 0; }
+.ov-line:last-child { border-bottom: 0; }
+.ov-n { font-weight: 800; }
+@media print {
+  #printArea .ov-page, #printArea .ov-page * { font-family: Arial, Helvetica, sans-serif !important; font-size: 14pt !important; font-weight: 700 !important; line-height: 1.25 !important; }
+  #printArea .ov-page .ov-title { font-size: 20pt !important; font-weight: 800 !important; }
+  #printArea .ov-page .ov-sub { font-size: 12pt !important; margin-bottom: 4mm; }
+  #printArea .ov-page .ov-day span { font-size: 12pt !important; font-weight: 600 !important; }
+  .ov-table th, .ov-table td { border: 1.5px solid #000 !important; }
+  .ov-table tr { page-break-inside: avoid; }
+}
 @media print {
   @page { size: landscape; margin: 10mm; }
   body * { visibility: hidden; }
@@ -8559,6 +8575,42 @@ function printDaySchedule(dateK, act){
   printAttendancePages(attendancePagesForDay(dateK, act));
 }
 
+// Aperçu de la semaine pour l'accueil : par jour, uniquement les séances ouvertes qui ont des inscrits
+// (horaire + nombre d'inscrits). Séances bloquées et séances vides ignorées. Kayak et fitness sur une seule page portrait.
+function printWeekOverview(baseDate){
+  const ws = weekStart(baseDate || S.currentDate);
+  const we = new Date(ws); we.setDate(ws.getDate()+6);
+  const months = t('months');
+  const label = `${ws.getDate()} ${months[ws.getMonth()]} → ${we.getDate()} ${months[we.getMonth()]} ${we.getFullYear()}`;
+  const lines = (dateK, act) => {
+    const slots = act==='muscu' ? (S.muscuSlots||[]) : allSlots(dateK);
+    return [...slots].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)).map(s=>{
+      const cfg = act==='muscu' ? getMuscuSlotCfg(dateK,s) : getKayakSlotCfg(dateK,s);
+      if(cfg.blocked) return '';
+      const n = getSlot(dateK,s,act).length;
+      if(!n) return '';
+      const kx = act==='kayak' && isKayakCross(dateK,s);
+      return `<div class="ov-line"><span class="ov-time">${esc(s)}${kx?' 🏄 KX':''}</span><span class="ov-n">${n}</span></div>`;
+    }).filter(Boolean);
+  };
+  let rows = '', any = false;
+  for(let i=0;i<7;i++){
+    const d = new Date(ws); d.setDate(ws.getDate()+i);
+    const k = dk(d);
+    if(isClosed(d) || outOfRange(d)) continue;
+    const ka = lines(k,'kayak'), mu = lines(k,'muscu');
+    if(!ka.length && !mu.length) continue;
+    any = true;
+    rows += `<tr><td class="ov-day">${esc(t('dowFull')[d.getDay()])}<br><span>${d.getDate()} ${esc(months[d.getMonth()])}</span></td><td>${ka.join('')}</td><td>${mu.join('')}</td></tr>`;
+  }
+  if(!any){ toast('Aucune séance avec des inscrits cette semaine.','error'); return; }
+  printAttendancePages([`<div class="ov-page">
+    <div class="ov-title">Aperçu de la semaine</div>
+    <div class="ov-sub">${esc(label)} — séances avec inscrits (nombre d'inscrits à droite de chaque horaire)</div>
+    <table class="ov-table"><thead><tr><th>Jour</th><th>🚣 Kayak</th><th>🏋️ Fitness</th></tr></thead><tbody>${rows}</tbody></table>
+  </div>`]);
+}
+
 // ── Espace impression (admin, admin 2, accueil) ──
 var PR = { act:'kayak', week:null, day:null };
 function renderPrintPage(){
@@ -8580,6 +8632,7 @@ function renderPrintPage(){
         <button class="btn btn-sm" onclick="prShift(1)">▶</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="prPrintWeekOverview()">🖨️ Aperçu de la semaine (horaires + inscrits)</button>
         <button class="btn" onclick="prPrintWeekPlanning()">🖨️ Planning de la semaine</button>
         <button class="btn" style="background:#7c3aed;color:white" onclick="prPrintWeekAttendance()">🖨️ Feuilles d'émargement (semaine)</button>
       </div>
@@ -8594,6 +8647,7 @@ function renderPrintPage(){
 }
 function prSetAct(a){ PR.act=a; renderPrintPage(); }
 function prShift(n){ PR.week=new Date(PR.week); PR.week.setDate(PR.week.getDate()+7*n); renderPrintPage(); }
+function prPrintWeekOverview(){ printWeekOverview(PR.week); }
 function prPrintWeekPlanning(){ _pgActivity=PR.act; printPlanningGrid(PR.week); }
 function prPrintWeekAttendance(){ printWeekAttendance(PR.act, PR.week); }
 function prPrintDay(){ if(!PR.day){ toast('Choisis un jour.','error'); return; } printDaySchedule(PR.day, PR.act); }
