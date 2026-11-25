@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -6490,11 +6489,6 @@ function selectDay(k){
 // VUE PLANNING GRILLE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let _pgActivity = 'kayak'; // 'kayak' | 'muscu'
-function pgAgendaOn(){ return true; }   // le planning d'inscription est une vue agenda (bulles)
-function pgAgGoMonth(y,mo){
-  let d=new Date(y,mo,1); if(d<START) d=new Date(START);
-  AG.week=weekStart(d); S.currentDate=new Date(AG.week); renderPlanningGrid();
-}
 
 function renderPlanningGrid(){
   // Créer ou recycler le conteneur
@@ -6535,12 +6529,11 @@ function renderPlanningGrid(){
     <button class="pg-act-btn muscu-act${_pgActivity==='muscu'?' active':''}" onclick="pgSetActivity('muscu')">🏋️ Fitness</button>
   </div>`;
 
-
   // Raccourcis par mois
   html += `<div class="pg-months" id="pgMonths">`;
-  html += `<button class="btn btn-sm" onclick="agToday()">📍 Aujourd'hui</button>`;
+  html += `<button class="btn btn-sm" onclick="pgGoToday()">📍 Aujourd'hui</button>`;
   for(let c=new Date(START.getFullYear(),START.getMonth(),1); c<=END; c=new Date(c.getFullYear(),c.getMonth()+1,1)){
-    html += `<button class="btn btn-sm pg-mchip" data-ym="${c.getFullYear()}-${c.getMonth()}" onclick="pgAgGoMonth(${c.getFullYear()},${c.getMonth()})">${esc(months[c.getMonth()])}</button>`;
+    html += `<button class="btn btn-sm pg-mchip" data-ym="${c.getFullYear()}-${c.getMonth()}" onclick="pgGoMonth(${c.getFullYear()},${c.getMonth()})">${esc(months[c.getMonth()])}</button>`;
   }
   html += `</div>`;
 
@@ -6548,12 +6541,13 @@ function renderPlanningGrid(){
   html += `<div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
+    ${(canPlanSettings()&&isKayak)?`<button class="btn btn-sm btn-primary" onclick="agOpen()">📅 Agenda (glisser-déposer)</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0369a1;color:white" onclick="diagOpen()">🔎 ${L('Diagnostic','Check')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#15803d;color:white" onclick="auditOpen()">🩺 ${L('Audit','Audit')}</button>`:''}
   </div>`;
 
-  if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : ${canPlanSettings()&&isKayak?'glisse une bulle pour la déplacer (jour + heure), tire son bas pour changer l\'heure de fin, ':''}clique dessus pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou gérer les inscrits. ▲▼ = ordre de priorité · 🔒/🔓 = ouvrir malgré la priorité.</p>`;
+  if(S.isAdmin) html += `<p style="font-size:.75rem;color:var(--text3);margin:0 0 8px">🛠 Admin : clique sur une séance pour la bloquer, l'étiqueter (CRRCK / CLUB), changer sa capacité ou son horaire, et gérer les inscrits. Si la priorité est active : ▲▼ pour changer l'ordre (P1, P2…) et 🔒/🔓 pour ouvrir un créneau malgré la priorité.</p>`;
 
   if(!S.isAdmin && !S.isReadonly) html += `<div class="pg-multi-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px">
     <button class="btn btn-sm${_pgMulti.on?' btn-primary':''}" onclick="pgToggleMulti()">☑ Sélection multiple</button>
@@ -6564,7 +6558,7 @@ function renderPlanningGrid(){
 
   if(isKayak && S.priorityOn) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px;line-height:1.5">
     <span class="pg-slot-lbl pg-pri">P1</span> <span class="pg-slot-lbl pg-pri">P2</span>… = <b>ordre de priorité</b> dans la demi-journée : un créneau s'ouvre quand les précédents sont complets ·
-    <span style="display:inline-block;width:12px;height:12px;background:#6b7280;vertical-align:middle"></span> <b>gris = pas ouvert</b> (bloqué ou en attente de priorité)</p>`;
+    <span style="display:inline-block;width:12px;height:12px;background:#fecaca;border-left:3px solid #dc2626;vertical-align:middle"></span> <b>rouge = pas ouvert</b> (bloqué ou en attente de priorité)</p>`;
 
   if(isKayak) html += `<p class="pg-legend" style="font-size:.74rem;color:var(--text2);margin:0 0 8px"><span class="pg-kx-badge">🏄 KAYAK CROSS</span> = séance de kayak cross (fond orange, toujours ouverte, hors priorité)</p>`;
 
@@ -6572,22 +6566,12 @@ function renderPlanningGrid(){
     <span><span class="pg-sw" style="background:var(--slot-open)"></span>${L('Ouvert','Open')}</span>
     <span><span class="pg-sw" style="background:var(--slot-mid)"></span>${L('Bien rempli (≥ 60 %)','Filling up (≥ 60%)')}</span>
     <span><span class="pg-sw" style="background:var(--slot-full)"></span>${L('Complet','Full')}</span>
-    <span><span class="pg-sw" style="background:#6b7280"></span>${L('Bloqué / pas encore ouvert','Blocked / not open yet')}</span>
+    <span><span class="pg-sw" style="background:var(--slot-blocked)"></span>${L('Bloqué / pas encore ouvert','Blocked / not open yet')}</span>
     ${isKayak?`<span><span class="pg-sw" style="background:#4f46e5"></span>${L('Exclusif','Exclusive')}</span><span><span class="pg-sw" style="background:var(--slot-kx)"></span>Kayak Cross</span><span><span class="pg-sw" style="background:#7c3aed"></span>CRRCK</span><span><span class="pg-sw" style="background:#0d9488"></span>CLUB</span>`:''}
-    ${S.isAdmin?`<span style="color:#b91c1c;font-weight:700">⚠️ ${L('inscrit hors période de la frise','registered outside schedule period')}</span>`:''}</p>`;
+    ${S.isAdmin?`<span style="color:#b91c1c;font-weight:700">⚠️ ${L('inscrit hors période de la frise','registered outside schedule period')}</span>`:''}</p>
+  <p class="pg-swipe-hint">↔ Glisse pour parcourir toute la saison</p>`;
 
-  // ── Calendrier type Google Agenda : un seul support pour s'inscrire et modifier les séances ──
-  { if(window._pgGoto){ AG.week = weekStart(parseDate(window._pgGoto)); window._pgGoto = null; }
-    else if(!AG.week) AG.week = weekStart(S.currentDate);
-    S.currentDate = new Date(AG.week);
-    html += `<div id="agInline" style="background:var(--white);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden"></div>`;
-    { const sc=document.getElementById('agScroll'); if(sc) AG.keep={t:sc.scrollTop,l:sc.scrollLeft}; }
-    wrap.innerHTML = html;
-    agRender(); agSync();
-    pgUpdateMultiBar();
-    return; }
-
-  // Tableau (ancienne grille, plus utilisée)
+  // Tableau
   html += `<div class="planning-wrap${!isKayak?' planning-muscu':''}"><div class="pg-blocks">`;
   blocks.forEach(blk=>{
   const bdays = blk.days;
@@ -6826,7 +6810,7 @@ async function pgDeleteSlot(){
 //  vers un autre jour et/ou une autre heure (pas de 30'), ses inscrits suivent.
 // ══════════════════════════════════════════════════════════════
 var AG = { week:null };
-const AG_PH = 84, AG_T0 = 420, AG_T1 = 1080;   // 60 px par heure, 7h → 18h
+const AG_PH = 60, AG_T0 = 420, AG_T1 = 1080;   // 60 px par heure, 7h → 18h
 function agOpen(){
   if(!canPlanSettings()) return;
   if(!AG.week) AG.week = weekStart(todayClamped());
@@ -6839,14 +6823,8 @@ function agOpen(){
   agRender();
 }
 function agClose(){ document.getElementById('agOverlay')?.remove(); renderPlanningGrid(); }
-function agSync(){
-  S.currentDate = new Date(AG.week);
-  const ct=document.getElementById('calTitle'); if(ct) ct.textContent = `${t('months')[AG.week.getMonth()]} ${AG.week.getFullYear()}`;
-  const ym=AG.week.getFullYear()+'-'+AG.week.getMonth();
-  document.querySelectorAll('#pgMonths .pg-mchip').forEach(b=>b.classList.toggle('btn-primary', b.dataset.ym===ym));
-}
-function agShift(n){ AG.week = new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+7*n); agSync(); agRender(); }
-function agToday(){ AG.week = weekStart(todayClamped()); agSync(); agRender(); }
+function agShift(n){ AG.week = new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+7*n); agRender(); }
+function agToday(){ AG.week = weekStart(todayClamped()); agRender(); }
 function agLayout(items){
   items.sort((x,y)=>x.a-y.a||x.b-y.b);
   let cluster=[], end=0;
@@ -6857,135 +6835,57 @@ function agLayout(items){
   flush(); return items;
 }
 function agRender(){
-  const overlay=document.getElementById('agOverlay');
-  const el=overlay||document.getElementById('agInline'); if(!el) return;
-  const inline=!overlay;
-  const act = overlay ? 'kayak' : _pgActivity, isK = act==='kayak';
-  const canDrag = canPlanSettings() && isK;
-  const clickable = S.isAdmin || !S.isReadonly;
-  const prev=el.querySelector('#agScroll');
-  const keep=prev?{t:prev.scrollTop,l:prev.scrollLeft}:(AG.keep||null); AG.keep=null;
-  const LOC=LOCALE(), today=dk(new Date());
+  const el=document.getElementById('agOverlay'); if(!el) return;
+  const LOC=LOCALE();
   const days=[]; for(let i=0;i<7;i++) days.push(new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+i));
   const H=(AG_T1-AG_T0)/60*AG_PH;
   const line='rgba(128,128,128,.28)', half='rgba(128,128,128,.12)';
   let unparsed=[];
-  const head=days.map(d=>{ const off=isClosed(d)||outOfRange(d); const k=dk(d);
-    const nHead = (!off && isK && typeof friseHeadcount==='function') ? friseHeadcount(k) : 0;
-    const dayBtn = (S.isAdmin && !outOfRange(d)) ? `<button type="button" title="${esc(isClosed(d)?'Gérer cette journée bloquée':'Bloquer la journée complète (compétition, férié…)')}" onclick="event.stopPropagation();pgDayMenu('${k}')" style="margin-left:4px;border:1px solid ${line};background:transparent;color:inherit;border-radius:5px;font-size:.62rem;line-height:1;padding:2px 5px;cursor:pointer">${isClosed(d)?'🔓':'🚫'}</button>` : '';
-    const reason = (S.customClosed&&S.customClosed[k]===true && typeof closedReasonLabel==='function') ? closedReasonLabel(k) : '';
-    return `<div style="flex:1;text-align:center;padding:6px 2px;font-size:.78rem;font-weight:800;border-left:1px solid ${line};${off?'background:rgba(128,128,128,.12);color:#9ca3af':(k===today?'background:rgba(37,99,235,.14);color:#1d4ed8':'')}">${esc(d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'}))}${dayBtn}${nHead?`<div style="font-size:.6rem;font-weight:700;opacity:.8">👥 ${nHead}</div>`:''}${isClosed(d)?`<div style="font-size:.6rem">🚫 ${reason?esc(reason):'bloqué'}</div>`:''}</div>`; }).join('');
+  const head=days.map(d=>{ const off=isClosed(d)||outOfRange(d);
+    return `<div style="flex:1;text-align:center;padding:6px 2px;font-size:.78rem;font-weight:800;border-left:1px solid ${line};${off?'background:rgba(128,128,128,.12);color:#9ca3af':''}">${esc(d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'}))}${isClosed(d)?'<div style="font-size:.6rem">🚫 bloqué</div>':''}</div>`; }).join('');
   const hours=[]; for(let h=7;h<18;h++) hours.push(`<div style="position:absolute;top:${(h-7)*AG_PH-7}px;right:4px;font-size:.68rem;color:var(--text3)">${h}:00</div>`);
   let blocks='';
   days.forEach((d,idx)=>{
     const k=dk(d);
     if(isClosed(d)||outOfRange(d)){ blocks+=`<div style="position:absolute;left:calc(${idx}*100%/7);width:calc(100%/7);top:0;height:${H}px;background:rgba(128,128,128,.12);pointer-events:none"></div>`; if(outOfRange(d)) return; }
-    else if(k===today) blocks+=`<div style="position:absolute;left:calc(${idx}*100%/7);width:calc(100%/7);top:0;height:${H}px;background:rgba(37,99,235,.06);pointer-events:none"></div>`;
     const items=[];
-    (isK ? allSlots(k) : S.muscuSlots).forEach(sl=>{ const p=pgParseSlot(sl); if(!p||p[0]<AG_T0||p[1]>AG_T1){ unparsed.push(k+' '+sl); return; }
-      const reg = isK ? getSlot(k,sl) : getSlot(k,sl,'muscu');
-      const cfg = (isK ? getKayakSlotCfg(k,sl) : getMuscuSlotCfg(k,sl)) || {};
-      const kx = isK && isKayakCross(k,sl);
-      const ex = isK ? exclusiveInfo(k,sl) : null;
-      items.push({slot:sl,a:p[0],b:p[1],n:reg.length,c:cap(sl,k,act),names:reg.map(x=>x.name),blocked:!!cfg.blocked,kx,label:kx?'':(cfg.label||''),
-        pri:isK?pgPriInfo(k,sl):null, ex, exB:!!(ex&&exclusiveBlocksMe(k,sl))}); });
+    allSlots(k).forEach(sl=>{ const p=pgParseSlot(sl); if(!p){ unparsed.push(k+' '+sl); return; }
+      items.push({slot:sl,a:p[0],b:p[1],n:getSlot(k,sl).length,c:cap(sl,k,'kayak'),blocked:!!getKayakSlotCfg(k,sl).blocked,kx:isKayakCross(k,sl),label:getKayakSlotCfg(k,sl).label||''}); });
     agLayout(items).forEach(it=>{
-      const top=(it.a-AG_T0)/60*AG_PH, h=Math.max(22,(it.b-it.a)/60*AG_PH-2);
-      const pri=it.pri, locked=!!(pri&&pri.locked);
-      const full = it.c>0 && it.n>=it.c, mid = it.c>0 && it.n/it.c>=0.6;
-      const bg = it.blocked ? '#6b7280' : it.exB ? '#4f46e5' : locked ? '#6b7280' : it.kx ? '#f97316'
-               : it.label==='CRRCK' ? '#7c3aed' : it.label==='CLUB' ? '#0d9488' : full ? '#d1495b' : mid ? '#c79a12' : '#5f8f23';
-      const pill=(t,c2)=>`<span style="background:${c2||'rgba(255,255,255,.92)'};color:${c2?'#fff':'#111'};border-radius:9px;padding:0 6px;font-size:.66rem;font-weight:800;line-height:1.35">${t}</span>`;
-      let st;
-      if(it.blocked) st='🚫 Bloqué';
-      else if(it.exB) st='🔐 Réservé';
-      else if(locked) st='🔒 Pas encore ouvert';
-      else st=`${it.kx?'🏄 ':''}<b>${it.n}/${it.c}</b>${pri&&pri.forced?(pri.auto?' ⚡':' 🔓'):''}${(it.label&&it.label!=='KX')?' · '+esc(it.label):''}${it.ex&&!it.exB?' 🔐':''}`;
-      const nl = Math.max(0, Math.floor((h-54)/13));
-      const nm = it.names.slice(0,12).map(n=>{ const w=String(n).split(' '); return esc(w[0]+(w[1]?' '+w[1].charAt(0)+'.':'')); }).join(', ') + (it.names.length>12?` +${it.names.length-12}`:'');
-      const bs='border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.22);color:#fff;border-radius:4px;font-size:.6rem;line-height:1;padding:2px 4px;cursor:pointer;margin-left:2px';
-      const adminPri = (S.isAdmin && pri && !it.blocked && h>=66) ? `<div style="position:absolute;right:3px;bottom:11px;white-space:nowrap" onpointerdown="event.stopPropagation()">
-          <button type="button" style="${bs}" title="Monter dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${esc(it.slot)}',-1)">▲</button><button type="button" style="${bs}" title="Descendre dans la priorité" onclick="event.stopPropagation();pgQuickMove('${k}','${esc(it.slot)}',1)">▼</button>${(pri.locked||(pri.forced&&!pri.auto))?`<button type="button" style="${bs}" title="${pri.forced?'Ouvert malgré la priorité : cliquer pour rétablir':'Verrouillé : cliquer pour ouvrir malgré la priorité'}" onclick="event.stopPropagation();pgQuickForce('${k}','${esc(it.slot)}')">${pri.forced?'🔓':'🔒'}</button>`:''}</div>` : '';
-      const sel = !S.isAdmin && pgIsSel(k,it.slot);
-      blocks+=`<div class="ag-blk" data-k="${k}" data-s="${esc(it.slot)}" data-a="${it.a}" data-b="${it.b}" data-idx="${idx}" data-act="${act}" data-drag="${canDrag?1:0}"
-        title="${esc(it.slot)}${pri?' · priorité P'+pri.rank:''} · ${it.n}/${it.c} inscrit(s)${it.names.length?' : '+it.names.join(', '):''}"
-        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:8px;padding:3px 6px 10px;overflow:hidden;cursor:${canDrag?'grab':(clickable?'pointer':'default')};${canDrag?'touch-action:none;':''}user-select:none;box-shadow:0 1px 4px rgba(0,0,0,.35);box-sizing:border-box;border-left:5px solid rgba(255,255,255,.55);${(locked||it.blocked)?'opacity:.88;':''}${sel?'outline:3px solid #111;outline-offset:1px;':''}">
-        <div style="display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden">${pri?pill('P'+pri.rank):''}<span class="ag-t" style="font-size:.84rem;font-weight:800;line-height:1.2">${pgFmtMin(it.a)} – ${pgFmtMin(it.b)}</span></div>
-        ${h>=36?`<div style="font-size:.74rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${st}</div>`:''}
-        ${(nl>=1&&it.names.length&&!it.blocked&&!locked&&!it.exB)?`<div style="font-size:.68rem;line-height:1.25;opacity:.95;margin-top:1px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:${nl};-webkit-box-orient:vertical;${adminPri?'margin-right:46px;':''}">${nm}</div>`:''}
-        ${adminPri}
-        ${canDrag?`<div class="ag-rz" title="Tire pour changer l'heure de fin" style="position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;background:linear-gradient(transparent,rgba(255,255,255,.4));touch-action:none"></div>`:''}</div>`;
+      const top=(it.a-AG_T0)/60*AG_PH, h=Math.max(20,(it.b-it.a)/60*AG_PH-2);
+      const bg = it.blocked ? '#9ca3af' : (it.kx ? '#ea580c' : '#2563eb');
+      blocks+=`<div class="ag-blk" data-k="${k}" data-s="${esc(it.slot)}" data-a="${it.a}" data-b="${it.b}" data-idx="${idx}"
+        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:8px;padding:3px 6px;overflow:hidden;cursor:grab;touch-action:none;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,.35);box-sizing:border-box;border-left:5px solid rgba(255,255,255,.55)">
+        <div style="font-size:.9rem;font-weight:800;line-height:1.15;white-space:nowrap">${pgFmtClock(it.a)} – ${pgFmtClock(it.b)}</div>
+        ${h>=34?`<div style="font-size:.72rem;line-height:1.2;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.blocked?'🚫 Bloqué':`${it.kx?'Kayak cross':'Slalom'} · <b>${it.n}/${it.c}</b>`}${it.label?` · ${esc(it.label)}`:''}</div>`:''}
+        <span style="position:absolute;right:4px;top:2px;font-size:.8rem;opacity:.7;pointer-events:none">⠿</span></div>`;
     });
   });
-  const wkTitle = days[0].toLocaleDateString(LOC,{day:'numeric',month:'short'})+' – '+days[6].toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'});
-  const sw=(c,t)=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:11px;height:11px;border-radius:3px;background:${c};display:inline-block"></span>${t}</span>`;
-  const hint = canDrag ? "Glisse une bulle pour la déplacer · tire son bas pour changer l'heure de fin · clique dessus pour inscrire / gérer les inscrits · clique dans le vide pour ajouter une séance d'1 h"
-             : (S.isAdmin ? "Clique sur une séance pour la gérer et inscrire des athlètes"
-             : (S.isReadonly ? "Mode consultation" : (_pgMulti.on ? "Clique les séances voulues, puis « Inscrire ma team »" : "Clique sur une séance pour y inscrire ta team")));
   el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid ${line}">
-      ${inline?'':'<b style="font-size:1rem">📅 Agenda kayak</b>'}
+      <b style="font-size:1rem">📅 Agenda kayak</b>
       <button class="btn btn-sm" onclick="agShift(-1)">◀</button>
       <button class="btn btn-sm" onclick="agToday()">Aujourd'hui</button>
       <button class="btn btn-sm" onclick="agShift(1)">▶</button>
-      <b style="font-size:.85rem">${esc(wkTitle)}</b>
-      <span style="font-size:.74rem;color:var(--text3);flex:1;min-width:220px">${esc(hint)}</span>
-      ${inline?'':'<button class="btn btn-sm" onclick="agClose()">✕ Fermer</button>'}
+      <span style="font-size:.78rem;color:var(--text3);flex:1;min-width:200px">Glisse une bulle (⠿) pour la déplacer par pas de 30 min · clique dessus pour la modifier · clique dans le vide pour ajouter une séance d'1 h</span>
+      <button class="btn btn-sm" onclick="agClose()">✕ Fermer</button>
     </div>
-    <div id="agScroll" style="${inline?'overflow:auto;max-height:min(78vh,760px)':'flex:1;overflow:auto'}">
-      <div style="min-width:900px">
-        <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--white);border-bottom:1px solid ${line}"><div style="width:46px;flex:none"></div>${head}</div>
+    <div style="flex:1;overflow:auto">
+      <div style="min-width:760px">
+        <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--white);border-bottom:1px solid ${line}"><div style="width:46px"></div>${head}</div>
         <div style="display:flex">
           <div style="width:46px;position:relative;height:${H}px;flex:none">${hours.join('')}</div>
           <div id="agBody" onclick="agBodyClick(event)" onpointerdown="agDown(event)" style="flex:1;position:relative;height:${H}px;background-image:repeating-linear-gradient(to bottom,${line} 0 1px,transparent 1px ${AG_PH}px),repeating-linear-gradient(to bottom,transparent 0 ${AG_PH/2-1}px,${half} ${AG_PH/2-1}px ${AG_PH/2}px,transparent ${AG_PH/2}px ${AG_PH}px)">
-            ${isK?`<div style="position:absolute;left:0;right:0;top:${(720-AG_T0)/60*AG_PH}px;height:${AG_PH}px;background:rgba(128,128,128,.10);pointer-events:none"></div>`:''}
+            <div style="position:absolute;left:0;right:0;top:${(720-AG_T0)/60*AG_PH}px;height:${AG_PH}px;background:rgba(128,128,128,.10);pointer-events:none"></div>
             ${days.map((d,i)=>`<div style="position:absolute;top:0;bottom:0;left:calc(${i}*100%/7);border-left:1px solid ${line};pointer-events:none"></div>`).join('')}
             ${blocks}
           </div>
         </div>
         ${unparsed.length?`<p style="font-size:.72rem;color:var(--text3);padding:6px 12px">Séances sans horaire exploitable (non affichées) : ${esc(unparsed.slice(0,8).join(', '))}</p>`:''}
       </div>
-    </div>
-    <div style="font-size:.72rem;color:var(--text2);padding:7px 12px;border-top:1px solid ${line}">${sw('#5f8f23','Ouvert')}${sw('#c79a12','Bien rempli')}${sw('#d1495b','Complet')}${sw('#6b7280','Bloqué / pas encore ouvert')}${isK?sw('#f97316','Kayak Cross')+sw('#7c3aed','CRRCK')+sw('#0d9488','CLUB')+sw('#4f46e5','Exclusif'):''}<span style="opacity:.8">P1, P2… = ordre de priorité</span></div>`;
-  const sc=el.querySelector('#agScroll'); if(sc && keep){ sc.scrollTop=keep.t; sc.scrollLeft=keep.l; }
-}
-function agResizeDown(e, blk){
-  if(e.button>0) return;
-  e.preventDefault(); e.stopPropagation();
-  const k=blk.dataset.k, s0=blk.dataset.s, a=+blk.dataset.a, b=+blk.dataset.b, y0=e.clientY;
-  let nb=b, moved=false;
-  try{ blk.setPointerCapture(e.pointerId); }catch(_){}
-  const move=ev=>{
-    moved=true;
-    let t2=b+Math.round((ev.clientY-y0)/AG_PH*2)*30;
-    t2=Math.max(a+30,Math.min(AG_T1,t2));
-    if(a<720 && t2>720) t2=720;
-    nb=t2;
-    blk.style.height=Math.max(20,(nb-a)/60*AG_PH-2)+'px';
-    const f=blk.querySelector('.ag-t'); if(f) f.textContent=pgFmtMin(a)+' – '+pgFmtMin(nb);
-  };
-  const up=ev=>{
-    blk.removeEventListener('pointermove',move); blk.removeEventListener('pointerup',up); blk.removeEventListener('pointercancel',up);
-    try{ blk.releasePointerCapture(ev.pointerId); }catch(_){}
-    if(!moved || nb===b || ev.type!=='pointerup'){ agRender(); return; }
-    agResize(k,s0,a,nb);
-  };
-  blk.addEventListener('pointermove',move); blk.addEventListener('pointerup',up); blk.addEventListener('pointercancel',up);
-}
-async function agResize(k, slot, a, nb){
-  const newS=pgFmtMin(a)+'-'+pgFmtMin(nb);
-  const err=pgTimeError(newS); if(err){ toast('⚠️ '+err,'error'); agRender(); return; }
-  try{
-    await pgRenameKayakSlot(k, slot, newS);
-    await saveConfig();
-    toast(`✅ Horaire modifié : ${newS}`,'success');
-  }catch(e){ toast('⚠️ Modification impossible : '+(e.message||e),'error'); }
-  renderPlanningGrid();
+    </div>`;
 }
 function agDown(e){
   const blk=e.target.closest('.ag-blk'); if(!blk || e.button>0) return;
-  if(e.target.closest('button')) return;
-  if(blk.dataset.drag!=='1') return;
-  if(e.target.closest('.ag-rz')){ agResizeDown(e, blk); return; }
   const body=document.getElementById('agBody');
   const D={ blk, k:blk.dataset.k, s:blk.dataset.s, a:+blk.dataset.a, b:+blk.dataset.b, x0:e.clientX, y0:e.clientY, top0:parseFloat(blk.style.top), moved:false, tgt:null, ghost:null };
   D.dur=D.b-D.a;
@@ -7003,7 +6903,7 @@ function agDown(e){
     D.tgt={idx,st};
     D.ghost.style.left=(idx*colW)+'px'; D.ghost.style.width=(colW-3)+'px';
     D.ghost.style.top=((st-AG_T0)/60*AG_PH)+'px'; D.ghost.style.height=(D.dur/60*AG_PH-2)+'px';
-    D.ghost.textContent=pgFmtMin(st)+' – '+pgFmtMin(st+D.dur);
+    D.ghost.textContent=pgFmtClock(st)+' – '+pgFmtClock(st+D.dur);
   };
   const up=ev=>{
     blk.removeEventListener('pointermove',move); blk.removeEventListener('pointerup',up); blk.removeEventListener('pointercancel',up);
@@ -7015,17 +6915,8 @@ function agDown(e){
   };
   blk.addEventListener('pointermove',move); blk.addEventListener('pointerup',up); blk.addEventListener('pointercancel',up);
 }
-function agBlockClick(blk){
-  if(!(S.isAdmin || !S.isReadonly)) return;
-  const k=blk.dataset.k, sl=blk.dataset.s;
-  if(S.isAdmin || !_pgMulti.on){ pgOpenSlot(k, sl, blk.dataset.act); return; }
-  pgCellClick(blk, k, sl);
-}
 function agBodyClick(e){
-  if(e.target.closest('button')) return;
-  const bl=e.target.closest('.ag-blk');
-  if(bl){ if(bl.dataset.drag!=='1') agBlockClick(bl); return; }
-  if(!(canPlanSettings() && _pgActivity==='kayak')) return;
+  if(e.target.closest('.ag-blk')) return;
   const body=document.getElementById('agBody'), r=body.getBoundingClientRect();
   const idx=Math.max(0,Math.min(6,Math.floor((e.clientX-r.left)/(r.width/7))));
   let st=AG_T0+Math.floor((e.clientY-r.top)/AG_PH*2)*30;
@@ -7048,7 +6939,7 @@ async function agMove(fromK, slot, idx, st, dur){
     await saveConfig();
     toast(`✅ Séance déplacée : ${newS}`,'success');
   }catch(e){ toast('⚠️ Déplacement impossible : '+(e.message||e),'error'); }
-  renderPlanningGrid(); if(document.getElementById('agOverlay')) agRender();
+  agRender(); renderPlanningGrid();
 }
 async function pgMoveSlotToDay(fromK, oldS, toK, newS){
   if(allSlots(toK).includes(newS)) throw new Error('ce créneau existe déjà ce jour-là');
@@ -8036,7 +7927,6 @@ function pgMultiCount(){ return Object.values(_pgMulti.sel).reduce((n,s)=>n+s.si
 function pgIsSel(k,slot){ return !!(_pgMulti.sel[k] && _pgMulti.sel[k].has(slot)); }
 function pgStyleCell(td,on){
   if(!td) return;
-  if(td.classList && td.classList.contains('ag-blk')){ td.style.outline = on ? '3px solid #111' : ''; td.style.outlineOffset = on ? '1px' : ''; return; }
   td.style.outline = on ? '3px solid var(--accent)' : '';
   td.style.outlineOffset = on ? '-3px' : '';
   td.style.background = on ? 'var(--accent-light)' : '';
@@ -8262,14 +8152,14 @@ function printPlanningGrid(baseDate){
 
 function setView(v){ S.view=(v==='week'?'planning':v); render(); }
 function navPrev(){
-  if(S.view==='planning'){ if(pgAgendaOn()){ agShift(-1); return; } pgScrollBy(-1); return; }
+  if(S.view==='planning'){ pgScrollBy(-1); return; }
   { const st=document.getElementById('monthStrip'); if(S.view==='month' && st){ st.scrollBy({left:-st.clientWidth,behavior:'smooth'}); return; } }
   if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()-1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()-7); S.currentDate=d; }
   render();
 }
 function navNext(){
-  if(S.view==='planning'){ if(pgAgendaOn()){ agShift(1); return; } pgScrollBy(1); return; }
+  if(S.view==='planning'){ pgScrollBy(1); return; }
   { const st=document.getElementById('monthStrip'); if(S.view==='month' && st){ st.scrollBy({left:st.clientWidth,behavior:'smooth'}); return; } }
   if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()+1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()+7); S.currentDate=d; }
