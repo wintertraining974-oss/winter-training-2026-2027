@@ -6411,6 +6411,18 @@ function selectDay(k){
 // VUE PLANNING GRILLE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let _pgActivity = 'kayak'; // 'kayak' | 'muscu'
+var _pgMode = 'agenda';      // 'agenda' (bulles glisser-déposer) | 'grille' — super-admin, kayak
+function pgAgendaOn(){ return !!(canPlanSettings() && _pgActivity==='kayak' && _pgMode==='agenda'); }
+function pgSetMode(m){
+  _pgMode = m;
+  if(m==='agenda') AG.week = weekStart(S.currentDate);
+  else window._pgGoto = dk(AG.week || weekStart(S.currentDate));
+  renderPlanningGrid();
+}
+function pgAgGoMonth(y,mo){
+  let d=new Date(y,mo,1); if(d<START) d=new Date(START);
+  AG.week=weekStart(d); S.currentDate=new Date(AG.week); renderPlanningGrid();
+}
 
 function renderPlanningGrid(){
   // Créer ou recycler le conteneur
@@ -6451,6 +6463,43 @@ function renderPlanningGrid(){
     <button class="pg-act-btn muscu-act${_pgActivity==='muscu'?' active':''}" onclick="pgSetActivity('muscu')">🏋️ Fitness</button>
   </div>`;
 
+  // Super-admin + kayak : choix Agenda (bulles) / Grille
+  if(canPlanSettings() && isKayak){
+    html += `<div style="display:flex;gap:6px;margin:0 0 8px;flex-wrap:wrap">
+      <button class="btn btn-sm${_pgMode==='agenda'?' btn-primary':''}" onclick="pgSetMode('agenda')">📅 Agenda (glisser-déposer)</button>
+      <button class="btn btn-sm${_pgMode==='grille'?' btn-primary':''}" onclick="pgSetMode('grille')">▦ Grille</button>
+    </div>`;
+  }
+
+  // ── Mode agenda : tout sur la même page (déplacer, changer les horaires, gérer les inscrits) ──
+  if(pgAgendaOn()){
+    if(!AG.week) AG.week = weekStart(S.currentDate);
+    S.currentDate = new Date(AG.week);
+    html += `<div class="pg-months" id="pgMonths">
+      <button class="btn btn-sm" onclick="agToday()">📍 Aujourd'hui</button>`;
+    for(let c=new Date(START.getFullYear(),START.getMonth(),1); c<=END; c=new Date(c.getFullYear(),c.getMonth()+1,1)){
+      html += `<button class="btn btn-sm pg-mchip" data-ym="${c.getFullYear()}-${c.getMonth()}" onclick="pgAgGoMonth(${c.getFullYear()},${c.getMonth()})">${esc(months[c.getMonth()])}</button>`;
+    }
+    html += `</div>
+    <div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
+      <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('kayak')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
+      <button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>
+      <button class="btn btn-sm" style="background:#0369a1;color:white" onclick="diagOpen()">🔎 ${L('Diagnostic','Check')}</button>
+      <button class="btn btn-sm" style="background:#15803d;color:white" onclick="auditOpen()">🩺 ${L('Audit','Audit')}</button>
+    </div>`;
+    if(S.priorityOn) html += pgPerPanelHtml();
+    html += `<div id="agInline" style="background:var(--white);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden"></div>`;
+    { const sc=document.getElementById('agScroll'); if(sc) AG.keep={t:sc.scrollTop,l:sc.scrollLeft}; }
+    wrap.innerHTML = html;
+    agRender();
+    { const ct=document.getElementById('calTitle'); if(ct) ct.textContent = `${months[AG.week.getMonth()]} ${AG.week.getFullYear()}`;
+      const ym=AG.week.getFullYear()+'-'+AG.week.getMonth();
+      document.querySelectorAll('#pgMonths .pg-mchip').forEach(b=>b.classList.toggle('btn-primary', b.dataset.ym===ym)); }
+    pgUpdateMultiBar();
+    return;
+  }
+
   // Raccourcis par mois
   html += `<div class="pg-months" id="pgMonths">`;
   html += `<button class="btn btn-sm" onclick="pgGoToday()">📍 Aujourd'hui</button>`;
@@ -6463,7 +6512,6 @@ function renderPlanningGrid(){
   html += `<div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
-    ${(canPlanSettings()&&isKayak)?`<button class="btn btn-sm btn-primary" onclick="agOpen()">📅 Agenda (glisser-déposer)</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0369a1;color:white" onclick="diagOpen()">🔎 ${L('Diagnostic','Check')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#15803d;color:white" onclick="auditOpen()">🩺 ${L('Audit','Audit')}</button>`:''}
@@ -6745,8 +6793,14 @@ function agOpen(){
   agRender();
 }
 function agClose(){ document.getElementById('agOverlay')?.remove(); renderPlanningGrid(); }
-function agShift(n){ AG.week = new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+7*n); agRender(); }
-function agToday(){ AG.week = weekStart(todayClamped()); agRender(); }
+function agSync(){
+  S.currentDate = new Date(AG.week);
+  const ct=document.getElementById('calTitle'); if(ct) ct.textContent = `${t('months')[AG.week.getMonth()]} ${AG.week.getFullYear()}`;
+  const ym=AG.week.getFullYear()+'-'+AG.week.getMonth();
+  document.querySelectorAll('#pgMonths .pg-mchip').forEach(b=>b.classList.toggle('btn-primary', b.dataset.ym===ym));
+}
+function agShift(n){ AG.week = new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+7*n); agSync(); agRender(); }
+function agToday(){ AG.week = weekStart(todayClamped()); agSync(); agRender(); }
 function agLayout(items){
   items.sort((x,y)=>x.a-y.a||x.b-y.b);
   let cluster=[], end=0;
@@ -6757,14 +6811,21 @@ function agLayout(items){
   flush(); return items;
 }
 function agRender(){
-  const el=document.getElementById('agOverlay'); if(!el) return;
+  const overlay=document.getElementById('agOverlay');
+  const el=overlay||document.getElementById('agInline'); if(!el) return;
+  const inline=!overlay;
+  const prev=el.querySelector('#agScroll');
+  const keep=prev?{t:prev.scrollTop,l:prev.scrollLeft}:(AG.keep||null); AG.keep=null;
   const LOC=LOCALE();
   const days=[]; for(let i=0;i<7;i++) days.push(new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+i));
   const H=(AG_T1-AG_T0)/60*AG_PH;
   const line='rgba(128,128,128,.28)', half='rgba(128,128,128,.12)';
   let unparsed=[];
-  const head=days.map(d=>{ const off=isClosed(d)||outOfRange(d);
-    return `<div style="flex:1;text-align:center;padding:6px 2px;font-size:.78rem;font-weight:800;border-left:1px solid ${line};${off?'background:rgba(128,128,128,.12);color:#9ca3af':''}">${esc(d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'}))}${isClosed(d)?'<div style="font-size:.6rem">🚫 bloqué</div>':''}</div>`; }).join('');
+  const head=days.map(d=>{ const off=isClosed(d)||outOfRange(d); const k=dk(d);
+    const nHead = (!off && typeof friseHeadcount==='function') ? friseHeadcount(k) : 0;
+    const dayBtn = (S.isAdmin && !outOfRange(d)) ? `<button type="button" title="${esc(isClosed(d)?'Gérer cette journée bloquée':'Bloquer la journée complète (compétition, férié…)')}" onclick="event.stopPropagation();pgDayMenu('${k}')" style="margin-left:4px;border:1px solid ${line};background:transparent;color:inherit;border-radius:5px;font-size:.62rem;line-height:1;padding:2px 5px;cursor:pointer">${isClosed(d)?'🔓':'🚫'}</button>` : '';
+    const reason = (S.customClosed&&S.customClosed[k]===true && typeof closedReasonLabel==='function') ? closedReasonLabel(k) : '';
+    return `<div style="flex:1;text-align:center;padding:6px 2px;font-size:.78rem;font-weight:800;border-left:1px solid ${line};${off?'background:rgba(128,128,128,.12);color:#9ca3af':''}">${esc(d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'}))}${dayBtn}${nHead?`<div style="font-size:.6rem;font-weight:700;opacity:.8">👥 ${nHead}</div>`:''}${isClosed(d)?`<div style="font-size:.6rem">🚫 ${reason?esc(reason):'bloqué'}</div>`:''}</div>`; }).join('');
   const hours=[]; for(let h=7;h<18;h++) hours.push(`<div style="position:absolute;top:${(h-7)*AG_PH-7}px;right:4px;font-size:.68rem;color:var(--text3)">${h}:00</div>`);
   let blocks='';
   days.forEach((d,idx)=>{
@@ -6772,28 +6833,36 @@ function agRender(){
     if(isClosed(d)||outOfRange(d)){ blocks+=`<div style="position:absolute;left:calc(${idx}*100%/7);width:calc(100%/7);top:0;height:${H}px;background:rgba(128,128,128,.12);pointer-events:none"></div>`; if(outOfRange(d)) return; }
     const items=[];
     allSlots(k).forEach(sl=>{ const p=pgParseSlot(sl); if(!p){ unparsed.push(k+' '+sl); return; }
-      items.push({slot:sl,a:p[0],b:p[1],n:getSlot(k,sl).length,c:cap(sl,k,'kayak'),blocked:!!getKayakSlotCfg(k,sl).blocked,kx:isKayakCross(k,sl),label:getKayakSlotCfg(k,sl).label||''}); });
+      const reg=getSlot(k,sl);
+      items.push({slot:sl,a:p[0],b:p[1],n:reg.length,c:cap(sl,k,'kayak'),names:reg.map(x=>x.name),blocked:!!getKayakSlotCfg(k,sl).blocked,kx:isKayakCross(k,sl),label:getKayakSlotCfg(k,sl).label||''}); });
     agLayout(items).forEach(it=>{
       const top=(it.a-AG_T0)/60*AG_PH, h=Math.max(20,(it.b-it.a)/60*AG_PH-2);
-      const bg = it.blocked ? '#9ca3af' : (it.kx ? '#ea580c' : '#2563eb');
+      const full = !it.blocked && !it.kx && it.c>0 && it.n>=it.c;
+      const bg = it.blocked ? '#9ca3af' : (it.kx ? '#ea580c' : (full ? '#b91c1c' : '#2563eb'));
+      const nm = it.names.slice(0,8).map(n=>{ const w=String(n).split(' '); return esc(w[0]+(w[1]?' '+w[1].charAt(0)+'.':'')); }).join(', ') + (it.names.length>8?` +${it.names.length-8}`:'');
       blocks+=`<div class="ag-blk" data-k="${k}" data-s="${esc(it.slot)}" data-a="${it.a}" data-b="${it.b}" data-idx="${idx}"
-        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:8px;padding:3px 6px;overflow:hidden;cursor:grab;touch-action:none;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,.35);box-sizing:border-box;border-left:5px solid rgba(255,255,255,.55)">
+        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:8px;padding:3px 6px 9px;overflow:hidden;cursor:grab;touch-action:none;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,.35);box-sizing:border-box;border-left:5px solid rgba(255,255,255,.55)">
         <div style="font-size:.9rem;font-weight:800;line-height:1.15;white-space:nowrap">${pgFmtClock(it.a)} – ${pgFmtClock(it.b)}</div>
         ${h>=34?`<div style="font-size:.72rem;line-height:1.2;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.blocked?'🚫 Bloqué':`${it.kx?'Kayak cross':'Slalom'} · <b>${it.n}/${it.c}</b>`}${it.label?` · ${esc(it.label)}`:''}</div>`:''}
-        <span style="position:absolute;right:4px;top:2px;font-size:.8rem;opacity:.7;pointer-events:none">⠿</span></div>`;
+        ${(h>=62&&!it.blocked&&it.names.length)?`<div style="font-size:.66rem;line-height:1.25;opacity:.92;margin-top:2px;overflow:hidden">${nm}</div>`:''}
+        <span style="position:absolute;right:4px;top:2px;font-size:.8rem;opacity:.7;pointer-events:none">⠿</span>
+        <div class="ag-rz" title="Tire pour changer l'heure de fin" style="position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;background:linear-gradient(transparent,rgba(255,255,255,.4));touch-action:none"></div></div>`;
     });
   });
+  const wkTitle = days[0].toLocaleDateString(LOC,{day:'numeric',month:'short'})+' – '+days[6].toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'});
+  const sw=(c,t)=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:11px;height:11px;border-radius:3px;background:${c};display:inline-block"></span>${t}</span>`;
   el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid ${line}">
-      <b style="font-size:1rem">📅 Agenda kayak</b>
+      ${inline?'':'<b style="font-size:1rem">📅 Agenda kayak</b>'}
       <button class="btn btn-sm" onclick="agShift(-1)">◀</button>
       <button class="btn btn-sm" onclick="agToday()">Aujourd'hui</button>
       <button class="btn btn-sm" onclick="agShift(1)">▶</button>
-      <span style="font-size:.78rem;color:var(--text3);flex:1;min-width:200px">Glisse une bulle (⠿) pour la déplacer par pas de 30 min · clique dessus pour la modifier · clique dans le vide pour ajouter une séance d'1 h</span>
-      <button class="btn btn-sm" onclick="agClose()">✕ Fermer</button>
+      <b style="font-size:.85rem">${esc(wkTitle)}</b>
+      <span style="font-size:.74rem;color:var(--text3);flex:1;min-width:220px">Glisse une bulle (⠿) pour la déplacer (jour + heure, pas de 30 min) · tire le bas pour changer l'heure de fin · clique dessus pour la modifier et gérer les inscrits · clique dans le vide pour ajouter une séance d'1 h</span>
+      ${inline?'':'<button class="btn btn-sm" onclick="agClose()">✕ Fermer</button>'}
     </div>
-    <div style="flex:1;overflow:auto">
+    <div id="agScroll" style="${inline?'overflow:auto;max-height:min(78vh,720px)':'flex:1;overflow:auto'}">
       <div style="min-width:760px">
-        <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--white);border-bottom:1px solid ${line}"><div style="width:46px"></div>${head}</div>
+        <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--white);border-bottom:1px solid ${line}"><div style="width:46px;flex:none"></div>${head}</div>
         <div style="display:flex">
           <div style="width:46px;position:relative;height:${H}px;flex:none">${hours.join('')}</div>
           <div id="agBody" onclick="agBodyClick(event)" onpointerdown="agDown(event)" style="flex:1;position:relative;height:${H}px;background-image:repeating-linear-gradient(to bottom,${line} 0 1px,transparent 1px ${AG_PH}px),repeating-linear-gradient(to bottom,transparent 0 ${AG_PH/2-1}px,${half} ${AG_PH/2-1}px ${AG_PH/2}px,transparent ${AG_PH/2}px ${AG_PH}px)">
@@ -6804,10 +6873,46 @@ function agRender(){
         </div>
         ${unparsed.length?`<p style="font-size:.72rem;color:var(--text3);padding:6px 12px">Séances sans horaire exploitable (non affichées) : ${esc(unparsed.slice(0,8).join(', '))}</p>`:''}
       </div>
-    </div>`;
+    </div>
+    <div style="font-size:.72rem;color:var(--text2);padding:7px 12px;border-top:1px solid ${line}">${sw('#2563eb','Slalom')}${sw('#ea580c','Kayak cross')}${sw('#b91c1c','Complet')}${sw('#9ca3af','Bloqué')}</div>`;
+  const sc=el.querySelector('#agScroll'); if(sc && keep){ sc.scrollTop=keep.t; sc.scrollLeft=keep.l; }
+}
+function agResizeDown(e, blk){
+  if(e.button>0) return;
+  e.preventDefault(); e.stopPropagation();
+  const k=blk.dataset.k, s0=blk.dataset.s, a=+blk.dataset.a, b=+blk.dataset.b, y0=e.clientY;
+  let nb=b, moved=false;
+  try{ blk.setPointerCapture(e.pointerId); }catch(_){}
+  const move=ev=>{
+    moved=true;
+    let t2=b+Math.round((ev.clientY-y0)/AG_PH*2)*30;
+    t2=Math.max(a+30,Math.min(AG_T1,t2));
+    if(a<720 && t2>720) t2=720;
+    nb=t2;
+    blk.style.height=Math.max(20,(nb-a)/60*AG_PH-2)+'px';
+    const f=blk.firstElementChild; if(f) f.textContent=pgFmtClock(a)+' – '+pgFmtClock(nb);
+  };
+  const up=ev=>{
+    blk.removeEventListener('pointermove',move); blk.removeEventListener('pointerup',up); blk.removeEventListener('pointercancel',up);
+    try{ blk.releasePointerCapture(ev.pointerId); }catch(_){}
+    if(!moved || nb===b || ev.type!=='pointerup'){ agRender(); return; }
+    agResize(k,s0,a,nb);
+  };
+  blk.addEventListener('pointermove',move); blk.addEventListener('pointerup',up); blk.addEventListener('pointercancel',up);
+}
+async function agResize(k, slot, a, nb){
+  const newS=pgFmtMin(a)+'-'+pgFmtMin(nb);
+  const err=pgTimeError(newS); if(err){ toast('⚠️ '+err,'error'); agRender(); return; }
+  try{
+    await pgRenameKayakSlot(k, slot, newS);
+    await saveConfig();
+    toast(`✅ Horaire modifié : ${newS}`,'success');
+  }catch(e){ toast('⚠️ Modification impossible : '+(e.message||e),'error'); }
+  renderPlanningGrid();
 }
 function agDown(e){
   const blk=e.target.closest('.ag-blk'); if(!blk || e.button>0) return;
+  if(e.target.closest('.ag-rz')){ agResizeDown(e, blk); return; }
   const body=document.getElementById('agBody');
   const D={ blk, k:blk.dataset.k, s:blk.dataset.s, a:+blk.dataset.a, b:+blk.dataset.b, x0:e.clientX, y0:e.clientY, top0:parseFloat(blk.style.top), moved:false, tgt:null, ghost:null };
   D.dur=D.b-D.a;
@@ -6861,7 +6966,7 @@ async function agMove(fromK, slot, idx, st, dur){
     await saveConfig();
     toast(`✅ Séance déplacée : ${newS}`,'success');
   }catch(e){ toast('⚠️ Déplacement impossible : '+(e.message||e),'error'); }
-  agRender(); renderPlanningGrid();
+  renderPlanningGrid(); if(document.getElementById('agOverlay')) agRender();
 }
 async function pgMoveSlotToDay(fromK, oldS, toK, newS){
   if(allSlots(toK).includes(newS)) throw new Error('ce créneau existe déjà ce jour-là');
@@ -8074,14 +8179,14 @@ function printPlanningGrid(baseDate){
 
 function setView(v){ S.view=(v==='week'?'planning':v); render(); }
 function navPrev(){
-  if(S.view==='planning'){ pgScrollBy(-1); return; }
+  if(S.view==='planning'){ if(pgAgendaOn()){ agShift(-1); return; } pgScrollBy(-1); return; }
   { const st=document.getElementById('monthStrip'); if(S.view==='month' && st){ st.scrollBy({left:-st.clientWidth,behavior:'smooth'}); return; } }
   if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()-1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()-7); S.currentDate=d; }
   render();
 }
 function navNext(){
-  if(S.view==='planning'){ pgScrollBy(1); return; }
+  if(S.view==='planning'){ if(pgAgendaOn()){ agShift(1); return; } pgScrollBy(1); return; }
   { const st=document.getElementById('monthStrip'); if(S.view==='month' && st){ st.scrollBy({left:st.clientWidth,behavior:'smooth'}); return; } }
   if(S.view==='month'){ S.currentDate=new Date(S.currentDate.getFullYear(),S.currentDate.getMonth()+1,1); }
   else { const d=new Date(S.currentDate); d.setDate(d.getDate()+7); S.currentDate=d; }
