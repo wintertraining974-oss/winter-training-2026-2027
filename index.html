@@ -1289,17 +1289,6 @@ header .user-pill { color: #fff; }
       <div id="suiviDayGrid"></div>
       <div style="margin-top:24px;border-top:2px solid var(--border);padding-top:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-          <h3 style="margin:0">📆 Synthèse de la réservation du groupe</h3>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <label style="font-size:.75rem;display:flex;gap:4px;align-items:center"><input type="checkbox" id="suiviBkNames" onchange="renderSuiviBooking()"> avec les noms</label>
-            <button class="btn btn-sm" onclick="suiviBookingCopy()">📋 Copier</button>
-            <button class="btn btn-sm" onclick="suiviBookingPrint()">🖨️ Imprimer</button>
-          </div>
-        </div>
-        <div id="suiviBooking"></div>
-      </div>
-      <div style="margin-top:24px;border-top:2px solid var(--border);padding-top:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <h3 style="margin:0">💶 Récapitulatif / Facture du groupe</h3>
           <button class="btn btn-sm" onclick="printSuiviInvoice()">🖨️ Imprimer la facture</button>
         </div>
@@ -3393,68 +3382,7 @@ function suiviContactBlockHtml(contact){
   return `<div style="font-size:.8rem;color:#444;margin-bottom:12px;line-height:1.6">${lines.join('<br>')}</div>`;
 }
 
-// ── Synthèse de la réservation d'un groupe : séances par jour, avec horaires ──
-function suiviBookingData(){
-  const team=suiviCurrentTeam(); if(!team) return null;
-  const members=suiviScopedMembers(team);
-  const names=new Set(members.map(m=>(m.athlete.full_name||'').trim().toLowerCase()));
-  const r=suiviPeriodRow();
-  const from=r?r.start_date:dk(START), to=r?r.end_date:dk(END);
-  const days=[];
-  for(let d=fqParse(from); dk(d)<=to; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)){
-    const k=dk(d), items=[];
-    const mine=(store)=>(store||[]).map(a=>a.name).filter(n=>names.has((n||'').trim().toLowerCase()));
-    let ks=[]; try{ ks=[...allSlots(k)].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)); }catch(e){}
-    ks.forEach(sl=>{ const n=mine(getSlot(k,sl)); if(n.length) items.push({slot:sl,type:isKayakCross(k,sl)?'Kayak cross':'Kayak slalom',names:n,t:slotStartMinutes(sl)}); });
-    [...(S.muscuSlots||[])].sort((a,b)=>slotStartMinutes(a)-slotStartMinutes(b)).forEach(sl=>{ const n=mine(getSlot(k,sl,'muscu')); if(n.length) items.push({slot:sl,type:'Musculation',names:n,t:slotStartMinutes(sl)}); });
-    items.sort((a,b)=>a.t-b.t);
-    if(items.length) days.push({k,items});
-  }
-  return { team, days, periodLabel:suiviPeriodLabel() };
-}
-function suiviBookingText(withNames){
-  const b=suiviBookingData(); if(!b) return '';
-  const LOC=LOCALE();
-  let t=`Réservation ${b.team.name}${b.periodLabel?' — '+b.periodLabel:''}\n`;
-  if(!b.days.length) return t+'Aucune séance réservée.';
-  b.days.forEach(day=>{
-    t+='\n'+fqParse(day.k).toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long'})+'\n';
-    day.items.forEach(it=>{ t+=`  • ${it.slot} — ${it.type} (${it.names.length} pers.)${withNames?' : '+it.names.join(', '):''}\n`; });
-  });
-  return t.trim();
-}
-function renderSuiviBooking(){
-  const el=document.getElementById('suiviBooking'); if(!el) return;
-  const b=suiviBookingData();
-  if(!b){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem">Choisis un groupe.</p>'; return; }
-  if(!b.days.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem">Aucune séance réservée pour ce groupe sur la période.</p>'; return; }
-  const withNames=!!document.getElementById('suiviBkNames')?.checked;
-  const LOC=LOCALE();
-  el.innerHTML=b.days.map(day=>`<div style="margin-bottom:10px">
-    <div style="font-weight:800;font-size:.85rem;text-transform:capitalize;border-bottom:1px solid var(--border);padding-bottom:2px">${esc(fqParse(day.k).toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long'}))}</div>
-    ${day.items.map(it=>`<div style="font-size:.84rem;padding:3px 0"><b>${esc(it.slot)}</b> · ${esc(it.type)} · ${it.names.length} pers.${withNames?`<div style="font-size:.74rem;color:var(--text3)">${esc(it.names.join(', '))}</div>`:''}</div>`).join('')}
-  </div>`).join('');
-}
-async function suiviBookingCopy(){
-  const t=suiviBookingText(!!document.getElementById('suiviBkNames')?.checked);
-  try{ await navigator.clipboard.writeText(t); toast('📋 Synthèse copiée — colle-la dans un mail ou WhatsApp','success'); }
-  catch(e){ const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); toast('📋 Synthèse copiée','success');}catch(_){toast('Copie impossible','error');} ta.remove(); }
-}
-function suiviBookingPrint(){
-  const b=suiviBookingData(); if(!b||!b.days.length){ toast('Aucune séance à imprimer','error'); return; }
-  const withNames=!!document.getElementById('suiviBkNames')?.checked;
-  const LOC=LOCALE();
-  let h=`<div style="font-size:18pt !important;font-weight:900;border-bottom:3px solid #111;padding-bottom:6px;margin-bottom:12px">Réservation — ${esc(b.team.name)}${b.periodLabel?`<div style="font-size:11pt !important;font-weight:600">${esc(b.periodLabel)}</div>`:''}</div>`;
-  b.days.forEach(day=>{
-    h+=`<div style="page-break-inside:avoid;margin-bottom:12px"><div style="font-weight:800;text-transform:capitalize;border-bottom:1px solid #111;margin-bottom:3px">${esc(fqParse(day.k).toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}</div>`;
-    day.items.forEach(it=>{ h+=`<div style="padding:2px 0"><b>${esc(it.slot)}</b> — ${esc(it.type)} — ${it.names.length} pers.${withNames?` <span style="font-size:.85em">(${esc(it.names.join(', '))})</span>`:''}</div>`; });
-    h+='</div>';
-  });
-  document.getElementById('printArea').innerHTML=h;
-  window.print();
-}
 function renderSuiviRecap(){
-  try{ renderSuiviBooking(); }catch(e){ console.warn('renderSuiviBooking',e); }
   const el = document.getElementById('suiviRecap');
   if(!el) return;
   const { perPerson, grand, teamName, contact, periodLabel } = computeSuiviTotals();
@@ -5315,9 +5243,6 @@ function pgDayHeadExtra(d,k){
   }
   const reason = S.customClosed[k]===true ? closedReasonLabel(k) : '';
   if(reason) h += `<br><span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.92);color:#b91c1c;font-size:.6rem;font-weight:800">${esc(reason)}</span>`;
-  if(canPlanSettings() && _pgActivity==='kayak' && !isClosed(d)){
-    h += `<br><button type="button" title="Ajouter une séance ce jour" onclick="event.stopPropagation();pgAddSlotSheet('${k}','')" style="margin-top:3px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.18);color:inherit;border-radius:5px;font-size:.62rem;line-height:1;padding:2px 6px;cursor:pointer;font-weight:800">＋</button>`;
-  }
   if(S.isAdmin){
     const closed = isClosed(d);
     h += `<br><button type="button" style="margin-top:3px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.18);color:inherit;border-radius:5px;font-size:.6rem;line-height:1;padding:2px 6px;cursor:pointer"
@@ -6463,7 +6388,6 @@ function renderPlanningGrid(){
   html += `<div class="pg-print" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-sm" onclick="printPlanningGrid()">${L('🖨️ Imprimer la semaine (aperçu compact)','🖨️ Print week (compact preview)')}</button>
     <button class="btn btn-sm" style="background:#7c3aed;color:white" onclick="printWeekAttendance('${_pgActivity}')">🖨️ Feuilles d'émargement (semaine, lignes vides)</button>
-    ${(canPlanSettings()&&isKayak)?`<button class="btn btn-sm btn-primary" onclick="agOpen()">📅 Agenda (glisser-déposer)</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0f172a;color:white" onclick="histOpen()">📜 ${L('Historique','History')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#0369a1;color:white" onclick="diagOpen()">🔎 ${L('Diagnostic','Check')}</button>`:''}
     ${S.isAdmin?`<button class="btn btn-sm" style="background:#15803d;color:white" onclick="auditOpen()">🩺 ${L('Audit','Audit')}</button>`:''}
@@ -6528,10 +6452,7 @@ function renderPlanningGrid(){
       const slotExists = getSlots(k).includes(slot);
 
       if(closed||!slotExists){
-        const plus = (!closed && isKayak && canPlanSettings() && !outOfRange(d))
-          ? `<button type="button" title="Ajouter une séance ${esc(slot)}" onclick="event.stopPropagation();pgAddSlotSheet('${k}','${esc(slot)}')" style="border:1.5px dashed #9ca3af;background:transparent;color:#6b7280;border-radius:6px;width:100%;padding:4px 0;font-size:.95rem;font-weight:800;cursor:pointer;line-height:1">＋</button>`
-          : '<span class="pg-empty">—</span>';
-        html+=`<td class="pg-cell${closed?' pg-cell-closed':''}"><div class="pg-cell">${plus}</div></td>`;
+        html+=`<td class="pg-cell${closed?' pg-cell-closed':''}"><div class="pg-cell"><span class="pg-empty">—</span></div></td>`;
         return;
       }
 
@@ -6629,261 +6550,10 @@ function pgOpenSlot(dateK, slot, act){
   _pgSheet = { dateK, slot, act };
   pgRenderSheet();
 }
-// ── Construction du planning : horaires par pas de 30' (7h-12h / 13h-18h) ──
-function pgFmtMin(m){ const h=Math.floor(m/60), mm=m%60; return h+'h'+(mm?String(mm).padStart(2,'0'):''); }
-function pgFmtClock(m){ return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); }
-function pgParseSlot(sl){
-  const m=/^\s*(\d{1,2})\s*h\s*(\d{2})?\s*-\s*(\d{1,2})\s*h\s*(\d{2})?\s*$/i.exec(sl||'');
-  return m ? [(+m[1])*60+(+(m[2]||0)), (+m[3])*60+(+(m[4]||0))] : null;
-}
-function pgTimeError(label){
-  const p=pgParseSlot(label); if(!p) return "Format d'horaire invalide";
-  const [a,b]=p;
-  if(b<=a) return "L'heure de fin doit être après l'heure de début";
-  if(a<420 || b>1080) return 'Les séances sont entre 7h et 18h';
-  if(a<720 && b>720) return 'Une séance ne peut pas chevaucher la pause 12h-13h';
-  if(a>=720 && a<780) return 'Pas de séance entre 12h et 13h';
-  return '';
-}
-function pgTimeOpts(kind, sel){
-  const rng = kind==='s' ? [[420,690],[780,1050]] : [[450,720],[810,1080]];
-  const vals=[]; rng.forEach(([a,b])=>{ for(let m=a;m<=b;m+=30) vals.push(m); });
-  if(sel!=null && !vals.includes(sel)){ vals.push(sel); vals.sort((x,y)=>x-y); }
-  return vals.map(m=>`<option value="${m}"${m===sel?' selected':''}>${pgFmtClock(m)}</option>`).join('');
-}
-// Sélecteurs début/fin ; la valeur "9h-10h30" est gardée dans <input hidden id="pgTime">
-function pgTimeFields(slot, deflt){
-  const p = pgParseSlot(slot) || deflt || [540,600];
-  const st='style="flex:1;padding:6px 8px;font-size:.9rem"';
-  return `<input type="hidden" id="pgTime" value="${esc(slot||pgFmtMin(p[0])+'-'+pgFmtMin(p[1]))}">
-  <div style="display:flex;gap:8px;align-items:center">
-    <select class="field" id="pgT1" ${st} onchange="pgTimeSync(true)">${pgTimeOpts('s',p[0])}</select>
-    <span>→</span>
-    <select class="field" id="pgT2" ${st} onchange="pgTimeSync()">${pgTimeOpts('e',p[1])}</select>
-  </div>
-  <div id="pgTimeHint" style="font-size:.72rem;color:#b91c1c;margin-top:3px;min-height:1em"></div>`;
-}
-function pgTimeSync(fromStart){
-  const e1=document.getElementById('pgT1'), e2=document.getElementById('pgT2');
-  // à l'ajout d'une séance, la fin suit le début (durée 1 h)
-  if(fromStart && document.getElementById('pgAddSheet')){ const t=+e1.value+60; if([...e2.options].some(o=>+o.value===t)) e2.value=t; }
-  const a=+e1.value, b=+e2.value;
-  const lab=pgFmtMin(a)+'-'+pgFmtMin(b);
-  document.getElementById('pgTime').value=lab;
-  const h=document.getElementById('pgTimeHint'); if(h) h.textContent=pgTimeError(lab);
-}
-function pgAddSlotSheet(dateK, preset){
-  if(!canPlanSettings()) return;
-  document.getElementById('pgAddSheet')?.remove();
-  const d=parseDate(dateK);
-  const title=d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'});
-  const pre=pgParseSlot(preset);
-  const el=document.createElement('div');
-  el.id='pgAddSheet';
-  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:40px 10px;overflow:auto';
-  el.onclick=ev=>{ if(ev.target===el) el.remove(); };
-  el.innerHTML=`<div style="background:var(--white);color:var(--text);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.3);width:100%;max-width:380px;padding:18px">
-    <div style="font-size:.75rem;color:var(--text3)">🚣 Kayak — nouvelle séance</div>
-    <div style="font-size:1.05rem;font-weight:800;text-transform:capitalize;margin-bottom:10px">${esc(title)}</div>
-    <label style="font-size:.72rem;font-weight:700;color:var(--text3);display:block;margin:6px 0 3px">Horaire de la séance</label>
-    ${pgTimeFields('', pre||[540,600])}
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn" style="flex:1" onclick="document.getElementById('pgAddSheet').remove()">Annuler</button>
-      <button class="btn btn-primary" style="flex:2" onclick="pgAddSlotConfirm('${dateK}')">➕ Ajouter la séance</button>
-    </div></div>`;
-  document.body.appendChild(el);
-  pgTimeSync();
-}
-async function pgAddSlotConfirm(dateK){
-  if(!canPlanSettings()) return;
-  const v=(document.getElementById('pgTime').value||'').trim();
-  const err=pgTimeError(v); if(err){ toast('⚠️ '+err,'error'); return; }
-  if(allSlots(dateK).includes(v)){ toast('⚠️ Ce créneau existe déjà ce jour-là','error'); return; }
-  const cs=ensureKayakCustomSlots(dateK);
-  cs[pgParseSlot(v)[0]>=720?'afternoon':'morning'].push(v);
-  await saveConfig();
-  document.getElementById('pgAddSheet')?.remove();
-  renderPlanningGrid();
-  if(document.getElementById('agOverlay')) agRender();
-  toast(`✅ Séance ${v} ajoutée`,'success');
-}
-async function pgDeleteSlot(){
-  if(!canPlanSettings() || !_pgSheet || _pgSheet.act!=='kayak') return;
-  const { dateK, slot } = _pgSheet;
-  const store=getSlot(dateK,slot,'kayak');
-  const msg = store.length
-    ? `Supprimer la séance ${slot} ?\n${store.length} inscrit(s) seront retirés.`
-    : `Supprimer la séance ${slot} de ce jour ?`;
-  if(!confirm(msg)) return;
-  if(store.length){
-    if(!(await pgDeleteRows(store.map(a=>a._id)))) return;
-    store.length=0;
-  }
-  const cs=ensureKayakCustomSlots(dateK);
-  ['morning','afternoon'].forEach(per=>{ const i=cs[per].indexOf(slot); if(i>=0) cs[per].splice(i,1); });
-  [S.data,S.kayakSlotConfig,S.dateCapacity,S.kayakCross].forEach(o=>{ if(o && o[dateK]) delete o[dateK][slot]; });
-  await saveConfig();
-  toast('🗑 Séance supprimée','success');
-  pgCloseSheet();
-}
-// ══════════════════════════════════════════════════════════════
-//  AGENDA glisser-déposer (kayak, super-admin) : vue semaine type Google Agenda
-//  Une bulle = une séance (hauteur proportionnelle à sa durée). On la déplace
-//  vers un autre jour et/ou une autre heure (pas de 30'), ses inscrits suivent.
-// ══════════════════════════════════════════════════════════════
-var AG = { week:null };
-const AG_PH = 60, AG_T0 = 420, AG_T1 = 1080;   // 60 px par heure, 7h → 18h
-function agOpen(){
-  if(!canPlanSettings()) return;
-  if(!AG.week) AG.week = weekStart(todayClamped());
-  let el = document.getElementById('agOverlay');
-  if(!el){
-    el = document.createElement('div'); el.id='agOverlay';
-    el.style.cssText='position:fixed;inset:0;z-index:9000;background:var(--white);color:var(--text);display:flex;flex-direction:column';
-    document.body.appendChild(el);
-  }
-  agRender();
-}
-function agClose(){ document.getElementById('agOverlay')?.remove(); renderPlanningGrid(); }
-function agShift(n){ AG.week = new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+7*n); agRender(); }
-function agToday(){ AG.week = weekStart(todayClamped()); agRender(); }
-function agLayout(items){
-  items.sort((x,y)=>x.a-y.a||x.b-y.b);
-  let cluster=[], end=0;
-  const flush=()=>{ if(!cluster.length) return; const lanes=[];
-    cluster.forEach(it=>{ let l=lanes.findIndex(e=>e<=it.a); if(l<0){ l=lanes.length; lanes.push(0); } lanes[l]=it.b; it.lane=l; });
-    cluster.forEach(it=>it.lanes=lanes.length); cluster=[]; };
-  items.forEach(it=>{ if(cluster.length && it.a>=end){ flush(); end=0; } cluster.push(it); end=Math.max(end,it.b); });
-  flush(); return items;
-}
-function agRender(){
-  const el=document.getElementById('agOverlay'); if(!el) return;
-  const LOC=LOCALE();
-  const days=[]; for(let i=0;i<7;i++) days.push(new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+i));
-  const H=(AG_T1-AG_T0)/60*AG_PH;
-  const line='rgba(128,128,128,.28)', half='rgba(128,128,128,.12)';
-  let unparsed=[];
-  const head=days.map(d=>{ const off=isClosed(d)||outOfRange(d);
-    return `<div style="flex:1;text-align:center;padding:6px 2px;font-size:.78rem;font-weight:800;border-left:1px solid ${line};${off?'background:rgba(128,128,128,.12);color:#9ca3af':''}">${esc(d.toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'}))}${isClosed(d)?'<div style="font-size:.6rem">🚫 bloqué</div>':''}</div>`; }).join('');
-  const hours=[]; for(let h=7;h<18;h++) hours.push(`<div style="position:absolute;top:${(h-7)*AG_PH-7}px;right:4px;font-size:.68rem;color:var(--text3)">${h}:00</div>`);
-  let blocks='';
-  days.forEach((d,idx)=>{
-    const k=dk(d);
-    if(isClosed(d)||outOfRange(d)){ blocks+=`<div style="position:absolute;left:calc(${idx}*100%/7);width:calc(100%/7);top:0;height:${H}px;background:rgba(128,128,128,.12);pointer-events:none"></div>`; if(outOfRange(d)) return; }
-    const items=[];
-    allSlots(k).forEach(sl=>{ const p=pgParseSlot(sl); if(!p){ unparsed.push(k+' '+sl); return; }
-      items.push({slot:sl,a:p[0],b:p[1],n:getSlot(k,sl).length,c:cap(sl,k,'kayak'),blocked:!!getKayakSlotCfg(k,sl).blocked,kx:isKayakCross(k,sl),label:getKayakSlotCfg(k,sl).label||''}); });
-    agLayout(items).forEach(it=>{
-      const top=(it.a-AG_T0)/60*AG_PH, h=Math.max(20,(it.b-it.a)/60*AG_PH-2);
-      const bg = it.blocked ? '#9ca3af' : (it.kx ? '#ea580c' : '#2563eb');
-      blocks+=`<div class="ag-blk" data-k="${k}" data-s="${esc(it.slot)}" data-a="${it.a}" data-b="${it.b}" data-idx="${idx}"
-        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:7px;padding:3px 6px;font-size:.74rem;line-height:1.2;overflow:hidden;cursor:grab;touch-action:none;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.3);box-sizing:border-box">
-        <b>${esc(it.slot)}</b>${it.label?` <span style="opacity:.9">· ${esc(it.label)}</span>`:''}<br>${it.blocked?'🚫 bloqué':`${it.kx?'KX':'Slalom'} · ${it.n}/${it.c}`}</div>`;
-    });
-  });
-  el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid ${line}">
-      <b style="font-size:1rem">📅 Agenda kayak</b>
-      <button class="btn btn-sm" onclick="agShift(-1)">◀</button>
-      <button class="btn btn-sm" onclick="agToday()">Aujourd'hui</button>
-      <button class="btn btn-sm" onclick="agShift(1)">▶</button>
-      <span style="font-size:.78rem;color:var(--text3);flex:1;min-width:200px">Glisse une bulle pour la déplacer (30 min) · clique dessus pour la modifier · clique dans le vide pour ajouter une séance d'1 h</span>
-      <button class="btn btn-sm" onclick="agClose()">✕ Fermer</button>
-    </div>
-    <div style="flex:1;overflow:auto">
-      <div style="min-width:760px">
-        <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--white);border-bottom:1px solid ${line}"><div style="width:46px"></div>${head}</div>
-        <div style="display:flex">
-          <div style="width:46px;position:relative;height:${H}px;flex:none">${hours.join('')}</div>
-          <div id="agBody" onclick="agBodyClick(event)" onpointerdown="agDown(event)" style="flex:1;position:relative;height:${H}px;background-image:repeating-linear-gradient(to bottom,${line} 0 1px,transparent 1px ${AG_PH}px),repeating-linear-gradient(to bottom,transparent 0 ${AG_PH/2-1}px,${half} ${AG_PH/2-1}px ${AG_PH/2}px,transparent ${AG_PH/2}px ${AG_PH}px)">
-            <div style="position:absolute;left:0;right:0;top:${(720-AG_T0)/60*AG_PH}px;height:${AG_PH}px;background:rgba(128,128,128,.10);pointer-events:none"></div>
-            ${days.map((d,i)=>`<div style="position:absolute;top:0;bottom:0;left:calc(${i}*100%/7);border-left:1px solid ${line};pointer-events:none"></div>`).join('')}
-            ${blocks}
-          </div>
-        </div>
-        ${unparsed.length?`<p style="font-size:.72rem;color:var(--text3);padding:6px 12px">Séances sans horaire exploitable (non affichées) : ${esc(unparsed.slice(0,8).join(', '))}</p>`:''}
-      </div>
-    </div>`;
-}
-function agDown(e){
-  const blk=e.target.closest('.ag-blk'); if(!blk || e.button>0) return;
-  const body=document.getElementById('agBody');
-  const D={ blk, k:blk.dataset.k, s:blk.dataset.s, a:+blk.dataset.a, b:+blk.dataset.b, x0:e.clientX, y0:e.clientY, top0:parseFloat(blk.style.top), moved:false, tgt:null, ghost:null };
-  D.dur=D.b-D.a;
-  try{ blk.setPointerCapture(e.pointerId); }catch(_){}
-  const move=ev=>{
-    if(!D.moved && Math.hypot(ev.clientX-D.x0,ev.clientY-D.y0)<6) return;
-    if(!D.moved){ D.moved=true; blk.style.opacity='.4'; blk.style.cursor='grabbing';
-      D.ghost=document.createElement('div');
-      D.ghost.style.cssText='position:absolute;border:2px dashed #111;background:rgba(37,99,235,.18);border-radius:7px;pointer-events:none;z-index:6;box-sizing:border-box;font-size:.74rem;font-weight:800;padding:2px 5px';
-      body.appendChild(D.ghost); }
-    const r=body.getBoundingClientRect(), colW=r.width/7;
-    const idx=Math.max(0,Math.min(6,Math.floor((ev.clientX-r.left)/colW)));
-    let st=AG_T0+Math.round((D.top0+(ev.clientY-D.y0))/AG_PH*2)*30;
-    st=Math.max(AG_T0,Math.min(AG_T1-D.dur,st));
-    D.tgt={idx,st};
-    D.ghost.style.left=(idx*colW)+'px'; D.ghost.style.width=(colW-3)+'px';
-    D.ghost.style.top=((st-AG_T0)/60*AG_PH)+'px'; D.ghost.style.height=(D.dur/60*AG_PH-2)+'px';
-    D.ghost.textContent=pgFmtMin(st)+'-'+pgFmtMin(st+D.dur);
-  };
-  const up=ev=>{
-    blk.removeEventListener('pointermove',move); blk.removeEventListener('pointerup',up); blk.removeEventListener('pointercancel',up);
-    try{ blk.releasePointerCapture(ev.pointerId); }catch(_){}
-    if(D.ghost) D.ghost.remove();
-    blk.style.opacity=''; blk.style.cursor='grab';
-    if(!D.moved){ _pgSheet={ dateK:D.k, slot:D.s, act:'kayak' }; pgRenderSheet(); return; }
-    if(D.tgt && ev.type==='pointerup') agMove(D.k, D.s, D.tgt.idx, D.tgt.st, D.dur);
-  };
-  blk.addEventListener('pointermove',move); blk.addEventListener('pointerup',up); blk.addEventListener('pointercancel',up);
-}
-function agBodyClick(e){
-  if(e.target.closest('.ag-blk')) return;
-  const body=document.getElementById('agBody'), r=body.getBoundingClientRect();
-  const idx=Math.max(0,Math.min(6,Math.floor((e.clientX-r.left)/(r.width/7))));
-  let st=AG_T0+Math.floor((e.clientY-r.top)/AG_PH*2)*30;
-  st=Math.max(AG_T0,Math.min(AG_T1-60,st)); if(st>=690&&st<780) st=st<720?660:780;
-  const d=new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+idx);
-  if(isClosed(d)||outOfRange(d)){ toast('Journée bloquée ou hors saison','error'); return; }
-  pgAddSlotSheet(dk(d), pgFmtMin(st)+'-'+pgFmtMin(st+60));
-}
-async function agMove(fromK, slot, idx, st, dur){
-  const d=new Date(AG.week.getFullYear(),AG.week.getMonth(),AG.week.getDate()+idx), toK=dk(d);
-  const newS=pgFmtMin(st)+'-'+pgFmtMin(st+dur);
-  if(toK===fromK && newS===slot) return;
-  if(isClosed(d)||outOfRange(d)){ toast('⚠️ Journée bloquée ou hors saison','error'); return; }
-  const err=pgTimeError(newS); if(err){ toast('⚠️ '+err,'error'); return; }
-  const n=getSlot(fromK,slot).length;
-  if(toK!==fromK && n && !confirm(`Déplacer la séance ${slot} (${n} inscrit(s)) vers le ${d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'})} à ${newS} ?\nLes inscrits suivent la séance.`)) return;
-  try{
-    if(toK===fromK) await pgRenameKayakSlot(fromK, slot, newS);
-    else await pgMoveSlotToDay(fromK, slot, toK, newS);
-    await saveConfig();
-    toast(`✅ Séance déplacée : ${newS}`,'success');
-  }catch(e){ toast('⚠️ Déplacement impossible : '+(e.message||e),'error'); }
-  agRender(); renderPlanningGrid();
-}
-async function pgMoveSlotToDay(fromK, oldS, toK, newS){
-  if(allSlots(toK).includes(newS)) throw new Error('ce créneau existe déjà ce jour-là');
-  const base=(S.customSlots&&S.customSlots[fromK])||{morning:S.morningOrder,afternoon:S.afternoonOrder};
-  if(!base.morning.includes(oldS) && !base.afternoon.includes(oldS)) throw new Error('créneau introuvable dans les horaires du jour');
-  const n=(S.data[fromK]&&S.data[fromK][oldS]||[]).length;
-  if(n){
-    const { data, error } = await sb.from('inscriptions').update({ date:toK, creneau:newS })
-      .eq('date',fromK).eq('creneau',oldS).or('activity.eq.kayak,activity.is.null').select();
-    if(error) throw error;
-    if((data||[]).length < n) throw new Error('droits insuffisants sur la table inscriptions (policy UPDATE admin)');
-  }
-  const src=ensureKayakCustomSlots(fromK), dst=ensureKayakCustomSlots(toK);
-  ['morning','afternoon'].forEach(per=>{ const i=src[per].indexOf(oldS); if(i>=0) src[per].splice(i,1); });
-  dst[slotStartMinutes(newS)>=720?'afternoon':'morning'].push(newS);
-  [S.data,S.kayakSlotConfig,S.dateCapacity,S.kayakCross].forEach(o=>{
-    if(o && o[fromK] && o[fromK][oldS]!==undefined){ if(!o[toK]) o[toK]={}; o[toK][newS]=o[fromK][oldS]; delete o[fromK][oldS]; }
-  });
-}
 function pgCloseSheet(){
   _pgSheet = null;
   document.getElementById('pgSheet')?.remove();
   renderPlanningGrid();
-  if(document.getElementById('agOverlay')) agRender();
 }
 function pgRefresh(){ renderPlanningGrid(); pgRenderSheet(); }
 
@@ -6958,7 +6628,7 @@ function pgRenderSheet(){
     <label ${lbl}>Nombre max de pratiquants (ce jour) ${hasCustomCap?'':'<span style="font-weight:400">— défaut : '+c+'</span>'}</label>
     <input class="field" id="pgCap" type="number" min="0" placeholder="${c}" value="${hasCustomCap?c:''}" ${fld}>
     <label ${lbl}>Horaire de la séance (ce jour)</label>
-    ${canPlanSettings() ? pgTimeFields(slot) : `<input class="field" id="pgTime" value="${esc(slot)}" ${fld}>`}
+    <input class="field" id="pgTime" value="${esc(slot)}" placeholder="ex : 9h-10h30" ${fld}>
     ` : `
     <p style="font-size:.75rem;color:var(--text3);margin:10px 0 0">Capacité (${c}) et horaires du fitness : réglage global dans Admin › Salle de musculation.</p>
     `}
@@ -6978,8 +6648,7 @@ function pgRenderSheet(){
         </div>
         <p style="font-size:.7rem;color:var(--text3);margin:6px 0 0">Les changements ne concernent que ce jour. En tant qu'admin tu peux toujours inscrire, même sur un créneau verrouillé ou complet.</p>
       </div>`; })()}
-    <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>
-    ${(isKayak && canPlanSettings())?`<button class="btn btn-sm" style="margin-top:8px;width:100%;color:var(--red)" onclick="pgDeleteSlot()">🗑 Supprimer la séance</button>`:''}`}
+    <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pgSaveSlot()">💾 Enregistrer la séance</button>`}
 
     <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px">
       <div style="font-weight:800;font-size:.9rem;margin-bottom:4px">Inscrits (${store.length}/${c})</div>
@@ -7019,7 +6688,6 @@ async function pgSaveSlot(){
   if(isKayak){
     const newSlot = (document.getElementById('pgTime').value||'').trim();
     if(newSlot && newSlot!==slot){
-      const terr = pgTimeError(newSlot); if(terr){ toast('⚠️ '+terr,'error'); return; }
       try { await pgRenameKayakSlot(dateK, slot, newSlot); slot = newSlot; _pgSheet.slot = newSlot; }
       catch(e){ toast('⚠️ Horaire non modifié : '+(e.message||e),'error'); return; }
     }
@@ -7088,9 +6756,7 @@ async function pgRenameKayakSlot(dateK, oldS, newS){
   }
   // configuration locale
   const cs = ensureKayakCustomSlots(dateK);
-  const np = slotStartMinutes(newS)>=720 ? 'afternoon' : 'morning';
-  const i = cs[period].indexOf(oldS);
-  if(i>=0){ if(np===period) cs[period][i]=newS; else { cs[period].splice(i,1); cs[np].push(newS); } }
+  const i = cs[period].indexOf(oldS); if(i>=0) cs[period][i] = newS;
   const mv = (obj)=>{ if(obj && obj[dateK] && obj[dateK][oldS]!==undefined){ obj[dateK][newS]=obj[dateK][oldS]; delete obj[dateK][oldS]; } };
   mv(S.data); mv(S.kayakSlotConfig); mv(S.dateCapacity); mv(S.kayakCross);
 }
