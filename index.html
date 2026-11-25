@@ -6777,8 +6777,10 @@ function agRender(){
       const top=(it.a-AG_T0)/60*AG_PH, h=Math.max(20,(it.b-it.a)/60*AG_PH-2);
       const bg = it.blocked ? '#9ca3af' : (it.kx ? '#ea580c' : '#2563eb');
       blocks+=`<div class="ag-blk" data-k="${k}" data-s="${esc(it.slot)}" data-a="${it.a}" data-b="${it.b}" data-idx="${idx}"
-        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:7px;padding:3px 6px;font-size:.74rem;line-height:1.2;overflow:hidden;cursor:grab;touch-action:none;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.3);box-sizing:border-box">
-        <b>${esc(it.slot)}</b>${it.label?` <span style="opacity:.9">· ${esc(it.label)}</span>`:''}<br>${it.blocked?'🚫 bloqué':`${it.kx?'KX':'Slalom'} · ${it.n}/${it.c}`}</div>`;
+        style="position:absolute;left:calc(${idx}*100%/7 + ${it.lane}*100%/7/${it.lanes} + 1px);width:calc(100%/7/${it.lanes} - 3px);top:${top}px;height:${h}px;background:${bg};color:#fff;border-radius:8px;padding:3px 6px;overflow:hidden;cursor:grab;touch-action:none;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,.35);box-sizing:border-box;border-left:5px solid rgba(255,255,255,.55)">
+        <div style="font-size:.9rem;font-weight:800;line-height:1.15;white-space:nowrap">${pgFmtClock(it.a)} – ${pgFmtClock(it.b)}</div>
+        ${h>=34?`<div style="font-size:.72rem;line-height:1.2;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.blocked?'🚫 Bloqué':`${it.kx?'Kayak cross':'Slalom'} · <b>${it.n}/${it.c}</b>`}${it.label?` · ${esc(it.label)}`:''}</div>`:''}
+        <span style="position:absolute;right:4px;top:2px;font-size:.8rem;opacity:.7;pointer-events:none">⠿</span></div>`;
     });
   });
   el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid ${line}">
@@ -6786,7 +6788,7 @@ function agRender(){
       <button class="btn btn-sm" onclick="agShift(-1)">◀</button>
       <button class="btn btn-sm" onclick="agToday()">Aujourd'hui</button>
       <button class="btn btn-sm" onclick="agShift(1)">▶</button>
-      <span style="font-size:.78rem;color:var(--text3);flex:1;min-width:200px">Glisse une bulle pour la déplacer (30 min) · clique dessus pour la modifier · clique dans le vide pour ajouter une séance d'1 h</span>
+      <span style="font-size:.78rem;color:var(--text3);flex:1;min-width:200px">Glisse une bulle (⠿) pour la déplacer par pas de 30 min · clique dessus pour la modifier · clique dans le vide pour ajouter une séance d'1 h</span>
       <button class="btn btn-sm" onclick="agClose()">✕ Fermer</button>
     </div>
     <div style="flex:1;overflow:auto">
@@ -6814,7 +6816,7 @@ function agDown(e){
     if(!D.moved && Math.hypot(ev.clientX-D.x0,ev.clientY-D.y0)<6) return;
     if(!D.moved){ D.moved=true; blk.style.opacity='.4'; blk.style.cursor='grabbing';
       D.ghost=document.createElement('div');
-      D.ghost.style.cssText='position:absolute;border:2px dashed #111;background:rgba(37,99,235,.18);border-radius:7px;pointer-events:none;z-index:6;box-sizing:border-box;font-size:.74rem;font-weight:800;padding:2px 5px';
+      D.ghost.style.cssText='position:absolute;border:2px dashed #111;background:rgba(37,99,235,.18);border-radius:7px;pointer-events:none;z-index:6;box-sizing:border-box;font-size:.9rem;font-weight:800;padding:3px 7px;color:#111';
       body.appendChild(D.ghost); }
     const r=body.getBoundingClientRect(), colW=r.width/7;
     const idx=Math.max(0,Math.min(6,Math.floor((ev.clientX-r.left)/colW)));
@@ -6823,7 +6825,7 @@ function agDown(e){
     D.tgt={idx,st};
     D.ghost.style.left=(idx*colW)+'px'; D.ghost.style.width=(colW-3)+'px';
     D.ghost.style.top=((st-AG_T0)/60*AG_PH)+'px'; D.ghost.style.height=(D.dur/60*AG_PH-2)+'px';
-    D.ghost.textContent=pgFmtMin(st)+'-'+pgFmtMin(st+D.dur);
+    D.ghost.textContent=pgFmtClock(st)+' – '+pgFmtClock(st+D.dur);
   };
   const up=ev=>{
     blk.removeEventListener('pointermove',move); blk.removeEventListener('pointerup',up); blk.removeEventListener('pointercancel',up);
