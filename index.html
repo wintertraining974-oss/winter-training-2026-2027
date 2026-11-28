@@ -225,24 +225,26 @@ select.field { min-width: 110px; cursor: pointer; }
 .print-sheet, .print-blocked-note { page-break-inside: avoid; break-inside: avoid; }
 
 /* ── Feuille d'émargement portrait : 1 page par créneau, écriture grande ── */
-.att-page { page-break-after: always; break-after: page; }
+.att-page { page-break-after: always; break-after: page; page-break-inside: avoid; break-inside: avoid; }
+.att-table tr { page-break-inside: avoid; break-inside: avoid; }
+.att-table td.att-name { white-space: nowrap; }
 .att-page:last-child { page-break-after: auto; break-after: auto; }
 .att-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .att-table th, .att-table td { border: 1px solid #222; padding: 0 6px; text-align: left; vertical-align: middle; overflow: hidden; }
 .att-table thead th { background: #eee; text-align: center; height: 9mm; }
-.att-num { width: 13mm; text-align: center !important; font-weight: 700; background: #f5f5f5; }
-.att-extra { width: 30mm; }
-.att-grp { width: 38mm; }
-.att-rent { width: 72mm; white-space: nowrap; padding: 0 3px !important; }
+.att-num { width: 11mm; text-align: center !important; font-weight: 700; background: #f5f5f5; }
+.att-extra { width: 26mm; }
+.att-grp { width: 32mm; }
+.att-rent { width: 62mm; white-space: nowrap; padding: 0 3px !important; }
 .att-count { float: right; }
 @media print {
   #printArea .att-page, #printArea .att-page * { font-family: Arial, Helvetica, sans-serif !important; font-size: 17pt !important; font-weight: 700 !important; line-height: 1.2 !important; }
   #printArea .att-page .att-name { font-size: 18pt !important; font-weight: 800 !important; }
-  #printArea .att-page .att-grp { font-size: 12pt !important; font-weight: 700 !important; }
+  #printArea .att-page .att-grp { font-size: 10pt !important; font-weight: 700 !important; line-height: 1.1 !important; }
   #printArea .att-page .att-h1 { font-size: 18pt !important; font-weight: 800; margin-bottom: 2mm; }
   #printArea .att-page .att-h2 { font-size: 22pt !important; font-weight: 800; margin-bottom: 4mm; padding-bottom: 2mm; border-bottom: 3px solid #111; }
   #printArea .att-page .att-h2 * { font-size: 16pt !important; }
-  #printArea .att-page .att-rent, #printArea .att-page .att-rent * { font-size: 10pt !important; font-weight: 700 !important; }
+  #printArea .att-page .att-rent, #printArea .att-page .att-rent * { font-size: 9pt !important; font-weight: 700 !important; }
   #printArea .att-page th { font-size: 14pt !important; }
 }
 /* ── Aperçu de la semaine (accueil) ── */
@@ -9020,13 +9022,17 @@ function buildAttendancePages(dateK, act, slots, extraLabel, extraKey, ctx){
     const mixed = act==='kayak' && isMixedSlot(dateK,s);
     const store = getSlot(dateK, s, act);
     const nRows = Math.max(1, cap(s,dateK,act), store.length);
-    const rowH = Math.min(12, 225/nRows).toFixed(2);
+    // Budget de hauteur : ~215 mm pour les lignes (A4 portrait, marges 10 mm, en-têtes déduits) → 20 lignes = 10,7 mm ;
+    // au-delà de 20, les lignes se resserrent pour que TOUT reste sur une seule page.
+    const rowH = Math.min(12, 215/nRows).toFixed(2);
+    const baseNamePt = nRows<=20 ? 18 : Math.max(10, 18 - (nRows-20)*0.7);
+    const nameMm = kx ? 56 : 112; // largeur utile de la colonne Nom (mm)
     const lbl = getCfg(s).label;
     let rows = '';
     for(let i=0;i<nRows;i++){
       const a = store[i];
       const extraVal = a ? (extraKey==='dossard' ? a.dossard : a.nationality) : '';
-      rows += `<tr style="height:${rowH}mm"><td class="att-num">${i+1}</td><td class="att-name">${a?esc(a.name):''}${(a&&mixed)?` <span style="font-size:.6em;font-weight:700">[${a.discipline==='kx'?'KX':'SL'}]</span>`:''}</td><td class="att-grp">${a?esc(teamNameOf(a.name)):''}</td><td class="att-extra">${esc(extraVal||'')}</td>${kx?`<td class="att-rent">${models.map(m=>`${a&&a.kayakModel===m?'☑':'☐'} ${m}`).join(' &nbsp;')}</td>`:''}</tr>`;
+      rows += `<tr style="height:${rowH}mm"><td class="att-num">${i+1}</td><td class="att-name"${a?` style="font-size:${Math.max(8,Math.min(baseNamePt, nameMm*2.835/(((a.name||'').length+(mixed?5:0))*0.6))).toFixed(1)}pt !important"`:''}>${a?esc(a.name):''}${(a&&mixed)?` <span style="font-size:.6em;font-weight:700">[${a.discipline==='kx'?'KX':'SL'}]</span>`:''}</td><td class="att-grp">${a?esc(teamNameOf(a.name)):''}</td><td class="att-extra">${esc(extraVal||'')}</td>${kx?`<td class="att-rent">${models.map(m=>`${a&&a.kayakModel===m?'☑':'☐'} ${m}`).join(' &nbsp;')}</td>`:''}</tr>`;
     }
     return `<div class="att-page">
       <div class="att-h1">${ctx.icon} ${esc(ctx.sectionLabel)} — ${esc(ctx.dateStr)}</div>
