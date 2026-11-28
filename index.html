@@ -3242,7 +3242,7 @@ async function adminClearMyInscriptionsHistory(){
 //     team_id uuid references teams(id) on delete cascade,
 //     athlete_name text not null,
 //     date date not null,
-//     type text not null check (type in ('kayak','kayak_pm','kayak_cross','kayak_cross_pm','kayak_cross_rental','muscu')),
+//     type text not null check (type in ('kayak','kayak_pm','kayak_cross','kayak_cross_pm','kayak_cross_rental','kayak_cross_rental_pm','muscu')),
 //     created_by uuid,
 //     created_at timestamptz default now(),
 //     unique (team_id, athlete_name, date, type)
@@ -3250,13 +3250,14 @@ async function adminClearMyInscriptionsHistory(){
 // Cette table est indépendante des inscriptions en ligne : elle sert à cocher la
 // présence RÉELLE (qui est venu), pour la facturation, séance par séance.
 
-const SUIVI_PRICES = { kayak: 12, kayak_pm: 12, kayak_cross: 12, kayak_cross_pm: 12, kayak_cross_rental: 10, muscu: 7 };
+const SUIVI_PRICES = { kayak: 12, kayak_pm: 12, kayak_cross: 12, kayak_cross_pm: 12, kayak_cross_rental: 10, kayak_cross_rental_pm: 10, muscu: 7 };
 const SUIVI_TYPES = [
   { key:'kayak', label:'Kayak matin' },
   { key:'kayak_pm', label:'Kayak après-midi' },
   { key:'kayak_cross', label:'Kayak Cross matin' },
   { key:'kayak_cross_pm', label:'Kayak Cross après-midi' },
-  { key:'kayak_cross_rental', label:'Location kayak Cross' },
+  { key:'kayak_cross_rental', label:'Location kayak Cross matin' },
+  { key:'kayak_cross_rental_pm', label:'Location kayak Cross après-midi' },
   { key:'muscu', label:'Musculation' },
 ];
 const SUIVI = { teamId:null, date:null, rows:[], period:'' }; // rows = toutes les lignes "attendance" chargées pour la team
@@ -3439,15 +3440,16 @@ function computeSuiviTotals(){
   const members = team ? suiviScopedMembers(team) : [];
   const names = members.map(m=>m.athlete.full_name);
   const perPerson = names.map(name=>{
-    const counts = { kayak:0, kayak_pm:0, kayak_cross:0, kayak_cross_pm:0, kayak_cross_rental:0, muscu:0 };
+    const counts = { kayak:0, kayak_pm:0, kayak_cross:0, kayak_cross_pm:0, kayak_cross_rental:0, kayak_cross_rental_pm:0, muscu:0 };
     suiviScopedRows().forEach(r=>{ if(r.athlete_name===name && counts[r.type]!==undefined) counts[r.type]++; });
     const kayakSessions = counts.kayak + counts.kayak_pm + counts.kayak_cross + counts.kayak_cross_pm; // même tarif, comptés ensemble
-    const amount = kayakSessions*SUIVI_PRICES.kayak + counts.kayak_cross_rental*SUIVI_PRICES.kayak_cross_rental + counts.muscu*SUIVI_PRICES.muscu;
-    return { name, counts, kayakSessions, amount };
+    const rentals = counts.kayak_cross_rental + counts.kayak_cross_rental_pm; // matin + après-midi, même tarif
+    const amount = kayakSessions*SUIVI_PRICES.kayak + rentals*SUIVI_PRICES.kayak_cross_rental + counts.muscu*SUIVI_PRICES.muscu;
+    return { name, counts, kayakSessions, rentals, amount };
   });
   const grand = perPerson.reduce((acc,p)=>{
     acc.kayakSessions += p.kayakSessions;
-    acc.rental += p.counts.kayak_cross_rental;
+    acc.rental += p.rentals;
     acc.muscu += p.counts.muscu;
     acc.amount += p.amount;
     return acc;
@@ -3550,7 +3552,7 @@ function renderSuiviRecap(){
     h += `<tr>
       <td style="text-align:left;font-weight:600">${esc(p.name)}</td>
       <td style="text-align:center">${p.kayakSessions}</td>
-      <td style="text-align:center">${p.counts.kayak_cross_rental}</td>
+      <td style="text-align:center">${p.rentals}</td>
       <td style="text-align:center">${p.counts.muscu}</td>
       <td style="text-align:right;font-weight:700">${p.amount}€</td>
     </tr>`;
@@ -3637,7 +3639,7 @@ function printSuiviInvoice(){
     <th style="${th}">Total</th></tr></thead><tbody>`;
   rows.forEach(r=>{
     h += `<tr><td style="${td};font-weight:700">${esc(r.last)}</td><td style="${td}">${esc(r.first)}</td>
-      <td style="${td};text-align:center">${r.kayakSessions}</td><td style="${td};text-align:center">${r.counts.kayak_cross_rental}</td>
+      <td style="${td};text-align:center">${r.kayakSessions}</td><td style="${td};text-align:center">${r.counts.kayak_cross_rental+r.counts.kayak_cross_rental_pm}</td>
       <td style="${td};text-align:center">${r.counts.muscu}</td><td style="${td};text-align:right;font-weight:700">${eur(r.amount)}</td></tr>`;
   });
   h += `<tr style="font-weight:800"><td style="${td};border-top:2px solid #111" colspan="2">TOTAL${teamName?' — '+esc(teamName):''}</td>
@@ -3654,7 +3656,7 @@ function printSuiviInvoice(){
     const byDate = {};
     mine.forEach(x=>{ (byDate[x.date] ||= {})[x.type]=true; });
     const dates = Object.keys(byDate).sort();
-    const price = t=>t==='kayak_cross_rental'?SUIVI_PRICES.kayak_cross_rental:(t==='muscu'?SUIVI_PRICES.muscu:SUIVI_PRICES.kayak);
+    const price = t=>(t==='kayak_cross_rental'||t==='kayak_cross_rental_pm')?SUIVI_PRICES.kayak_cross_rental:(t==='muscu'?SUIVI_PRICES.muscu:SUIVI_PRICES.kayak);
     detail += `<div style="page-break-inside:avoid;break-inside:avoid;margin-top:14px">
       <div style="font-weight:800;border-bottom:1px solid #111;margin-bottom:4px">${esc(r.last)} ${esc(r.first)} — ${eur(r.amount)}</div>
       <table class="print-sheet" style="font-size:inherit"><thead><tr>
@@ -6994,7 +6996,8 @@ function pgRenderSheet(){
   const hasCustomCap = isKayak && S.dateCapacity && S.dateCapacity[dateK] && S.dateCapacity[dateK][slot]!=null;
   const d = parseDate(dateK);
   const title = d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'});
-  const teams = (S.teams||[]).map(tm=>({...tm, members:(tm.members||[]).filter(m=>m.athlete && friseHere(m.athlete.full_name||'',dateK))})).filter(tm=>tm.members.length);
+  const teams = (S.teams||[]).map(tm=>({...tm, members:(tm.members||[]).filter(m=>m.athlete)})).filter(tm=>tm.members.length);
+  const nHere = tm => tm.members.filter(m=>friseHere(m.athlete.full_name||'',dateK)).length;
   const fld = 'style="width:100%;padding:6px 8px;font-size:.85rem"';
   const lbl = 'style="font-size:.72rem;font-weight:700;color:var(--text3);display:block;margin:10px 0 3px"';
 
@@ -7068,11 +7071,12 @@ function pgRenderSheet(){
 
       <label ${lbl}>➕ Ajouter une team entière</label>
       <div style="display:flex;gap:6px">
-        <select class="field" id="pgTeamSel" style="flex:1;padding:6px 8px;font-size:.85rem">
-          ${teams.length ? teams.map(tm=>`<option value="${tm.id}">${esc(tm.name)} (${tm.members.length})</option>`).join('') : '<option value="">Aucune team avec athlètes</option>'}
+        <select class="field" id="pgTeamSel" onchange="pgTeamPreview()" style="flex:1;padding:6px 8px;font-size:.85rem">
+          ${teams.length ? teams.map(tm=>`<option value="${tm.id}">${esc(tm.name)} (${nHere(tm)}/${tm.members.length})</option>`).join('') : '<option value="">Aucune team avec athlètes</option>'}
         </select>
         <button class="btn btn-sm btn-primary" onclick="pgAddTeam()" ${teams.length?'':'disabled'}>Ajouter</button>
       </div>
+      <div id="pgTeamPreview" style="margin-top:6px;font-size:.8rem">${teams.length?pgTeamPreviewHtml(teams[0],dateK):''}</div>
 
       <label ${lbl}>➕ Ajouter un athlète de la base</label>
       <div style="display:flex;gap:6px">
@@ -7782,14 +7786,27 @@ async function pgInsertEntries(entries, ownerId, referent){
   } catch(e){ toast("Erreur : "+(e.message||e),'error'); }
   pgRefresh();
 }
+function pgTeamPreviewHtml(tm,dateK){
+  if(!tm) return '';
+  const ms=(tm.members||[]).filter(m=>m.athlete).map(m=>m.athlete.full_name||'').sort((a,b)=>a.localeCompare(b));
+  const here=n=>friseHere(n,dateK);
+  const li=ms.map(n=>here(n)?`<span style="display:inline-block;margin:2px 6px 2px 0">✅ ${esc(n)}</span>`:`<span style="display:inline-block;margin:2px 6px 2px 0;color:#b91c1c" title="${esc(friseInfoAdmin(n))}">⚠️ ${esc(n)}</span>`).join('');
+  const out=ms.filter(n=>!here(n)).length;
+  return li+(out?`<div style="color:#b91c1c;font-size:.74rem;margin-top:2px">⚠️ ${out} hors période de la frise à cette date : une confirmation sera demandée.</div>`:'');
+}
+function pgTeamPreview(){
+  const el=document.getElementById('pgTeamPreview'), sel=document.getElementById('pgTeamSel');
+  if(!el||!sel||!_pgSheet) return;
+  el.innerHTML=pgTeamPreviewHtml((S.teams||[]).find(x=>x.id===sel.value),_pgSheet.dateK);
+}
 async function pgAddTeam(){
   if(!S.isAdmin || !_pgSheet) return;
   const id = document.getElementById('pgTeamSel').value;
   const tm = (S.teams||[]).find(x=>x.id===id);
   if(!tm) return;
   const dKey = _pgSheet.dateK;
-  const entries = tm.members.filter(m=>m.athlete && friseHere(m.athlete.full_name||'',dKey)).map(m=>({ name:m.athlete.full_name, role:m.athlete.role||'Athlète' }));
-  if(!entries.length){ toast('Aucun athlète de cette team n\'est présent à cette date.','error'); return; }
+  const entries = tm.members.filter(m=>m.athlete).map(m=>({ name:m.athlete.full_name, role:m.athlete.role||'Athlète' }));
+  if(!entries.length){ toast('Cette team n\'a aucun athlète.','error'); return; }
   await pgInsertEntries(entries, tm.owner_user_id || S.session.user.id, tm.name);
 }
 async function pgAddManual(){
